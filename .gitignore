@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Production build output (built on CI by GitHub Actions)
+dist/
+dist-ssr/
+
+# Logs & temporary files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS metadata
+.DS_Store
+Thumbs.db

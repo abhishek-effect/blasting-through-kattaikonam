@@ -8,32 +8,35 @@
 import * as THREE from 'three';
 import { discoveredEnemyFiles } from 'virtual:enemy-list';
 
+const BASE = import.meta.env.BASE_URL || '/';
+export const assetUrl = (path) => `${BASE}${path.replace(/^\//, '')}`;
+
 export const ASSET_PATHS = {
   textures: {
-    floor: '/images/textures/schlfloor.jpg',
-    wall: '/images/textures/schlwalls.jpg',
-    ceiling: '/images/textures/schl-ceiling.webp',
-    door: '/images/textures/door-texture.jpg',
-    chairs: '/images/textures/cartoon-chairs.webp',
-    elevator: '/images/textures/elevator.jpg',
+    floor: assetUrl('/images/textures/schlfloor.jpg'),
+    wall: assetUrl('/images/textures/schlwalls.jpg'),
+    ceiling: assetUrl('/images/textures/schl-ceiling.webp'),
+    door: assetUrl('/images/textures/door-texture.jpg'),
+    chairs: assetUrl('/images/textures/cartoon-chairs.webp'),
+    elevator: assetUrl('/images/textures/elevator.jpg'),
   },
   weapons: {
     // Transparent PNGs for viewmodels and HUD
-    ak47: '/images/weapons/ak47.png',
-    pistol: '/images/weapons/pistol.png',
-    medkit: '/images/weapons/medkit.png',
+    ak47: assetUrl('/images/weapons/ak47.png'),
+    pistol: assetUrl('/images/weapons/pistol.png'),
+    medkit: assetUrl('/images/weapons/medkit.png'),
   },
   items: {
-    grenade: '/images/grenade.avif',
+    grenade: assetUrl('/images/grenade.avif'),
   },
   enemies: {
     // Fully dynamic: filled by auto-discovery and user photo uploads
     types: {}
   },
   audio: {
-    metalBgm: '/audio/metal-bgm.mp3',
-    grenade: '/audio/grenade.mp3',
-    shoot: '/audio/shoot.mp3',
+    metalBgm: assetUrl('/audio/metal-bgm.mp3'),
+    grenade: assetUrl('/audio/grenade.mp3'),
+    shoot: assetUrl('/audio/shoot.mp3'),
   }
 };
 
@@ -119,7 +122,7 @@ if (Array.isArray(discoveredEnemyFiles)) {
       .replace(/[_-]/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    registerEnemyType(id, prettyName, `/images/enemies/${fileName}`);
+    registerEnemyType(id, prettyName, assetUrl(`/images/enemies/${fileName}`));
   });
 }
 

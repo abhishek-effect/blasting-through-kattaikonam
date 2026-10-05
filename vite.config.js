@@ -40,6 +40,7 @@ function enemyDiscoveryPlugin() {
 }
 
 export default defineConfig({
+  base: '/blasting-through-kattaikonam/',
   server: {
     port: 5173,
     host: true, // Allow local network access for mobile testing
