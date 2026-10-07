@@ -19,6 +19,8 @@ export const ASSET_PATHS = {
     door: assetUrl('/images/textures/door-texture.jpg'),
     chairs: assetUrl('/images/textures/cartoon-chairs.webp'),
     elevator: assetUrl('/images/textures/elevator.jpg'),
+    laserLauncher: assetUrl('/images/textures/laser-launcher.png'),
+    laserBeam: assetUrl('/images/textures/laser-texture.png'),
   },
   weapons: {
     // Transparent PNGs for viewmodels and HUD

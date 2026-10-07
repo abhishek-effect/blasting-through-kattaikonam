@@ -21,6 +21,7 @@ import { Pistol } from '../weapon/Pistol.js';
 import { Medkit } from '../weapon/Medkit.js';
 import { GrenadeManager } from '../weapon/GrenadeManager.js';
 import { EnemySpawner } from '../enemy/EnemySpawner.js';
+import { LaserManager } from '../interactive/LaserObstacle.js';
 import { HUD } from '../ui/HUD.js';
 import { ASSET_PATHS } from '../config/assets.js';
 
@@ -83,6 +84,9 @@ export class Game {
     // HUD & Interaction System
     this.hud = new HUD(this.gameState, this.input);
     this.interactionSystem = new InteractionSystem(this.level.elevator, this.hud);
+
+    // Laser Obstacle Trap System
+    this.laserManager = new LaserManager(this.scene, this.audio, level1Data.lasers || []);
 
     // Player Notification Callback
     this.player.onPickupNotification = (msg) => {
@@ -169,6 +173,9 @@ export class Game {
 
     this.grenadeManager.reset();
     this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones);
+    if (this.laserManager) {
+      this.laserManager.initLasers(level1Data.lasers || []);
+    }
 
     this.gameState.reset(this.enemySpawner.getEnemies().length);
     this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
@@ -247,6 +254,11 @@ export class Game {
 
       // 7. Update Level Enemies
       this.enemySpawner.update(deltaTime, this.player);
+
+      // 7b. Update Laser Obstacle Traps
+      if (this.laserManager) {
+        this.laserManager.update(deltaTime, this.player, this.hud);
+      }
 
       // 8. Update Proximity Interactions (Elevator Photocopy prompt)
       this.interactionSystem.update(this.player, this.input);

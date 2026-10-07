@@ -20,6 +20,7 @@ export class Player {
     this.position = new THREE.Vector3(0, this.height, 18);
     this.velocity = new THREE.Vector3();
     this.gravity = 18.0;
+    this.jumpForce = 7.8;
     this.isGrounded = true;
 
     // Movement attributes
@@ -143,7 +144,15 @@ export class Player {
       this.velocity.z = 0;
     }
 
-    // 3. Gravity
+    // 3. Jump & Gravity
+    if (this.input.checkAndConsumeJump && this.input.checkAndConsumeJump() && this.isGrounded) {
+      this.velocity.y = this.jumpForce;
+      this.isGrounded = false;
+      if (this.audio && this.audio.playJump) {
+        this.audio.playJump();
+      }
+    }
+
     if (!this.isGrounded) {
       this.velocity.y -= this.gravity * deltaTime;
     }
@@ -167,6 +176,8 @@ export class Player {
       this.position.y = this.height;
       this.velocity.y = 0;
       this.isGrounded = true;
+    } else {
+      this.isGrounded = false;
     }
 
     // 5. Head Bobbing

@@ -481,15 +481,15 @@ html, body {
 }
 
 .mobile-btn {
-  width: 54px;
-  height: 54px;
+  width: clamp(48px, 12vw, 54px);
+  height: clamp(48px, 12vw, 54px);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.4);
   background: rgba(25, 25, 35, 0.75);
   color: #fff;
   font-family: inherit;
   font-weight: bold;
-  font-size: 11px;
+  font-size: clamp(10px, 2.5vw, 11px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -502,17 +502,27 @@ html, body {
 }
 
 #btn-mobile-fire {
-  width: 68px;
-  height: 68px;
+  width: clamp(60px, 15vw, 68px);
+  height: clamp(60px, 15vw, 68px);
   background: rgba(220, 40, 40, 0.85);
   border-color: #ff9999;
-  font-size: 15px;
+  font-size: clamp(13px, 3.5vw, 15px);
   box-shadow: 0 0 12px rgba(220, 40, 40, 0.6);
 }
 
 #btn-mobile-sprint.active {
   background: rgba(46, 204, 113, 0.85);
   border-color: #a3f7bf;
+}
+
+#btn-mobile-jump {
+  background: rgba(39, 174, 96, 0.85);
+  border-color: #2ecc71;
+}
+
+#btn-mobile-jump:active {
+  background: rgba(46, 204, 113, 1);
+  box-shadow: 0 0 14px rgba(46, 204, 113, 0.8);
 }
 
 /* --- Overlays (Title, Game Over, Victory) --- */

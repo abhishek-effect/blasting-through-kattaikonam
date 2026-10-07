@@ -169,5 +169,20 @@ export const level1Data = {
       isActive: false,
       difficulty: 5
     }
+  ],
+
+  // Laser obstacle traps spanning corridors (shin height, requires jump to cross)
+  lasers: [
+    // 1. Central Corridor Entrance (early challenge right after leaving Lobby)
+    { id: 'laser_central_entry', x1: -2.8, z1: 3.5, x2: 2.8, z2: 3.5, y: 0.40, damage: 15 },
+
+    // 2. West Wing Corridor (between classrooms)
+    { id: 'laser_west_wing', x1: -13.0, z1: -2.8, x2: -13.0, z2: 2.8, y: 0.40, damage: 15 },
+
+    // 3. Central Corridor Deep (between East Wing junction and Assembly Hall)
+    { id: 'laser_central_deep', x1: -2.8, z1: -13.0, x2: 2.8, z2: -13.0, y: 0.40, damage: 15 },
+
+    // 4. East Wing Approach towards Elevator
+    { id: 'laser_east_elevator', x1: 9.5, z1: -10.8, x2: 9.5, z2: -5.2, y: 0.40, damage: 15 },
   ]
 };

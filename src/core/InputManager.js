@@ -67,6 +67,7 @@ export class InputManager {
     this.reloadRequested = false;
     this.grenadeRequested = false;
     this.interactRequested = false;
+    this.jumpRequested = false;
     this.requestedSlot = null; // 0, 1, or 2
 
     // Sensitivity
@@ -87,7 +88,9 @@ export class InputManager {
         this.keys[e.code] = true;
       }
 
-      if (e.code === 'KeyR') {
+      if (e.code === 'Space') {
+        this.jumpRequested = true;
+      } else if (e.code === 'KeyR') {
         this.reloadRequested = true;
       } else if (e.code === 'KeyG') {
         this.grenadeRequested = true;
@@ -160,6 +163,7 @@ export class InputManager {
     const btnFire = document.getElementById('btn-mobile-fire');
     const btnReload = document.getElementById('btn-mobile-reload');
     const btnSprint = document.getElementById('btn-mobile-sprint');
+    const btnJump = document.getElementById('btn-mobile-jump');
     const btnGrenade = document.getElementById('btn-mobile-grenade');
     const btnInteract = document.getElementById('btn-mobile-interact');
 
@@ -280,6 +284,14 @@ export class InputManager {
         e.preventDefault();
         this.isSprintToggledMobile = !this.isSprintToggledMobile;
         btnSprint.classList.toggle('active', this.isSprintToggledMobile);
+      }, { passive: false });
+    }
+
+    // 5b. Jump button
+    if (btnJump) {
+      btnJump.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.jumpRequested = true;
       }, { passive: false });
     }
 
@@ -413,6 +425,14 @@ export class InputManager {
   checkAndConsumeInteract() {
     if (this.interactRequested) {
       this.interactRequested = false;
+      return true;
+    }
+    return false;
+  }
+
+  checkAndConsumeJump() {
+    if (this.jumpRequested) {
+      this.jumpRequested = false;
       return true;
     }
     return false;
