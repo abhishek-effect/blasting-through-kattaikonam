@@ -92,7 +92,7 @@ function deriveStats(name) {
   return {
     hp: 85 + (posHash % 40), // 85 - 125 HP
     speed: 2.6 + ((posHash >> 2) % 8) * 0.1, // 2.6 - 3.3 speed
-    scale: 2.1 + ((posHash >> 4) % 4) * 0.1, // 2.1 - 2.4 scale
+    scale: 1.68, // Uniform human proportion matching player eye height (1.65m)
     damage: 12 + ((posHash >> 6) % 7) * 1.5, // 12 - 21 damage
   };
 }
@@ -255,10 +255,78 @@ export function createFallbackTexture(color1 = '#777777', color2 = '#444444', si
   return texture;
 }
 
+const metricsCache = new Map();
+
+/**
+ * Analyzes alpha channel bounding box and aspect ratio of a sprite image
+ * Ensures characters match human proportions and removes arbitrary head-space offset
+ */
+export function analyzeImageMetrics(img) {
+  if (!img || !img.width || !img.height) {
+    return { aspect: 0.75, topRatio: 0.20, bottomRatio: 1.0, contentRatio: 0.80 };
+  }
+
+  const scanH = Math.min(128, img.height);
+  const scanW = Math.max(1, Math.round((img.width / img.height) * scanH));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = scanW;
+  canvas.height = scanH;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, scanW, scanH);
+
+  let data;
+  try {
+    data = ctx.getImageData(0, 0, scanW, scanH).data;
+  } catch (e) {
+    return {
+      aspect: img.width / img.height,
+      topRatio: 0.20,
+      bottomRatio: 1.0,
+      contentRatio: 0.80,
+    };
+  }
+
+  let minY = scanH;
+  let maxY = 0;
+
+  for (let y = 0; y < scanH; y++) {
+    for (let x = 0; x < scanW; x++) {
+      const alpha = data[(y * scanW + x) * 4 + 3];
+      if (alpha > 20) {
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        break;
+      }
+    }
+  }
+
+  if (minY >= maxY) {
+    minY = 0;
+    maxY = scanH;
+  }
+
+  const topRatio = minY / scanH;
+  const bottomRatio = maxY / scanH;
+  const contentRatio = Math.max(0.35, bottomRatio - topRatio);
+  const aspect = img.width / img.height;
+
+  return {
+    aspect,
+    topRatio,
+    bottomRatio,
+    contentRatio,
+  };
+}
+
+export function getImageMetrics(url) {
+  return metricsCache.get(url) || null;
+}
+
 /**
  * Safe texture loader with automatic fallback and texture wrapping
  */
-export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#555555', fallbackColor2 = '#333333') {
+export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#555555', fallbackColor2 = '#333333', onMetricsReady = null) {
   const fallback = createFallbackTexture(fallbackColor1, fallbackColor2);
   fallback.repeat.set(repeatX, repeatY);
 
@@ -274,12 +342,24 @@ export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#55
       loadedTex.repeat.set(repeatX, repeatY);
       loadedTex.colorSpace = THREE.SRGBColorSpace;
       loadedTex.needsUpdate = true;
+
+      if (loadedTex.image && loadedTex.image.width) {
+        const metrics = analyzeImageMetrics(loadedTex.image);
+        metricsCache.set(url, metrics);
+        loadedTex.userData.metrics = metrics;
+        if (onMetricsReady) onMetricsReady(metrics);
+        if (loadedTex.userData.onMetrics) loadedTex.userData.onMetrics(metrics);
+      }
     },
     undefined,
     (err) => {
       console.warn(`[AssetManager] Could not load texture at "${url}", using fallback.`, err);
     }
   );
+
+  if (metricsCache.has(url)) {
+    texture.userData.metrics = metricsCache.get(url);
+  }
 
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;

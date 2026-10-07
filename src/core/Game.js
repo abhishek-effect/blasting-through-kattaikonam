@@ -130,6 +130,9 @@ export class Game {
     });
 
     this.canvas.addEventListener('click', () => {
+      if (this.hud && this.hud.requestFullscreen) {
+        this.hud.requestFullscreen();
+      }
       if (this.gameState.current === STATES.PAUSED) {
         this.gameState.setState(STATES.PLAYING);
         this.input.requestPointerLock();

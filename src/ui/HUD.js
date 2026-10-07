@@ -184,6 +184,9 @@ export class HUD {
     const handleStart = (e) => {
       if (e) e.stopPropagation();
 
+      // Trigger browser full screen mode when Play, Try Again, or Resume is clicked
+      this.requestFullscreen();
+
       if (this.screenOverlay) {
         this.screenOverlay.classList.add('hidden');
       }
@@ -385,6 +388,33 @@ export class HUD {
       } else {
         this.damageVignetteEl.style.opacity = '0';
       }
+    }
+  }
+
+  /**
+   * Triggers full-screen browser mode upon user interaction (Play / Try Again)
+   */
+  requestFullscreen() {
+    try {
+      const docEl = document.documentElement;
+      const isFullscreen = document.fullscreenElement ||
+                           document.webkitFullscreenElement ||
+                           document.mozFullScreenElement ||
+                           document.msFullscreenElement;
+
+      if (!isFullscreen) {
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) {
+          docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) {
+          docEl.msRequestFullscreen();
+        }
+      }
+    } catch (err) {
+      console.debug('[HUD] Fullscreen request prevented by browser policy:', err);
     }
   }
 }

@@ -8,7 +8,7 @@
  * 2. Ranged Shooter: Displays equipped pistol on sprite, holds distance, checks line of sight, and shoots.
  */
 import * as THREE from 'three';
-import { ASSET_PATHS, loadTexture, createProceduralEnemySprite } from '../config/assets.js';
+import { ASSET_PATHS, loadTexture, getImageMetrics, createProceduralEnemySprite } from '../config/assets.js';
 
 export const ENEMY_STATES = {
   IDLE: 'IDLE',
@@ -56,7 +56,10 @@ export class Enemy {
     this.maxHealth = config.hp || 100;
     this.health = this.maxHealth;
     this.speed = config.speed || 2.8;
-    this.scaleHeight = config.scale || 2.2;
+
+    // Standard human figure scale (1.68m) calibrated to match ab.png, aswin.png, and player eye height (1.65m)
+    this.targetFigureHeight = 1.68;
+    this.scaleHeight = 2.1;
     this.scaleWidth = this.scaleHeight * 0.75;
     this.detectionRadius = config.detectionRadius || 24;
 
@@ -104,8 +107,33 @@ export class Enemy {
     });
 
     this.sprite = new THREE.Sprite(this.material);
-    this.sprite.scale.set(this.scaleWidth, this.scaleHeight, 1);
     this.sprite.renderOrder = 1;
+
+    // Apply proportional scaling so all characters match ab.png/aswin.png size
+    const applyMetrics = (metrics) => {
+      if (!metrics) return;
+      this.scaleHeight = this.targetFigureHeight / Math.max(0.35, metrics.contentRatio);
+      this.scaleWidth = this.scaleHeight * metrics.aspect;
+      if (this.sprite) {
+        this.sprite.scale.set(this.scaleWidth, this.scaleHeight, 1);
+      }
+      this.position.y = this.scaleHeight / 2;
+      if (this.sprite) {
+        this.sprite.position.y = this.position.y;
+      }
+      if (this.hitMesh) {
+        this.hitMesh.position.y = this.position.y;
+      }
+    };
+
+    const initialMetrics = texture.userData.metrics || getImageMetrics(this.spriteUrl);
+    if (initialMetrics) {
+      applyMetrics(initialMetrics);
+    } else {
+      texture.userData.onMetrics = (m) => applyMetrics(m);
+      this.sprite.scale.set(this.scaleWidth, this.scaleHeight, 1);
+    }
+
     this.scene.add(this.sprite);
 
     // 1. Attached Pistol Sprite for Ranged Attackers (Visible on their image)
