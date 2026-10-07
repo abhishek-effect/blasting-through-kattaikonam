@@ -1,0 +1,221 @@
+# map.obj - Geometry Definitions
+mtllib map.mtl
+
+# --- FLOORS & CEILINGS ---
+usemtl white_tiles
+# Main Floor
+v 0 0 100
+v 100 0 100
+v 100 0 0
+v 0 0 0
+f -4 -3 -2 -1
+
+usemtl black_solid
+# Black Tiles Area (slightly raised to prevent flickering)
+v 20 0.01 65
+v 38 0.01 65
+v 38 0.01 25
+v 20 0.01 25
+f -4 -3 -2 -1
+
+usemtl ceiling
+# Pure White Ceiling (Height = 5)
+v 0 5 0
+v 100 5 0
+v 100 5 100
+v 0 5 100
+f -4 -3 -2 -1
+
+# --- BOUNDARY WALLS (#fae6e7) ---
+usemtl boundary_wall
+# North Boundary
+v 0 0 0
+v 100 0 0
+v 100 5 0
+v 0 5 0
+f -4 -3 -2 -1
+# South Boundary
+v 100 0 100
+v 0 0 100
+v 0 5 100
+v 100 5 100
+f -4 -3 -2 -1
+# East Boundary
+v 100 0 0
+v 100 0 100
+v 100 5 100
+v 100 5 0
+f -4 -3 -2 -1
+# West Boundary
+v 0 0 100
+v 0 0 0
+v 0 5 0
+v 0 5 100
+f -4 -3 -2 -1
+
+# --- INTERNAL ROOM WALLS (With Doors) ---
+usemtl white_tiles
+
+# 1. PHY LAB (Top Center) - Door gap at X=45 to 48
+v 35 0 10
+v 45 0 10
+v 45 5 10
+v 35 5 10
+f -4 -3 -2 -1
+v 48 0 10
+v 60 0 10
+v 60 5 10
+v 48 5 10
+f -4 -3 -2 -1
+v 35 0 0
+v 35 0 10
+v 35 5 10
+v 35 5 0
+f -4 -3 -2 -1
+v 60 0 10
+v 60 0 0
+v 60 5 0
+v 60 5 10
+f -4 -3 -2 -1
+
+# 2. SEMINAR HALL (Right) - Door gap at Z=40 to 45
+v 55 0 25
+v 55 0 40
+v 55 5 40
+v 55 5 25
+f -4 -3 -2 -1
+v 55 0 45
+v 55 0 60
+v 55 5 60
+v 55 5 45
+f -4 -3 -2 -1
+v 55 0 60
+v 100 0 60
+v 100 5 60
+v 55 5 60
+f -4 -3 -2 -1
+v 100 0 25
+v 55 0 25
+v 55 5 25
+v 100 5 25
+f -4 -3 -2 -1
+
+# 3. LIBRARY (Bottom Right) - Door gap at X=65 to 70
+v 55 0 85
+v 65 0 85
+v 65 5 85
+v 55 5 85
+f -4 -3 -2 -1
+v 70 0 85
+v 85 0 85
+v 85 5 85
+v 70 5 85
+f -4 -3 -2 -1
+v 55 0 100
+v 55 0 85
+v 55 5 85
+v 55 5 100
+f -4 -3 -2 -1
+v 85 0 85
+v 85 0 100
+v 85 5 100
+v 85 5 85
+f -4 -3 -2 -1
+
+# 4. INFIRMARY (Left) - Door gap at Z=18 to 21
+v 12 0 15
+v 12 0 18
+v 12 5 18
+v 12 5 15
+f -4 -3 -2 -1
+v 12 0 21
+v 12 0 25
+v 12 5 25
+v 12 5 21
+f -4 -3 -2 -1
+v 0 0 15
+v 12 0 15
+v 12 5 15
+v 0 5 15
+f -4 -3 -2 -1
+v 12 0 25
+v 0 0 25
+v 0 5 25
+v 12 5 25
+f -4 -3 -2 -1
+
+# 5. ELEVATOR & OPEN ROOM (Left) - Doors at Z=34-37 & Z=50-53
+v 12 0 30
+v 12 0 34
+v 12 5 34
+v 12 5 30
+f -4 -3 -2 -1
+v 12 0 37
+v 12 0 40
+v 12 5 40
+v 12 5 37
+f -4 -3 -2 -1
+v 12 0 45
+v 12 0 50
+v 12 5 50
+v 12 5 45
+f -4 -3 -2 -1
+v 12 0 53
+v 12 0 60
+v 12 5 60
+v 12 5 53
+f -4 -3 -2 -1
+v 0 0 30
+v 12 0 30
+v 12 5 30
+v 0 5 30
+f -4 -3 -2 -1
+v 12 0 60
+v 0 0 60
+v 0 5 60
+v 12 5 60
+f -4 -3 -2 -1
+
+# 6. LOCKED ROOM (Top Right) - Door gap at X=70 to 73
+v 65 0 10
+v 70 0 10
+v 70 5 10
+v 65 5 10
+f -4 -3 -2 -1
+v 73 0 10
+v 80 0 10
+v 80 5 10
+v 73 5 10
+f -4 -3 -2 -1
+v 65 0 0
+v 65 0 10
+v 65 5 10
+v 65 5 0
+f -4 -3 -2 -1
+v 80 0 10
+v 80 0 0
+v 80 5 0
+v 80 5 10
+f -4 -3 -2 -1
+
+# 7. UNUSABLE STAIRS (Bottom Left) - Door gap at Z=88 to 91
+v 0 0 85
+v 20 0 85
+v 20 5 85
+v 0 5 85
+f -4 -3 -2 -1
+v 20 0 95
+v 0 0 95
+v 0 5 95
+v 20 5 95
+f -4 -3 -2 -1
+v 20 0 85
+v 20 0 88
+v 20 5 88
+v 20 5 85
+f -4 -3 -2 -1
+v 20 0 91
+v 20 0 95
+v 20 5 95
+v 20 5 91
+f -4 -3 -2 -1

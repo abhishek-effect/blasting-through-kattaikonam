@@ -1,12 +1,71 @@
 /**
  * LevelGenerator Module
- * Generates continuous deterministic 3D map geometry, seamless floor foundation,
- * lighting, doorways, elevator, and rock-solid collision detection.
+ * Loads mappu.obj and mappu.mtl as the primary 3D level geometry.
+ * Features:
+ * - Direct integration of mappu.obj and mappu.mtl with double-sided PBR materials.
+ * - Perfectly aligned 1:1 scale: 100m x 100m campus footprint, 5m ceiling height.
+ * - 34 deterministic wall colliders matching all rooms and doorway openings.
+ * - Robust axis-separated AABB collision resolution (zero wall/ceiling clipping).
+ * - Comprehensive campus illumination rig with bright ambient, sun, and 14 ceiling luminaires.
+ * - Interactive Elevator and Seminar Hall security gate (requires 20 kills).
  */
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { ASSET_PATHS, loadTexture } from '../config/assets.js';
 import { Elevator } from '../interactive/Elevator.js';
+
+export const MAPPU_WALLS = [
+  // Outer Boundaries (Height 5m)
+  { id: 'b_north', minX: 0, maxX: 100, minZ: 0, maxZ: 0 },
+  { id: 'b_south', minX: 0, maxX: 100, minZ: 100, maxZ: 100 },
+  { id: 'b_east', minX: 100, maxX: 100, minZ: 0, maxZ: 100 },
+  { id: 'b_west', minX: 0, maxX: 0, minZ: 0, maxZ: 100 },
+
+  // 1. Physics Lab (PHY LAB - Top Center) - Door gap at X=45 to 48
+  { id: 'phy_south_left', minX: 35, maxX: 45, minZ: 10, maxZ: 10 },
+  { id: 'phy_south_right', minX: 48, maxX: 60, minZ: 10, maxZ: 10 },
+  { id: 'phy_west', minX: 35, maxX: 35, minZ: 0, maxZ: 10 },
+  { id: 'phy_east', minX: 60, maxX: 60, minZ: 0, maxZ: 10 },
+
+  // 2. Seminar Hall (Right Auditorium) - Door gap at Z=40 to 45
+  { id: 'sem_west_north', minX: 55, maxX: 55, minZ: 25, maxZ: 40 },
+  { id: 'sem_west_south', minX: 55, maxX: 55, minZ: 45, maxZ: 60 },
+  { id: 'sem_south', minX: 55, maxX: 100, minZ: 60, maxZ: 60 },
+  { id: 'sem_north', minX: 55, maxX: 100, minZ: 25, maxZ: 25 },
+
+  // 3. Library (Bottom Right) - Door gap at X=65 to 70
+  { id: 'lib_north_left', minX: 55, maxX: 65, minZ: 85, maxZ: 85 },
+  { id: 'lib_north_right', minX: 70, maxX: 85, minZ: 85, maxZ: 85 },
+  { id: 'lib_west', minX: 55, maxX: 55, minZ: 85, maxZ: 100 },
+  { id: 'lib_east', minX: 85, maxX: 85, minZ: 85, maxZ: 100 },
+
+  // 4. Infirmary (West Upper) - Door gap at Z=18 to 21
+  { id: 'inf_east_north', minX: 12, maxX: 12, minZ: 15, maxZ: 18 },
+  { id: 'inf_east_south', minX: 12, maxX: 12, minZ: 21, maxZ: 25 },
+  { id: 'inf_north', minX: 0, maxX: 12, minZ: 15, maxZ: 15 },
+  { id: 'inf_south', minX: 0, maxX: 12, minZ: 25, maxZ: 25 },
+
+  // 5. Elevator & Open Room (West Middle) - Doors at Z=34-37 & Z=50-53
+  { id: 'elev_east_north', minX: 12, maxX: 12, minZ: 30, maxZ: 34 },
+  { id: 'elev_east_mid', minX: 12, maxX: 12, minZ: 37, maxZ: 40 },
+  { id: 'open_east_mid', minX: 12, maxX: 12, minZ: 45, maxZ: 50 },
+  { id: 'open_east_south', minX: 12, maxX: 12, minZ: 53, maxZ: 60 },
+  { id: 'elev_north', minX: 0, maxX: 12, minZ: 30, maxZ: 30 },
+  { id: 'open_south', minX: 0, maxX: 12, minZ: 60, maxZ: 60 },
+
+  // 6. Locked Archives (Top Right) - Door gap at X=70 to 73
+  { id: 'arch_south_left', minX: 65, maxX: 70, minZ: 10, maxZ: 10 },
+  { id: 'arch_south_right', minX: 73, maxX: 80, minZ: 10, maxZ: 10 },
+  { id: 'arch_west', minX: 65, maxX: 65, minZ: 0, maxZ: 10 },
+  { id: 'arch_east', minX: 80, maxX: 80, minZ: 0, maxZ: 10 },
+
+  // 7. Unusable Stairs (Bottom Left) - Door gap at Z=88 to 91
+  { id: 'stairs_north', minX: 0, maxX: 20, minZ: 85, maxZ: 85 },
+  { id: 'stairs_south', minX: 0, maxX: 20, minZ: 95, maxZ: 95 },
+  { id: 'stairs_east_north', minX: 20, maxX: 20, minZ: 85, maxZ: 88 },
+  { id: 'stairs_east_south', minX: 20, maxX: 20, minZ: 91, maxZ: 95 },
+];
 
 export class LevelGenerator {
   constructor(scene, levelData) {
@@ -16,36 +75,19 @@ export class LevelGenerator {
     this.lights = [];
     this.elevator = null;
     this.seminarGate = null;
-    this.builtWalls = new Set();
     this.mapModel = null;
     this.isMapLoaded = false;
-    this.proceduralGroup = new THREE.Group();
-    this.scene.add(this.proceduralGroup);
 
     this.materials = this.initMaterials();
     this.buildMap();
-    this.buildEnhancedLights();
-    this.loadMapGLB();
+    this.buildCampusLights();
+    this.loadMappu();
   }
 
   initMaterials() {
     return {
-      floor: new THREE.MeshStandardMaterial({
-        map: loadTexture(ASSET_PATHS.textures.floor, 16, 20, '#888877', '#666655'),
-        roughness: 0.8,
-        metalness: 0.1,
-      }),
-      ceiling: new THREE.MeshStandardMaterial({
-        map: loadTexture(ASSET_PATHS.textures.ceiling, 8, 12, '#ffffff', '#cccccc'),
-        roughness: 0.9,
-      }),
-      wall: new THREE.MeshStandardMaterial({
-        map: loadTexture(ASSET_PATHS.textures.wall, 4, 2, '#cfcbbf', '#aba89e'),
-        roughness: 0.7,
-      }),
-      door: new THREE.MeshStandardMaterial({
-        map: loadTexture(ASSET_PATHS.textures.door, 1, 1, '#8b5a2b', '#5c3a21'),
-        roughness: 0.6,
+      lightFixture: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
       }),
       doorFrame: new THREE.MeshStandardMaterial({
         color: 0x3e352f,
@@ -55,217 +97,222 @@ export class LevelGenerator {
         color: 0x4a7a8c,
         roughness: 0.5,
         metalness: 0.4,
-      }),
-      lightFixture: new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-      }),
-      blackFloor: new THREE.MeshStandardMaterial({
-        color: 0x141414,
-        roughness: 0.85,
-        metalness: 0.1,
       })
     };
   }
 
   buildMap() {
-    const h = this.data.ceilingHeight || 3.6;
-    const b = this.data.bounds;
-    const totalW = b.maxX - b.minX + 8;
-    const totalL = b.maxZ - b.minZ + 8;
-    const midX = (b.minX + b.maxX) / 2;
-    const midZ = (b.minZ + b.maxZ) / 2;
+    const h = this.data.ceilingHeight || 5.0;
 
-    // 1. Continuous Foundation Base Floor
-    const baseFloorGeo = new THREE.PlaneGeometry(totalW, totalL);
-    const baseFloorMesh = new THREE.Mesh(baseFloorGeo, this.materials.floor);
-    baseFloorMesh.rotation.x = -Math.PI / 2;
-    baseFloorMesh.position.set(midX, 0, midZ);
-    baseFloorMesh.receiveShadow = true;
-    this.proceduralGroup.add(baseFloorMesh);
+    // 1. Build deterministic AABB colliders for all 34 walls defined in mappu.obj
+    this.buildWallColliders(h);
 
-    // 1b. Distinctive Black Floor Tiles for designated rooms (Central Atrium)
-    this.data.rooms.forEach((room) => {
-      if (room.hasBlackTiles) {
-        const atriumGeo = new THREE.PlaneGeometry(room.w, room.l);
-        const atriumMesh = new THREE.Mesh(atriumGeo, this.materials.blackFloor);
-        atriumMesh.rotation.x = -Math.PI / 2;
-        atriumMesh.position.set(room.x, 0.015, room.z);
-        atriumMesh.receiveShadow = true;
-        this.proceduralGroup.add(atriumMesh);
-      }
-    });
-
-    // 2. Continuous Base Ceiling
-    const baseCeilingGeo = new THREE.PlaneGeometry(totalW, totalL);
-    const baseCeilingMesh = new THREE.Mesh(baseCeilingGeo, this.materials.ceiling);
-    baseCeilingMesh.rotation.x = Math.PI / 2;
-    baseCeilingMesh.position.set(midX, h, midZ);
-    this.proceduralGroup.add(baseCeilingMesh);
-
-    // 3. Build Walls with Doorway Openings
-    this.buildWalls(h);
-
-    // 4. Add Lockers along corridors
-    this.addProps();
-
-    // 5. Build Accessible Elevator inside West Wing
+    // 2. Build Accessible Elevator inside West Wing Room (x: 6.0, z: 35.5)
     if (this.data.elevator) {
       this.elevator = new Elevator(this.scene, this.data.elevator);
       const elevColliders = this.elevator.getColliders();
       elevColliders.forEach((box) => this.colliders.push(box));
     }
 
-    // 6. Build Seminar Hall Security Gate (Locked until 20 kills)
+    // 3. Build Seminar Hall Security Gate (x: 55, z: 42.5, width: 5.0m, locked until 20 kills)
     this.buildSeminarGate(h);
   }
 
-  buildWalls(h) {
-    const wallThick = 0.5;
+  buildWallColliders(h = 5.0) {
+    const wallThick = 0.4;
+    const halfThick = wallThick / 2;
 
-    // Define room boundary walls
-    // We filter out internal connected boundaries where corridors seamlessly meet!
-    this.data.rooms.forEach((room) => {
-      const minX = room.x - room.w / 2;
-      const maxX = room.x + room.w / 2;
-      const minZ = room.z - room.l / 2;
-      const maxZ = room.z + room.l / 2;
-
-      // 4 Wall Edges: North (Z-min), South (Z-max), West (X-min), East (X-max)
-      this.processWallSegment(minX, maxX, minZ, 'z', -1, room, h); // North
-      this.processWallSegment(minX, maxX, maxZ, 'z', 1, room, h);  // South
-      this.processWallSegment(minZ, maxZ, minX, 'x', -1, room, h); // West
-      this.processWallSegment(minZ, maxZ, maxX, 'x', 1, room, h);  // East
+    MAPPU_WALLS.forEach((w) => {
+      const box = new THREE.Box3();
+      if (Math.abs(w.minZ - w.maxZ) < 0.01) {
+        // Wall runs along X axis
+        const minX = Math.min(w.minX, w.maxX);
+        const maxX = Math.max(w.minX, w.maxX);
+        const z = w.minZ;
+        box.min.set(minX, 0, z - halfThick);
+        box.max.set(maxX, h, z + halfThick);
+      } else if (Math.abs(w.minX - w.maxX) < 0.01) {
+        // Wall runs along Z axis
+        const minZ = Math.min(w.minZ, w.maxZ);
+        const maxZ = Math.max(w.minZ, w.maxZ);
+        const x = w.minX;
+        box.min.set(x - halfThick, 0, minZ);
+        box.max.set(x + halfThick, h, maxZ);
+      } else {
+        box.min.set(Math.min(w.minX, w.maxX), 0, Math.min(w.minZ, w.maxZ));
+        box.max.set(Math.max(w.minX, w.maxX), h, Math.max(w.minZ, w.maxZ));
+      }
+      this.colliders.push(box);
     });
   }
 
-  processWallSegment(start, end, pos, axis, side, room, h) {
-    const wallLength = end - start;
-    const wallThick = 0.5;
-    const doorH = 2.6;
-    const lintelH = h - doorH;
+  /**
+   * Loads mappu.mtl and mappu.obj
+   */
+  loadMappu() {
+    const mtlUrl = ASSET_PATHS.models.mtl || './images/mappu.mtl';
+    const objUrl = ASSET_PATHS.models.obj || './images/mappu.obj';
 
-    // Find any doorway lying on this wall segment
-    const doorway = this.data.doorways.find((d) => {
-      if (axis === 'z') {
-        return Math.abs(d.z - pos) < 0.6 && d.x >= start && d.x <= end;
-      } else {
-        return Math.abs(d.x - pos) < 0.6 && d.z >= start && d.z <= end;
+    const mtlLoader = new MTLLoader();
+    mtlLoader.load(
+      mtlUrl,
+      (materials) => {
+        materials.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.load(
+          objUrl,
+          (obj) => {
+            this.setupMappuModel(obj);
+          },
+          undefined,
+          (err) => {
+            console.warn('[LevelGenerator] Error loading mappu.obj with materials:', err);
+            // Fallback load without mtl
+            this.loadStandaloneOBJ(objUrl);
+          }
+        );
+      },
+      undefined,
+      (err) => {
+        console.warn('[LevelGenerator] Error loading mappu.mtl:', err);
+        this.loadStandaloneOBJ(objUrl);
+      }
+    );
+  }
+
+  loadStandaloneOBJ(objUrl) {
+    const objLoader = new OBJLoader();
+    objLoader.load(
+      objUrl,
+      (obj) => {
+        this.setupMappuModel(obj);
+      },
+      undefined,
+      (err) => {
+        console.error('[LevelGenerator] Critical: failed to load mappu.obj:', err);
+      }
+    );
+  }
+
+  setupMappuModel(obj) {
+    this.mapModel = obj;
+    obj.name = 'MappuModel';
+
+    // Model coordinates are already in meters: 100m x 100m footprint, 5m height
+    obj.scale.set(1.0, 1.0, 1.0);
+    obj.position.set(0, 0, 0);
+
+    // Apply double-sided rendering, shadows, and clean roughness to all loaded materials
+    obj.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        if (Array.isArray(child.material)) {
+          child.material.forEach((mat) => {
+            mat.side = THREE.DoubleSide;
+            mat.roughness = 0.7;
+            mat.metalness = 0.1;
+          });
+        } else if (child.material) {
+          child.material.side = THREE.DoubleSide;
+          child.material.roughness = 0.7;
+          child.material.metalness = 0.1;
+        }
       }
     });
 
-    // Check if this wall edge is an open connection to an adjacent room
-    if (!doorway && this.isOpenRoomAdjacency(start, end, pos, axis, room)) {
-      return; // Open hallway connection, leave clear!
-    }
-
-    if (doorway) {
-      const doorW = doorway.w || 3.0;
-
-      if (axis === 'z') {
-        const seg1W = doorway.x - doorW / 2 - start;
-        const seg2W = end - (doorway.x + doorW / 2);
-
-        // Wall before door
-        if (seg1W > 0.3) {
-          this.addStaticWall(start + seg1W / 2, h / 2, pos, seg1W, h, wallThick);
-        }
-        // Wall after door
-        if (seg2W > 0.3) {
-          this.addStaticWall(end - seg2W / 2, h / 2, pos, seg2W, h, wallThick);
-        }
-        // Lintel above door (no collision box so player walks underneath!)
-        this.addStaticWall(doorway.x, doorH + lintelH / 2, pos, doorW, lintelH, wallThick, false);
-
-        // Door frame pillars
-        this.addDoorPillar(doorway.x - doorW / 2, pos, doorH);
-        this.addDoorPillar(doorway.x + doorW / 2, pos, doorH);
-      } else {
-        const seg1L = doorway.z - doorW / 2 - start;
-        const seg2L = end - (doorway.z + doorW / 2);
-
-        if (seg1L > 0.3) {
-          this.addStaticWall(pos, h / 2, start + seg1L / 2, wallThick, h, seg1L);
-        }
-        if (seg2L > 0.3) {
-          this.addStaticWall(pos, h / 2, end - seg2L / 2, wallThick, h, seg2L);
-        }
-        // Lintel above door (no collision box)
-        this.addStaticWall(pos, doorH + lintelH / 2, doorway.z, wallThick, lintelH, doorW, false);
-
-        this.addDoorPillar(pos, doorway.z - doorW / 2, doorH);
-        this.addDoorPillar(pos, doorway.z + doorW / 2, doorH);
-      }
-    } else {
-      // Solid Wall
-      if (axis === 'z') {
-        this.addStaticWall((start + end) / 2, h / 2, pos, wallLength, h, wallThick);
-      } else {
-        this.addStaticWall(pos, h / 2, (start + end) / 2, wallThick, h, wallLength);
-      }
-    }
+    this.scene.add(obj);
+    this.isMapLoaded = true;
   }
 
-  isOpenRoomAdjacency(start, end, pos, axis, room) {
-    // If this edge touches another room's interior, check if it's supposed to be an open corridor intersection
-    for (let r of this.data.rooms) {
-      if (r.id === room.id) continue;
-      const rMinX = r.x - r.w / 2 - 0.1;
-      const rMaxX = r.x + r.w / 2 + 0.1;
-      const rMinZ = r.z - r.l / 2 - 0.1;
-      const rMaxZ = r.z + r.l / 2 + 0.1;
+  /**
+   * Comprehensive Campus Lighting Rig:
+   * Ambient, hemisphere sky bounce, dual directional suns, and 14 fluorescent ceiling fixtures
+   */
+  buildCampusLights() {
+    // 1. Ambient & Sky Fill
+    const ambient = new THREE.AmbientLight(0xffffff, 1.25);
+    this.scene.add(ambient);
+    this.lights.push(ambient);
 
-      // Special open junctions:
-      // Central corridor connecting to Lobby
-      if ((room.id === 'lobby' && r.id === 'corridor_central') ||
-          (room.id === 'corridor_central' && r.id === 'lobby')) {
-        return false; // Handled by d_lobby_central doorway
-      }
-    }
-    return false;
+    const hemi = new THREE.HemisphereLight(0xfffaed, 0x555566, 1.05);
+    this.scene.add(hemi);
+    this.lights.push(hemi);
+
+    // 2. High-Altitude Sun Light (casts shadows)
+    const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
+    sun.position.set(50, 45, 50);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 120;
+    const d = 55;
+    sun.shadow.camera.left = -d;
+    sun.shadow.camera.right = d;
+    sun.shadow.camera.top = d;
+    sun.shadow.camera.bottom = -d;
+    this.scene.add(sun);
+    this.lights.push(sun);
+
+    // 3. Counter-directional Fill Sun
+    const fillSun = new THREE.DirectionalLight(0xe8f0ff, 1.0);
+    fillSun.position.set(-20, 30, -20);
+    this.scene.add(fillSun);
+    this.lights.push(fillSun);
+
+    // 4. Campus Fluorescent Tube Luminaires Grid (14 bright point lights with glowing fixtures at Y = 4.7)
+    const lightPositions = [
+      { x: 37.5, y: 4.7, z: 90.0, color: 0xfff5e6, intensity: 2.5, range: 28 }, // South Spawn Hall
+      { x: 45.0, y: 4.7, z: 75.0, color: 0xfff5e6, intensity: 2.2, range: 26 }, // South Corridor Junction
+      { x: 29.0, y: 4.7, z: 55.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (South)
+      { x: 29.0, y: 4.7, z: 35.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (North)
+      { x: 70.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // Library
+      { x: 10.0, y: 4.7, z: 90.0, color: 0xffe0cc, intensity: 2.0, range: 24 }, // South Unusable Stairs
+      { x: 6.0,  y: 4.7, z: 20.0, color: 0xe6f2ff, intensity: 2.2, range: 22 }, // Infirmary
+      { x: 6.0,  y: 4.7, z: 35.0, color: 0xffeedd, intensity: 2.2, range: 22 }, // Elevator Room
+      { x: 6.0,  y: 4.7, z: 52.0, color: 0xfff5e6, intensity: 2.2, range: 22 }, // Open Classroom
+      { x: 47.5, y: 4.7, z: 5.0,  color: 0xffeedd, intensity: 2.5, range: 28 }, // Physics Lab
+      { x: 72.5, y: 4.7, z: 5.0,  color: 0xffe0cc, intensity: 2.2, range: 24 }, // Locked Archives
+      { x: 75.0, y: 4.7, z: 42.5, color: 0xfff5e6, intensity: 3.0, range: 36 }, // Seminar Hall Auditorium Center
+      { x: 90.0, y: 4.7, z: 42.5, color: 0xffea77, intensity: 2.5, range: 26 }, // Seminar Hall Stage
+      { x: 50.0, y: 4.7, z: 20.0, color: 0xfff5e6, intensity: 2.2, range: 26 }, // North Corridor
+    ];
+
+    lightPositions.forEach((lp) => {
+      // 3D ceiling luminaire fixture mesh
+      const fixtureGeo = new THREE.BoxGeometry(0.5, 0.1, 2.2);
+      const fixtureMesh = new THREE.Mesh(fixtureGeo, this.materials.lightFixture);
+      fixtureMesh.position.set(lp.x, lp.y, lp.z);
+      this.scene.add(fixtureMesh);
+
+      // Bright point light
+      const pl = new THREE.PointLight(lp.color, lp.intensity, lp.range, 1.2);
+      pl.position.set(lp.x, lp.y - 0.2, lp.z);
+      this.scene.add(pl);
+      this.lights.push(pl);
+    });
   }
 
-  addDoorPillar(x, z, h) {
-    const geo = new THREE.BoxGeometry(0.2, h, 0.2);
-    const mesh = new THREE.Mesh(geo, this.materials.doorFrame);
-    mesh.position.set(x, h / 2, z);
-    this.proceduralGroup.add(mesh);
-  }
-
-  addProps() {
-    // Lockers along central corridor and west wing
-    this.addLockerBank(2.6, 2, 4.0);
-    this.addLockerBank(-2.6, -6, 4.0);
-    this.addLockerBank(-13, 2.7, 3.5);
-    this.addLockerBank(13, -7.7, 3.5);
-  }
-
-  addLockerBank(x, z, length) {
-    const geo = new THREE.BoxGeometry(0.5, 2.2, length);
-    const mesh = new THREE.Mesh(geo, this.materials.locker);
-    mesh.position.set(x, 1.1, z);
-    this.proceduralGroup.add(mesh);
-    this.addColliderBox(x, 1.1, z, 0.5, 2.2, length);
-  }
-
-  buildSeminarGate(h) {
-    const doorH = 2.6;
-    // Security laser field barrier blocking the seminar hall doorway (x: 2, z: 0)
-    const gateGeo = new THREE.BoxGeometry(0.3, doorH, 3.8);
+  buildSeminarGate(h = 5.0) {
+    const gateGeo = new THREE.BoxGeometry(0.4, h, 5.0);
     const gateMat = new THREE.MeshStandardMaterial({
       color: 0xff2222,
       emissive: 0xaa1111,
       roughness: 0.3,
       metalness: 0.8,
       transparent: true,
-      opacity: 0.85
+      opacity: 0.85,
     });
     const gateMesh = new THREE.Mesh(gateGeo, gateMat);
-    gateMesh.position.set(2, doorH / 2, 0);
+    gateMesh.position.set(55, h / 2, 42.5);
     this.scene.add(gateMesh);
 
     const gateCollider = new THREE.Box3();
-    const half = new THREE.Vector3(0.15, doorH / 2, 1.9);
-    const center = new THREE.Vector3(2, doorH / 2, 0);
+    const half = new THREE.Vector3(0.2, h / 2, 2.5);
+    const center = new THREE.Vector3(55, h / 2, 42.5);
     gateCollider.min.subVectors(center, half);
     gateCollider.max.addVectors(center, half);
     this.colliders.push(gateCollider);
@@ -275,8 +322,8 @@ export class LevelGenerator {
       collider: gateCollider,
       isUnlocked: false,
       requiresKills: 20,
-      x: 2,
-      z: 0
+      x: 55,
+      z: 42.5,
     };
   }
 
@@ -303,236 +350,13 @@ export class LevelGenerator {
     }
   }
 
-  /**
-   * Enhanced High-Visibility Lighting Setup across the entire campus map
-   * Includes ambient, hemisphere bounce, dual directional suns, and 12 fluorescent ceiling point lights
-   */
-  buildEnhancedLights() {
-    // 1. Bright Ambient & Hemisphere Fill
-    const ambient = new THREE.AmbientLight(0xffffff, 1.25);
-    this.scene.add(ambient);
-    this.lights.push(ambient);
-
-    const hemi = new THREE.HemisphereLight(0xfffaed, 0x555566, 1.05);
-    this.scene.add(hemi);
-    this.lights.push(hemi);
-
-    // 2. High-Altitude Sun Light (casts shadows)
-    const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
-    sun.position.set(15, 32, 20);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 100;
-    const d = 36;
-    sun.shadow.camera.left = -d;
-    sun.shadow.camera.right = d;
-    sun.shadow.camera.top = d;
-    sun.shadow.camera.bottom = -d;
-    this.scene.add(sun);
-    this.lights.push(sun);
-
-    // 3. Counter-directional Fill Skylight
-    const fillSun = new THREE.DirectionalLight(0xe8f0ff, 1.0);
-    fillSun.position.set(-20, 28, -25);
-    this.scene.add(fillSun);
-    this.lights.push(fillSun);
-
-    // 4. Campus Fluorescent Tube Luminaires Grid (12 bright point lights with glowing fixtures)
-    const lightPositions = [
-      { x: 0, y: 3.8, z: 15, color: 0xfff5e6, intensity: 2.2, range: 26 },     // South Spawn Hall
-      { x: 0, y: 3.8, z: 0, color: 0xfff8ee, intensity: 2.4, range: 30 },      // Central Atrium
-      { x: -18, y: 3.8, z: 0, color: 0xfff5e6, intensity: 2.0, range: 24 },    // West Corridor
-      { x: 18, y: 3.8, z: 0, color: 0xfff5e6, intensity: 2.0, range: 24 },     // East Corridor
-      { x: -12, y: 3.8, z: -23, color: 0xffeedd, intensity: 2.2, range: 22 },  // Grand Doorway Arch
-      { x: -10, y: 3.8, z: -32, color: 0xfff5e6, intensity: 2.4, range: 28 },  // North Wing (Physics Lab)
-      { x: 26, y: 3.8, z: -28, color: 0xffea77, intensity: 2.4, range: 24 },   // North Stairs (Golden illumination)
-      { x: -24, y: 3.8, z: -3, color: 0xe6f2ff, intensity: 2.0, range: 20 },   // West Wing Elevator
-      { x: 24, y: 3.8, z: 14, color: 0xfff5e6, intensity: 2.0, range: 22 },    // South-East Library
-      { x: -24, y: 3.8, z: 14, color: 0xfff5e6, intensity: 2.0, range: 22 },   // South-West Room
-      { x: -24, y: 3.8, z: -32, color: 0xffeedd, intensity: 2.0, range: 22 },  // North-West Corner
-      { x: 0, y: 3.8, z: -32, color: 0xfff5e6, intensity: 2.0, range: 22 },    // North-East Hall
-    ];
-
-    lightPositions.forEach((lp) => {
-      const fixtureGeo = new THREE.BoxGeometry(0.5, 0.1, 2.2);
-      const fixtureMesh = new THREE.Mesh(fixtureGeo, this.materials.lightFixture);
-      fixtureMesh.position.set(lp.x, lp.y, lp.z);
-      this.scene.add(fixtureMesh);
-
-      const pl = new THREE.PointLight(lp.color, lp.intensity, lp.range, 1.2);
-      pl.position.set(lp.x, lp.y - 0.2, lp.z);
-      this.scene.add(pl);
-      this.lights.push(pl);
-    });
-  }
-
-  /**
-   * Loads 3D map.glb model, scales properly, assigns PBR textures, and generates colliders
-   */
-  loadMapGLB(url = ASSET_PATHS.models.map) {
-    const loader = new GLTFLoader();
-    loader.load(
-      url,
-      (gltf) => {
-        this.setupMapGLB(gltf);
-      },
-      undefined,
-      (err) => {
-        console.warn('[LevelGenerator] Could not load map.glb, using fallback procedural map:', err);
-      }
-    );
-  }
-
-  setupMapGLB(gltf) {
-    this.mapModel = gltf.scene;
-
-    const mapGroup = new THREE.Group();
-    mapGroup.name = 'MapGLB_Root';
-    mapGroup.add(this.mapModel);
-
-    // Calibration:
-    // Model in Blender was created with width 65.3m (X: -32.65 to 32.65) and depth 47.9m (Z: -23.94 to 23.94).
-    // The vertical heights in Blender were extruded ~22m.
-    // By scaling Y by 0.175, walls become 3.8m tall, doorway lintel bottom is 2.32m (walk-through),
-    // each stair step is 0.35m, and floor top is exactly at Y = 0.0m!
-    const sy = 0.175;
-    mapGroup.scale.set(1.0, sy, 1.0);
-    mapGroup.position.set(0, -0.56168 * sy, 0);
-    mapGroup.updateMatrixWorld(true);
-
-    // Apply textures and shadow properties to loaded meshes
-    this.mapModel.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-
-        const name = child.name.toLowerCase();
-        if (name.includes('cube006') || name.includes('cube007') || name.includes('cube008') || name.includes('cube009')) {
-          // Stairs
-          child.material = new THREE.MeshStandardMaterial({
-            map: loadTexture(ASSET_PATHS.textures.floor, 2, 1, '#999988', '#666655'),
-            roughness: 0.5,
-            metalness: 0.1,
-          });
-        } else if (name === 'cube' || name.includes('cube004')) {
-          // Floors
-          child.material = new THREE.MeshStandardMaterial({
-            map: loadTexture(ASSET_PATHS.textures.floor, 16, 12, '#888877', '#666655'),
-            roughness: 0.7,
-            metalness: 0.1,
-          });
-        } else if (name.includes('cube001') || name.includes('cube003') || name.includes('cube005') || name.includes('cube010') || name.includes('cube011') || name.includes('cube012')) {
-          // Walls
-          child.material = new THREE.MeshStandardMaterial({
-            map: loadTexture(ASSET_PATHS.textures.wall, 6, 2, '#cfcbbf', '#aba89e'),
-            roughness: 0.7,
-            metalness: 0.05,
-          });
-        } else {
-          if (child.material) {
-            child.material.roughness = 0.6;
-            child.material.metalness = 0.1;
-            child.material.needsUpdate = true;
-          }
-        }
-      }
-    });
-
-    this.scene.add(mapGroup);
-    this.isMapLoaded = true;
-
-    // Switch colliders to map.glb geometry
-    this.colliders = [];
-
-    // Register wall and obstacle colliders from map.glb meshes
-    this.mapModel.traverse((child) => {
-      if (child.isMesh) {
-        const name = child.name.toLowerCase();
-        // Skip floor meshes so player walks on them
-        if (name === 'cube' || name.includes('cube004')) {
-          return;
-        }
-        const box = new THREE.Box3().setFromObject(child);
-        this.colliders.push(box);
-      }
-    });
-
-    // Add perimeter boundary collision barriers around the floor plate (-32.7 to 32.7 in X, -23.9 to 23.9 in Z)
-    this.addColliderBox(0, 2.0, 24.2, 66.0, 4.0, 1.0);  // South
-    this.addColliderBox(33.0, 2.0, 0, 1.0, 4.0, 49.0);   // East
-    this.addColliderBox(-33.0, 2.0, 0, 1.0, 4.0, 49.0);  // West
-
-    // Retain elevator colliders
-    if (this.elevator) {
-      const elevColliders = this.elevator.getColliders();
-      elevColliders.forEach((box) => this.colliders.push(box));
-    }
-
-    // Retain seminar gate collider
-    if (this.seminarGate && !this.seminarGate.isUnlocked) {
-      this.colliders.push(this.seminarGate.collider);
-    }
-
-    // Hide procedural walls since map.glb is active
-    if (this.proceduralGroup) {
-      this.proceduralGroup.visible = false;
-    }
-  }
-
-  /**
-   * Returns exact walking floor surface height at given (x, z) position
-   * Allows player to naturally walk onto steps of the north stairs
-   */
   getFloorHeightAt(position) {
-    if (position.x >= 19.0 && position.x <= 33.0) {
-      if (position.z <= -23.8 && position.z >= -26.2) {
-        return 0.00;
-      } else if (position.z <= -25.7 && position.z >= -28.1) {
-        return 0.34;
-      } else if (position.z <= -28.0 && position.z >= -30.5) {
-        return 0.65;
-      } else if (position.z <= -30.2 && position.z >= -32.8) {
-        return 0.98;
-      }
-    }
     return 0.0;
-  }
-
-  addStaticWall(x, y, z, wx, hy, lz, addCollider = true) {
-    if (wx <= 0.05 || lz <= 0.05) return null;
-    if (!this.builtWalls) this.builtWalls = new Set();
-    const key = `${Math.round(x * 4)}_${Math.round(y * 2)}_${Math.round(z * 4)}_${Math.round(wx * 4)}_${Math.round(lz * 4)}`;
-    if (this.builtWalls.has(key)) return null;
-    this.builtWalls.add(key);
-
-    const geo = new THREE.BoxGeometry(wx, hy, lz);
-    const mesh = new THREE.Mesh(geo, this.materials.wall);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    this.proceduralGroup.add(mesh);
-
-    if (addCollider) {
-      this.addColliderBox(x, y, z, wx, hy, lz);
-    }
-    return mesh;
-  }
-
-  addColliderBox(x, y, z, wx, hy, lz) {
-    const box = new THREE.Box3();
-    const half = new THREE.Vector3(wx / 2, hy / 2, lz / 2);
-    const center = new THREE.Vector3(x, y, z);
-    box.min.subVectors(center, half);
-    box.max.addVectors(center, half);
-    this.colliders.push(box);
   }
 
   /**
    * Robust Axis-Separated AABB Collision Resolution
    * Completely prevents clipping or tunneling through walls.
-   * Ignores overhead lintels and ceilings so doorways are fully walkable.
    */
   resolveAxisCollision(position, radius, axis) {
     const playerFeet = Math.max(0, position.y - 1.6);
@@ -545,21 +369,13 @@ export class LevelGenerator {
     for (let i = 0; i < this.colliders.length; i++) {
       const wallBox = this.colliders[i];
 
-      // Ignore overhead geometry (lintels, ceiling lights) or floor geometry
+      // Ignore overhead geometry or floor geometry
       if (wallBox.min.y >= playerHead || wallBox.max.y <= playerFeet) {
         continue;
       }
 
       if (entityBox.intersectsBox(wallBox)) {
-        // Step-up support for stair steps: if barrier is low enough, allow stepping up
-        const stepRise = wallBox.max.y - playerFeet;
-        if (stepRise > 0 && stepRise <= 0.42) {
-          position.y = Math.max(position.y, wallBox.max.y + 1.65);
-          continue;
-        }
-
         if (axis === 'x') {
-          // Push out along X
           const distToMin = Math.abs(position.x - wallBox.min.x);
           const distToMax = Math.abs(position.x - wallBox.max.x);
           if (distToMin < distToMax) {
@@ -568,7 +384,6 @@ export class LevelGenerator {
             position.x = wallBox.max.x + radius + 0.005;
           }
         } else if (axis === 'z') {
-          // Push out along Z
           const distToMin = Math.abs(position.z - wallBox.min.z);
           const distToMax = Math.abs(position.z - wallBox.max.z);
           if (distToMin < distToMax) {
@@ -581,9 +396,6 @@ export class LevelGenerator {
     }
   }
 
-  /**
-   * Helper for general sphere collision checks (used by bullets, grenades, enemies)
-   */
   resolveSphereCollision(position, radius = 0.45) {
     this.resolveAxisCollision(position, radius, 'x');
     this.resolveAxisCollision(position, radius, 'z');

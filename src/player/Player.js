@@ -179,12 +179,20 @@ export class Player {
       this.world.resolveAxisCollision(this.position, this.radius, 'z');
     }
 
-    // Vertical step and ground check
+    // Vertical step, ground check and ceiling collision clamp
     this.position.y += this.velocity.y * deltaTime;
     const currentFloorY = (this.world && this.world.getFloorHeightAt)
       ? this.world.getFloorHeightAt(this.position)
       : 0;
     const targetGroundY = currentFloorY + this.height;
+
+    // Prevent ceiling clipping
+    const ceilingH = (this.world && this.world.data && this.world.data.ceilingHeight) ? this.world.data.ceilingHeight : 5.0;
+    const maxHeadY = ceilingH - 0.25;
+    if (this.position.y > maxHeadY) {
+      this.position.y = maxHeadY;
+      this.velocity.y = Math.min(0, this.velocity.y);
+    }
 
     if (this.position.y <= targetGroundY) {
       this.position.y = targetGroundY;

@@ -41,7 +41,9 @@ export const ASSET_PATHS = {
     shoot: assetUrl('/audio/shoot.mp3'),
   },
   models: {
-    map: assetUrl('/images/map.glb'),
+    obj: assetUrl('/images/mappu.obj'),
+    mtl: assetUrl('/images/mappu.mtl'),
+    map: assetUrl('/images/mappu.obj'),
   }
 };
 
