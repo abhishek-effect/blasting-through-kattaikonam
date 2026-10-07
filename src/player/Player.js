@@ -179,10 +179,15 @@ export class Player {
       this.world.resolveAxisCollision(this.position, this.radius, 'z');
     }
 
-    // Vertical step
+    // Vertical step and ground check
     this.position.y += this.velocity.y * deltaTime;
-    if (this.position.y <= this.height) {
-      this.position.y = this.height;
+    const currentFloorY = (this.world && this.world.getFloorHeightAt)
+      ? this.world.getFloorHeightAt(this.position)
+      : 0;
+    const targetGroundY = currentFloorY + this.height;
+
+    if (this.position.y <= targetGroundY) {
+      this.position.y = targetGroundY;
       this.velocity.y = 0;
       this.isGrounded = true;
     } else {

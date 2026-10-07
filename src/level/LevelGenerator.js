@@ -4,6 +4,7 @@
  * lighting, doorways, elevator, and rock-solid collision detection.
  */
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ASSET_PATHS, loadTexture } from '../config/assets.js';
 import { Elevator } from '../interactive/Elevator.js';
 
@@ -14,10 +15,17 @@ export class LevelGenerator {
     this.colliders = []; // List of THREE.Box3 for player/enemy collisions
     this.lights = [];
     this.elevator = null;
+    this.seminarGate = null;
     this.builtWalls = new Set();
+    this.mapModel = null;
+    this.isMapLoaded = false;
+    this.proceduralGroup = new THREE.Group();
+    this.scene.add(this.proceduralGroup);
 
     this.materials = this.initMaterials();
     this.buildMap();
+    this.buildEnhancedLights();
+    this.loadMapGLB();
   }
 
   initMaterials() {
@@ -67,13 +75,13 @@ export class LevelGenerator {
     const midX = (b.minX + b.maxX) / 2;
     const midZ = (b.minZ + b.maxZ) / 2;
 
-    // 1. Continuous Foundation Base Floor (NO BLACK HOLES OR GAPS!)
+    // 1. Continuous Foundation Base Floor
     const baseFloorGeo = new THREE.PlaneGeometry(totalW, totalL);
     const baseFloorMesh = new THREE.Mesh(baseFloorGeo, this.materials.floor);
     baseFloorMesh.rotation.x = -Math.PI / 2;
     baseFloorMesh.position.set(midX, 0, midZ);
     baseFloorMesh.receiveShadow = true;
-    this.scene.add(baseFloorMesh);
+    this.proceduralGroup.add(baseFloorMesh);
 
     // 1b. Distinctive Black Floor Tiles for designated rooms (Central Atrium)
     this.data.rooms.forEach((room) => {
@@ -83,7 +91,7 @@ export class LevelGenerator {
         atriumMesh.rotation.x = -Math.PI / 2;
         atriumMesh.position.set(room.x, 0.015, room.z);
         atriumMesh.receiveShadow = true;
-        this.scene.add(atriumMesh);
+        this.proceduralGroup.add(atriumMesh);
       }
     });
 
@@ -92,41 +100,23 @@ export class LevelGenerator {
     const baseCeilingMesh = new THREE.Mesh(baseCeilingGeo, this.materials.ceiling);
     baseCeilingMesh.rotation.x = Math.PI / 2;
     baseCeilingMesh.position.set(midX, h, midZ);
-    this.scene.add(baseCeilingMesh);
+    this.proceduralGroup.add(baseCeilingMesh);
 
-    // 3. Fluorescent Lighting & Fixtures across rooms
-    this.data.rooms.forEach((room) => {
-      const fixtureGeo = new THREE.BoxGeometry(0.5, 0.1, 2.0);
-      const fixtureMesh = new THREE.Mesh(fixtureGeo, this.materials.lightFixture);
-      fixtureMesh.position.set(room.x, h - 0.05, room.z);
-      this.scene.add(fixtureMesh);
-
-      const light = new THREE.PointLight(0xfff5e6, 1.3, Math.max(room.w, room.l) * 1.3, 1.5);
-      light.position.set(room.x, h - 0.25, room.z);
-      this.scene.add(light);
-      this.lights.push(light);
-    });
-
-    // 4. Build Walls with Doorway Openings
+    // 3. Build Walls with Doorway Openings
     this.buildWalls(h);
 
-    // 5. Add Lockers along corridors
+    // 4. Add Lockers along corridors
     this.addProps();
 
-    // 6. Build Accessible Elevator inside East Wing Alcove
+    // 5. Build Accessible Elevator inside West Wing
     if (this.data.elevator) {
       this.elevator = new Elevator(this.scene, this.data.elevator);
-      // Register elevator barrier colliders
       const elevColliders = this.elevator.getColliders();
       elevColliders.forEach((box) => this.colliders.push(box));
     }
 
-    // 6b. Build Seminar Hall Security Gate (Locked until 20 kills)
+    // 6. Build Seminar Hall Security Gate (Locked until 20 kills)
     this.buildSeminarGate(h);
-
-    // 7. Ambient Light
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    this.scene.add(ambient);
   }
 
   buildWalls(h) {
@@ -238,7 +228,7 @@ export class LevelGenerator {
     const geo = new THREE.BoxGeometry(0.2, h, 0.2);
     const mesh = new THREE.Mesh(geo, this.materials.doorFrame);
     mesh.position.set(x, h / 2, z);
-    this.scene.add(mesh);
+    this.proceduralGroup.add(mesh);
   }
 
   addProps() {
@@ -253,7 +243,7 @@ export class LevelGenerator {
     const geo = new THREE.BoxGeometry(0.5, 2.2, length);
     const mesh = new THREE.Mesh(geo, this.materials.locker);
     mesh.position.set(x, 1.1, z);
-    this.scene.add(mesh);
+    this.proceduralGroup.add(mesh);
     this.addColliderBox(x, 1.1, z, 0.5, 2.2, length);
   }
 
@@ -313,6 +303,203 @@ export class LevelGenerator {
     }
   }
 
+  /**
+   * Enhanced High-Visibility Lighting Setup across the entire campus map
+   * Includes ambient, hemisphere bounce, dual directional suns, and 12 fluorescent ceiling point lights
+   */
+  buildEnhancedLights() {
+    // 1. Bright Ambient & Hemisphere Fill
+    const ambient = new THREE.AmbientLight(0xffffff, 1.25);
+    this.scene.add(ambient);
+    this.lights.push(ambient);
+
+    const hemi = new THREE.HemisphereLight(0xfffaed, 0x555566, 1.05);
+    this.scene.add(hemi);
+    this.lights.push(hemi);
+
+    // 2. High-Altitude Sun Light (casts shadows)
+    const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
+    sun.position.set(15, 32, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 100;
+    const d = 36;
+    sun.shadow.camera.left = -d;
+    sun.shadow.camera.right = d;
+    sun.shadow.camera.top = d;
+    sun.shadow.camera.bottom = -d;
+    this.scene.add(sun);
+    this.lights.push(sun);
+
+    // 3. Counter-directional Fill Skylight
+    const fillSun = new THREE.DirectionalLight(0xe8f0ff, 1.0);
+    fillSun.position.set(-20, 28, -25);
+    this.scene.add(fillSun);
+    this.lights.push(fillSun);
+
+    // 4. Campus Fluorescent Tube Luminaires Grid (12 bright point lights with glowing fixtures)
+    const lightPositions = [
+      { x: 0, y: 3.8, z: 15, color: 0xfff5e6, intensity: 2.2, range: 26 },     // South Spawn Hall
+      { x: 0, y: 3.8, z: 0, color: 0xfff8ee, intensity: 2.4, range: 30 },      // Central Atrium
+      { x: -18, y: 3.8, z: 0, color: 0xfff5e6, intensity: 2.0, range: 24 },    // West Corridor
+      { x: 18, y: 3.8, z: 0, color: 0xfff5e6, intensity: 2.0, range: 24 },     // East Corridor
+      { x: -12, y: 3.8, z: -23, color: 0xffeedd, intensity: 2.2, range: 22 },  // Grand Doorway Arch
+      { x: -10, y: 3.8, z: -32, color: 0xfff5e6, intensity: 2.4, range: 28 },  // North Wing (Physics Lab)
+      { x: 26, y: 3.8, z: -28, color: 0xffea77, intensity: 2.4, range: 24 },   // North Stairs (Golden illumination)
+      { x: -24, y: 3.8, z: -3, color: 0xe6f2ff, intensity: 2.0, range: 20 },   // West Wing Elevator
+      { x: 24, y: 3.8, z: 14, color: 0xfff5e6, intensity: 2.0, range: 22 },    // South-East Library
+      { x: -24, y: 3.8, z: 14, color: 0xfff5e6, intensity: 2.0, range: 22 },   // South-West Room
+      { x: -24, y: 3.8, z: -32, color: 0xffeedd, intensity: 2.0, range: 22 },  // North-West Corner
+      { x: 0, y: 3.8, z: -32, color: 0xfff5e6, intensity: 2.0, range: 22 },    // North-East Hall
+    ];
+
+    lightPositions.forEach((lp) => {
+      const fixtureGeo = new THREE.BoxGeometry(0.5, 0.1, 2.2);
+      const fixtureMesh = new THREE.Mesh(fixtureGeo, this.materials.lightFixture);
+      fixtureMesh.position.set(lp.x, lp.y, lp.z);
+      this.scene.add(fixtureMesh);
+
+      const pl = new THREE.PointLight(lp.color, lp.intensity, lp.range, 1.2);
+      pl.position.set(lp.x, lp.y - 0.2, lp.z);
+      this.scene.add(pl);
+      this.lights.push(pl);
+    });
+  }
+
+  /**
+   * Loads 3D map.glb model, scales properly, assigns PBR textures, and generates colliders
+   */
+  loadMapGLB(url = ASSET_PATHS.models.map) {
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        this.setupMapGLB(gltf);
+      },
+      undefined,
+      (err) => {
+        console.warn('[LevelGenerator] Could not load map.glb, using fallback procedural map:', err);
+      }
+    );
+  }
+
+  setupMapGLB(gltf) {
+    this.mapModel = gltf.scene;
+
+    const mapGroup = new THREE.Group();
+    mapGroup.name = 'MapGLB_Root';
+    mapGroup.add(this.mapModel);
+
+    // Calibration:
+    // Model in Blender was created with width 65.3m (X: -32.65 to 32.65) and depth 47.9m (Z: -23.94 to 23.94).
+    // The vertical heights in Blender were extruded ~22m.
+    // By scaling Y by 0.175, walls become 3.8m tall, doorway lintel bottom is 2.32m (walk-through),
+    // each stair step is 0.35m, and floor top is exactly at Y = 0.0m!
+    const sy = 0.175;
+    mapGroup.scale.set(1.0, sy, 1.0);
+    mapGroup.position.set(0, -0.56168 * sy, 0);
+    mapGroup.updateMatrixWorld(true);
+
+    // Apply textures and shadow properties to loaded meshes
+    this.mapModel.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        const name = child.name.toLowerCase();
+        if (name.includes('cube006') || name.includes('cube007') || name.includes('cube008') || name.includes('cube009')) {
+          // Stairs
+          child.material = new THREE.MeshStandardMaterial({
+            map: loadTexture(ASSET_PATHS.textures.floor, 2, 1, '#999988', '#666655'),
+            roughness: 0.5,
+            metalness: 0.1,
+          });
+        } else if (name === 'cube' || name.includes('cube004')) {
+          // Floors
+          child.material = new THREE.MeshStandardMaterial({
+            map: loadTexture(ASSET_PATHS.textures.floor, 16, 12, '#888877', '#666655'),
+            roughness: 0.7,
+            metalness: 0.1,
+          });
+        } else if (name.includes('cube001') || name.includes('cube003') || name.includes('cube005') || name.includes('cube010') || name.includes('cube011') || name.includes('cube012')) {
+          // Walls
+          child.material = new THREE.MeshStandardMaterial({
+            map: loadTexture(ASSET_PATHS.textures.wall, 6, 2, '#cfcbbf', '#aba89e'),
+            roughness: 0.7,
+            metalness: 0.05,
+          });
+        } else {
+          if (child.material) {
+            child.material.roughness = 0.6;
+            child.material.metalness = 0.1;
+            child.material.needsUpdate = true;
+          }
+        }
+      }
+    });
+
+    this.scene.add(mapGroup);
+    this.isMapLoaded = true;
+
+    // Switch colliders to map.glb geometry
+    this.colliders = [];
+
+    // Register wall and obstacle colliders from map.glb meshes
+    this.mapModel.traverse((child) => {
+      if (child.isMesh) {
+        const name = child.name.toLowerCase();
+        // Skip floor meshes so player walks on them
+        if (name === 'cube' || name.includes('cube004')) {
+          return;
+        }
+        const box = new THREE.Box3().setFromObject(child);
+        this.colliders.push(box);
+      }
+    });
+
+    // Add perimeter boundary collision barriers around the floor plate (-32.7 to 32.7 in X, -23.9 to 23.9 in Z)
+    this.addColliderBox(0, 2.0, 24.2, 66.0, 4.0, 1.0);  // South
+    this.addColliderBox(33.0, 2.0, 0, 1.0, 4.0, 49.0);   // East
+    this.addColliderBox(-33.0, 2.0, 0, 1.0, 4.0, 49.0);  // West
+
+    // Retain elevator colliders
+    if (this.elevator) {
+      const elevColliders = this.elevator.getColliders();
+      elevColliders.forEach((box) => this.colliders.push(box));
+    }
+
+    // Retain seminar gate collider
+    if (this.seminarGate && !this.seminarGate.isUnlocked) {
+      this.colliders.push(this.seminarGate.collider);
+    }
+
+    // Hide procedural walls since map.glb is active
+    if (this.proceduralGroup) {
+      this.proceduralGroup.visible = false;
+    }
+  }
+
+  /**
+   * Returns exact walking floor surface height at given (x, z) position
+   * Allows player to naturally walk onto steps of the north stairs
+   */
+  getFloorHeightAt(position) {
+    if (position.x >= 19.0 && position.x <= 33.0) {
+      if (position.z <= -23.8 && position.z >= -26.2) {
+        return 0.00;
+      } else if (position.z <= -25.7 && position.z >= -28.1) {
+        return 0.34;
+      } else if (position.z <= -28.0 && position.z >= -30.5) {
+        return 0.65;
+      } else if (position.z <= -30.2 && position.z >= -32.8) {
+        return 0.98;
+      }
+    }
+    return 0.0;
+  }
+
   addStaticWall(x, y, z, wx, hy, lz, addCollider = true) {
     if (wx <= 0.05 || lz <= 0.05) return null;
     if (!this.builtWalls) this.builtWalls = new Set();
@@ -325,7 +512,7 @@ export class LevelGenerator {
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    this.scene.add(mesh);
+    this.proceduralGroup.add(mesh);
 
     if (addCollider) {
       this.addColliderBox(x, y, z, wx, hy, lz);
@@ -364,6 +551,13 @@ export class LevelGenerator {
       }
 
       if (entityBox.intersectsBox(wallBox)) {
+        // Step-up support for stair steps: if barrier is low enough, allow stepping up
+        const stepRise = wallBox.max.y - playerFeet;
+        if (stepRise > 0 && stepRise <= 0.42) {
+          position.y = Math.max(position.y, wallBox.max.y + 1.65);
+          continue;
+        }
+
         if (axis === 'x') {
           // Push out along X
           const distToMin = Math.abs(position.x - wallBox.min.x);

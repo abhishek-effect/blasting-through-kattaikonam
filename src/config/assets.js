@@ -39,6 +39,9 @@ export const ASSET_PATHS = {
     metalBgm: assetUrl('/audio/metal-bgm.mp3'),
     grenade: assetUrl('/audio/grenade.mp3'),
     shoot: assetUrl('/audio/shoot.mp3'),
+  },
+  models: {
+    map: assetUrl('/images/map.glb'),
   }
 };
 
