@@ -326,10 +326,18 @@ html, body {
   cursor: pointer;
   transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
   padding: 4px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.4);
 }
 
 .inventory-slot:hover {
   border-color: #8888aa;
+}
+
+.inventory-slot:active {
+  transform: scale(0.95);
 }
 
 .inventory-slot.active {
@@ -525,6 +533,32 @@ html, body {
   box-shadow: 0 0 14px rgba(46, 204, 113, 0.8);
 }
 
+.mobile-pause-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(25, 25, 35, 0.75);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 75;
+  touch-action: manipulation;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s, background-color 0.15s;
+}
+
+.mobile-pause-btn:active {
+  transform: scale(0.92);
+  background: rgba(45, 45, 65, 0.95);
+}
+
 /* --- Overlays (Title, Game Over, Victory) --- */
 #game-overlay {
   position: absolute;
@@ -558,7 +592,42 @@ html, body {
 #overlay-subtitle {
   font-size: clamp(14px, 2.5vw, 17px);
   color: #e0e0e0;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+/* Pause Settings Panel */
+.settings-panel {
+  background: rgba(25, 25, 35, 0.92);
+  border: 1px solid #ffdf40;
+  border-radius: 6px;
+  padding: 10px 18px;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 0 14px rgba(255, 223, 64, 0.25);
+}
+
+.settings-panel.hidden {
+  display: none !important;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #ffdf40;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sens-slider {
+  width: 100%;
+  height: 8px;
+  accent-color: #ff3333;
+  cursor: pointer;
 }
 
 .instructions-grid {
@@ -577,6 +646,10 @@ html, body {
   border-radius: 6px;
   padding: 12px;
   text-align: left;
+}
+
+.instruction-card.hidden {
+  display: none !important;
 }
 
 .instruction-card h3 {

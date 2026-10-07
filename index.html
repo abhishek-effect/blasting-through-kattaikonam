@@ -97,6 +97,9 @@
 
     <!-- Mobile Virtual Controls (Touch devices) -->
     <div id="mobile-controls" class="hidden">
+      <!-- Mobile Pause Button -->
+      <button id="btn-mobile-pause" class="mobile-pause-btn" aria-label="Pause Game">⏸️</button>
+
       <!-- Movement Thumbstick -->
       <div id="joystick-zone">
         <div id="joystick-thumb"></div>
@@ -109,13 +112,13 @@
       <div class="mobile-action-buttons">
         <div class="mobile-btn-row">
           <button id="btn-mobile-sprint" class="mobile-btn">RUN</button>
-          <button id="btn-mobile-jump" class="mobile-btn" style="background: rgba(39, 174, 96, 0.85); border-color: #2ecc71;">JUMP</button>
-          <button id="btn-mobile-reload" class="mobile-btn">RELOAD</button>
+          <button id="btn-mobile-jump" class="mobile-btn" style="background: rgba(39, 174, 96, 0.85); border-color: #2ecc71; font-size: 18px;" title="Jump">⬆️</button>
+          <button id="btn-mobile-reload" class="mobile-btn" style="font-size: 18px;" title="Reload">🔄️</button>
           <button id="btn-mobile-interact" class="mobile-btn" style="background: rgba(41, 128, 185, 0.85);">USE [E]</button>
         </div>
         <div class="mobile-btn-row">
           <button id="btn-mobile-grenade" class="mobile-btn" style="background: rgba(211, 84, 0, 0.85);">💣 G</button>
-          <button id="btn-mobile-fire" class="mobile-btn">FIRE</button>
+          <button id="btn-mobile-fire" class="mobile-btn">💥 FIRE</button>
         </div>
       </div>
     </div>
@@ -125,8 +128,16 @@
       <h1 id="overlay-title">BLASTING THROUGH KATTAIKONAM</h1>
       <p id="overlay-subtitle">FLOOR 1 - RETRO SCHOOL FPS</p>
 
+      <!-- Pause Menu Sensitivity Slider -->
+      <div id="pause-settings-panel" class="settings-panel hidden">
+        <label for="slider-sensitivity" class="settings-label">
+          TURN SENSITIVITY: <span id="sens-val-display">1.0x</span>
+        </label>
+        <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
+      </div>
+
       <div class="instructions-grid">
-        <div class="instruction-card">
+        <div id="card-pc-controls" class="instruction-card">
           <h3>PC Controls</h3>
           <ul>
             <li><b>WASD</b>: Move | <b>Space</b>: Jump</li>
@@ -135,26 +146,28 @@
             <li><b>1, 2, 3</b>: Switch (Rifle, Pistol, Medkit)</li>
             <li><b>G</b>: Throw Grenade (Drops every 3 kills)</li>
             <li><b>E</b>: Interact / Elevator</li>
-            <li><b>Shift</b>: Sprint | <b>R</b>: Reload</li>
+            <li><b>Shift</b>: Sprint | <b>R</b>: Reload | <b>P / Esc</b>: Pause</li>
           </ul>
         </div>
-        <div class="instruction-card">
+        <div id="card-mobile-controls" class="instruction-card">
           <h3>Mobile Controls</h3>
           <ul>
             <li><b>Left Thumbstick</b>: Move</li>
             <li><b>Right Half Drag</b>: Aim & Look</li>
-            <li><b>JUMP Button</b>: Leap over laser traps</li>
-            <li><b>Tap HUD Slots 1-3</b>: Switch weapons</li>
-            <li><b>FIRE Button</b>: Shoot / Use item</li>
+            <li><b>⬆️ Button</b>: Leap over laser traps</li>
+            <li><b>Tap Gun / Picture</b>: Switch weapons</li>
+            <li><b>💥 FIRE Button</b>: Shoot / Use item</li>
+            <li><b>🔄️ Button</b>: Reload weapon</li>
             <li><b>💣 G Button</b>: Throw Grenade</li>
             <li><b>USE [E]</b>: Elevator interaction</li>
             <li><b>RUN Button</b>: Toggle sprint</li>
+            <li><b>⏸️ Button</b>: Pause menu</li>
           </ul>
         </div>
       </div>
 
       <!-- Dynamic Enemy Photo Uploader & Roster Preview -->
-      <div class="photo-upload-container">
+      <div id="photo-upload-section" class="photo-upload-container">
         <label for="enemy-photo-input" class="btn-upload-photo" id="lbl-upload-photo">
           📸 UPLOAD ENEMY PHOTO (PNG / JPG)
         </label>

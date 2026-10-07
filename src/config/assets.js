@@ -13,9 +13,9 @@ export const assetUrl = (path) => `${BASE}${path.replace(/^\//, '')}`;
 
 export const ASSET_PATHS = {
   textures: {
-    floor: assetUrl('/images/textures/schlfloor.jpg'),
-    wall: assetUrl('/images/textures/schlwalls.jpg'),
-    ceiling: assetUrl('/images/textures/schl-ceiling.webp'),
+    floor: assetUrl('/images/textures/floor-tile.png'),
+    wall: assetUrl('/images/textures/wall-color.png'),
+    ceiling: assetUrl('/images/textures/ceiling-white.png'),
     door: assetUrl('/images/textures/door-texture.jpg'),
     chairs: assetUrl('/images/textures/cartoon-chairs.webp'),
     elevator: assetUrl('/images/textures/elevator.jpg'),

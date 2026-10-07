@@ -24,7 +24,7 @@ export class EnemySpawner {
    * Spawns enemies into the level using the level's spawnZones configuration.
    * Enemy types are picked dynamically from all discovered and uploaded photos.
    */
-  spawnLevelEnemies(spawnZones = []) {
+  spawnLevelEnemies(spawnZones = [], isMobile = false) {
     this.clear();
     this.totalKills = 0;
 
@@ -37,10 +37,14 @@ export class EnemySpawner {
         return;
       }
 
+      // If playing on phone / touch device, reduce enemy count by ~45% for smooth performance & fair touch controls
+      const minC = isMobile ? Math.max(1, Math.round(zone.minCount * 0.55)) : zone.minCount;
+      const maxC = isMobile ? Math.max(minC, Math.round(zone.maxCount * 0.55)) : zone.maxCount;
+
       // Randomize count between minCount and maxCount
       const count = Math.floor(
-        Math.random() * (zone.maxCount - zone.minCount + 1)
-      ) + zone.minCount;
+        Math.random() * (maxC - minC + 1)
+      ) + minC;
 
       for (let i = 0; i < count; i++) {
         allRosterKeys = Object.keys(roster);

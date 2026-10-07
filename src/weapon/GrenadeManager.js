@@ -208,8 +208,24 @@ export class GrenadeManager {
       // Wall collision
       this.world.resolveSphereCollision(p.mesh.position, 0.15);
 
-      // Fuse Expired -> Detonate!
-      if (p.fuse <= 0) {
+      // Check collision or proximity with living enemies (auto-explode if within 1.6m or collision)
+      let enemyNearby = false;
+      const grenadePos = p.mesh.position;
+      const proximityThreshold = 1.6;
+
+      for (let e = 0; e < enemies.length; e++) {
+        const enemy = enemies[e];
+        if (enemy && !enemy.isDead && enemy.position) {
+          const dist = grenadePos.distanceTo(enemy.position);
+          if (dist <= proximityThreshold) {
+            enemyNearby = true;
+            break;
+          }
+        }
+      }
+
+      // Detonate if fuse expired OR enemy is nearby / collided!
+      if (p.fuse <= 0 || enemyNearby) {
         const blastPos = p.mesh.position.clone();
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);

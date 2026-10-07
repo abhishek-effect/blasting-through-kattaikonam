@@ -37,6 +37,7 @@ export class WeaponBase {
     this.fireTimer = 0;
     this.reloadTimer = 0;
     this.isReloading = false;
+    this.autoReloadDelay = 0;
     this.muzzleFlashTimer = 0;
 
     // Recoil state
@@ -153,12 +154,21 @@ export class WeaponBase {
     if (this.ammoInMag <= 0) {
       this.audio.playEmptyClick();
       this.fireTimer = 0.25;
+      // Auto-reload immediately when attempting to fire with empty magazine
+      if (this.reserveAmmo > 0 && !this.isReloading) {
+        this.reload();
+      }
       return { fired: false, reason: 'empty' };
     }
 
     // Deduct ammo & set fire cooldown
     this.ammoInMag--;
     this.fireTimer = this.fireInterval;
+
+    // Automatic reload countdown when the last bullet is spent
+    if (this.ammoInMag === 0 && this.reserveAmmo > 0) {
+      this.autoReloadDelay = 0.25;
+    }
 
     // Trigger audio
     this.playFiringSound();
@@ -239,6 +249,18 @@ export class WeaponBase {
     // 1. Fire cooldown
     if (this.fireTimer > 0) {
       this.fireTimer -= deltaTime;
+    }
+
+    // 1b. Automatic reload when magazine empty
+    if (this.ammoInMag === 0 && !this.isReloading && this.reserveAmmo > 0) {
+      if (this.autoReloadDelay > 0) {
+        this.autoReloadDelay -= deltaTime;
+        if (this.autoReloadDelay <= 0) {
+          this.reload();
+        }
+      } else {
+        this.reload();
+      }
     }
 
     // 2. Muzzle flash fade

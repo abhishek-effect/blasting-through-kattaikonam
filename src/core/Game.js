@@ -83,7 +83,7 @@ export class Game {
 
     // HUD & Interaction System
     this.hud = new HUD(this.gameState, this.input);
-    this.interactionSystem = new InteractionSystem(this.level.elevator, this.hud);
+    this.interactionSystem = new InteractionSystem(this.level, this.hud, this.enemySpawner);
 
     // Laser Obstacle Trap System
     this.laserManager = new LaserManager(this.scene, this.audio, level1Data.lasers || []);
@@ -101,8 +101,8 @@ export class Game {
     // 4. Preload Audio
     this.audio.loadSound('grenade', ASSET_PATHS.audio.grenade);
 
-    // Initial Spawning from Predefined Zones
-    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones);
+    // Initial Spawning from Predefined Zones (reduced on mobile)
+    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones, this.input.isTouchDevice);
   }
 
   initListeners() {
@@ -141,6 +141,15 @@ export class Game {
       }
     });
 
+    this.input.onPauseRequested = () => {
+      if (this.gameState.current === STATES.PLAYING) {
+        this.gameState.setState(STATES.PAUSED);
+      } else if (this.gameState.current === STATES.PAUSED) {
+        this.gameState.setState(STATES.PLAYING);
+        this.input.requestPointerLock();
+      }
+    };
+
     this.gameState.on('restartGame', () => {
       this.restart();
     });
@@ -175,7 +184,10 @@ export class Game {
     this.player.switchSlot(0);
 
     this.grenadeManager.reset();
-    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones);
+    if (this.level && this.level.resetSeminarGate) {
+      this.level.resetSeminarGate();
+    }
+    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones, this.input.isTouchDevice);
     if (this.laserManager) {
       this.laserManager.initLasers(level1Data.lasers || []);
     }

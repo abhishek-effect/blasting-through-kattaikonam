@@ -55,6 +55,15 @@ export class HUD {
     this.overlaySubtitle = document.getElementById('overlay-subtitle');
     this.btnStart = document.getElementById('btn-start-game');
 
+    // Pause Menu & Settings Elements
+    this.pauseSettingsPanel = document.getElementById('pause-settings-panel');
+    this.sliderSens = document.getElementById('slider-sensitivity');
+    this.sensValDisplay = document.getElementById('sens-val-display');
+    this.cardPcControls = document.getElementById('card-pc-controls');
+    this.cardMobileControls = document.getElementById('card-mobile-controls');
+    this.photoUploadSection = document.getElementById('photo-upload-section');
+    this.btnMobilePause = document.getElementById('btn-mobile-pause');
+
     // Photo Upload Elements
     this.photoInput = document.getElementById('enemy-photo-input');
     this.uploadStatusEl = document.getElementById('upload-status');
@@ -68,9 +77,12 @@ export class HUD {
 
     this.initEvents();
     this.initSlotClickHandlers();
+    this.initSettings();
+    this.initMobilePause();
     this.initPhotoUpload();
     this.renderRosterPreview();
     this.checkMobileVisibility();
+    this.updateControlsCardVisibility();
   }
 
   initPhotoUpload() {
@@ -157,22 +169,76 @@ export class HUD {
   }
 
   checkMobileVisibility() {
-    if (this.input.isTouchDevice && this.mobileControlsEl) {
-      this.mobileControlsEl.classList.remove('hidden');
+    if (this.input.isTouchDevice) {
+      if (this.mobileControlsEl) {
+        this.mobileControlsEl.classList.remove('hidden');
+      }
+      if (this.btnMobilePause) {
+        this.btnMobilePause.style.display = 'flex';
+      }
+    } else {
+      if (this.btnMobilePause) {
+        this.btnMobilePause.style.display = 'none';
+      }
+    }
+  }
+
+  initSettings() {
+    if (!this.sliderSens) return;
+    const currentMult = this.input.getCurrentSensitivityMultiplier ? this.input.getCurrentSensitivityMultiplier() : 1.0;
+    this.sliderSens.value = currentMult.toFixed(1);
+    if (this.sensValDisplay) {
+      this.sensValDisplay.textContent = `${parseFloat(currentMult).toFixed(1)}x`;
+    }
+
+    this.sliderSens.addEventListener('input', (e) => {
+      const mult = parseFloat(e.target.value);
+      if (this.input.setSensitivityMultiplier) {
+        this.input.setSensitivityMultiplier(mult);
+      }
+      if (this.sensValDisplay) {
+        this.sensValDisplay.textContent = `${mult.toFixed(1)}x`;
+      }
+    });
+  }
+
+  initMobilePause() {
+    if (!this.btnMobilePause) return;
+    const handlePause = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.gameState.current === STATES.PLAYING) {
+        this.gameState.setState(STATES.PAUSED);
+      }
+    };
+    this.btnMobilePause.addEventListener('pointerdown', handlePause);
+    this.btnMobilePause.addEventListener('click', handlePause);
+  }
+
+  updateControlsCardVisibility() {
+    // On PC, dont display mobile controls and on mobile, dont display pc controls
+    if (this.input.isTouchDevice) {
+      if (this.cardMobileControls) this.cardMobileControls.classList.remove('hidden');
+      if (this.cardPcControls) this.cardPcControls.classList.add('hidden');
+    } else {
+      if (this.cardPcControls) this.cardPcControls.classList.remove('hidden');
+      if (this.cardMobileControls) this.cardMobileControls.classList.add('hidden');
     }
   }
 
   initSlotClickHandlers() {
-    // Clicking or tapping HUD slots switches weapon/item
+    // Clicking or tapping HUD slots, gun name, or gun image switches weapon/item instantly
     this.slotEls.forEach((slotEl, idx) => {
-      if (slotEl) {
-        const select = (e) => {
-          e.preventDefault();
-          this.input.requestSlot(idx);
-        };
-        slotEl.addEventListener('click', select);
-        slotEl.addEventListener('touchend', select);
-      }
+      if (!slotEl) return;
+      const select = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.input.requestSlot(idx);
+      };
+      // Register pointerdown and touchstart for zero-latency tap response on phones
+      slotEl.addEventListener('pointerdown', select);
+      slotEl.addEventListener('touchstart', select, { passive: false });
+      slotEl.addEventListener('click', select);
     });
   }
 
@@ -237,27 +303,52 @@ export class HUD {
   onStateChange(state) {
     if (!this.screenOverlay) return;
 
+    this.updateControlsCardVisibility();
+
     if (state === STATES.PLAYING) {
       this.screenOverlay.classList.add('hidden');
+      if (this.btnMobilePause && this.input.isTouchDevice) {
+        this.btnMobilePause.style.display = 'flex';
+      }
     } else {
       this.screenOverlay.classList.remove('hidden');
+      if (this.btnMobilePause) {
+        this.btnMobilePause.style.display = 'none';
+      }
 
       if (state === STATES.MENU) {
         this.overlayTitle.textContent = 'BLASTING THROUGH KATTAIKONAM';
         this.overlaySubtitle.textContent = 'FLOOR 1 - RETRO SCHOOL FPS';
         this.btnStart.textContent = 'ENTER LEVEL (CLICK TO PLAY)';
+        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
+        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
       } else if (state === STATES.GAME_OVER) {
         this.overlayTitle.textContent = 'DETENTION! YOU FAILED!';
         this.overlaySubtitle.textContent = 'Expelled by the campus patrol.';
         this.btnStart.textContent = 'TRY AGAIN';
+        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
+        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
       } else if (state === STATES.VICTORY) {
         this.overlayTitle.textContent = 'CAMPUS CLEARED!';
         this.overlaySubtitle.textContent = 'All enemies eliminated. Find the elevator to proceed!';
         this.btnStart.textContent = 'PLAY AGAIN';
+        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
+        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
       } else if (state === STATES.PAUSED) {
-        this.overlayTitle.textContent = 'PAUSED';
-        this.overlaySubtitle.textContent = 'Click to resume pointer lock';
-        this.btnStart.textContent = 'RESUME';
+        this.overlayTitle.textContent = 'GAME PAUSED';
+        this.overlaySubtitle.textContent = 'Adjust turn sensitivity & review controls';
+        this.btnStart.textContent = 'RESUME GAME';
+        if (this.pauseSettingsPanel) {
+          this.pauseSettingsPanel.classList.remove('hidden');
+          if (this.sliderSens && this.input.getCurrentSensitivityMultiplier) {
+            const currentMult = this.input.getCurrentSensitivityMultiplier();
+            this.sliderSens.value = currentMult.toFixed(1);
+            if (this.sensValDisplay) {
+              this.sensValDisplay.textContent = `${parseFloat(currentMult).toFixed(1)}x`;
+            }
+          }
+        }
+        if (this.photoUploadSection) this.photoUploadSection.classList.add('hidden');
       }
     }
   }

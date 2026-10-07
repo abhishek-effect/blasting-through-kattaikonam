@@ -70,9 +70,15 @@ export class InputManager {
     this.jumpRequested = false;
     this.requestedSlot = null; // 0, 1, or 2
 
-    // Sensitivity
-    this.mouseSensitivity = 0.0022;
-    this.touchSensitivity = 0.0040;
+    // Sensitivity configuration & saved preferences
+    this.baseMouseSensitivity = 0.0022;
+    this.baseTouchSensitivity = 0.0038;
+
+    const savedMouseMult = parseFloat(localStorage.getItem('kattaikonam_mouse_sens') || '1.0');
+    const savedTouchMult = parseFloat(localStorage.getItem('kattaikonam_touch_sens') || '1.0');
+
+    this.mouseSensitivity = this.baseMouseSensitivity * (isNaN(savedMouseMult) ? 1.0 : savedMouseMult);
+    this.touchSensitivity = this.baseTouchSensitivity * (isNaN(savedTouchMult) ? 1.0 : savedTouchMult);
 
     // Detect if device supports touch
     this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -82,13 +88,42 @@ export class InputManager {
     this.initMobileControls();
   }
 
+  setMouseSensitivityMultiplier(mult) {
+    this.mouseSensitivity = this.baseMouseSensitivity * mult;
+    try { localStorage.setItem('kattaikonam_mouse_sens', mult.toString()); } catch (e) {}
+  }
+
+  setTouchSensitivityMultiplier(mult) {
+    this.touchSensitivity = this.baseTouchSensitivity * mult;
+    try { localStorage.setItem('kattaikonam_touch_sens', mult.toString()); } catch (e) {}
+  }
+
+  getCurrentSensitivityMultiplier() {
+    if (this.isTouchDevice) {
+      return this.touchSensitivity / this.baseTouchSensitivity;
+    }
+    return this.mouseSensitivity / this.baseMouseSensitivity;
+  }
+
+  setSensitivityMultiplier(mult) {
+    if (this.isTouchDevice) {
+      this.setTouchSensitivityMultiplier(mult);
+    } else {
+      this.setMouseSensitivityMultiplier(mult);
+    }
+  }
+
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
       if (this.keys.hasOwnProperty(e.code)) {
         this.keys[e.code] = true;
       }
 
-      if (e.code === 'Space') {
+      if (e.code === 'KeyP') {
+        if (this.onPauseRequested) {
+          this.onPauseRequested();
+        }
+      } else if (e.code === 'Space') {
         this.jumpRequested = true;
       } else if (e.code === 'KeyR') {
         this.reloadRequested = true;

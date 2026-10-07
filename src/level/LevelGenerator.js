@@ -50,6 +50,11 @@ export class LevelGenerator {
       }),
       lightFixture: new THREE.MeshBasicMaterial({
         color: 0xffffff,
+      }),
+      blackFloor: new THREE.MeshStandardMaterial({
+        color: 0x141414,
+        roughness: 0.85,
+        metalness: 0.1,
       })
     };
   }
@@ -69,6 +74,18 @@ export class LevelGenerator {
     baseFloorMesh.position.set(midX, 0, midZ);
     baseFloorMesh.receiveShadow = true;
     this.scene.add(baseFloorMesh);
+
+    // 1b. Distinctive Black Floor Tiles for designated rooms (Central Atrium)
+    this.data.rooms.forEach((room) => {
+      if (room.hasBlackTiles) {
+        const atriumGeo = new THREE.PlaneGeometry(room.w, room.l);
+        const atriumMesh = new THREE.Mesh(atriumGeo, this.materials.blackFloor);
+        atriumMesh.rotation.x = -Math.PI / 2;
+        atriumMesh.position.set(room.x, 0.015, room.z);
+        atriumMesh.receiveShadow = true;
+        this.scene.add(atriumMesh);
+      }
+    });
 
     // 2. Continuous Base Ceiling
     const baseCeilingGeo = new THREE.PlaneGeometry(totalW, totalL);
@@ -103,6 +120,9 @@ export class LevelGenerator {
       const elevColliders = this.elevator.getColliders();
       elevColliders.forEach((box) => this.colliders.push(box));
     }
+
+    // 6b. Build Seminar Hall Security Gate (Locked until 20 kills)
+    this.buildSeminarGate(h);
 
     // 7. Ambient Light
     const ambient = new THREE.AmbientLight(0xffffff, 0.7);
@@ -235,6 +255,62 @@ export class LevelGenerator {
     mesh.position.set(x, 1.1, z);
     this.scene.add(mesh);
     this.addColliderBox(x, 1.1, z, 0.5, 2.2, length);
+  }
+
+  buildSeminarGate(h) {
+    const doorH = 2.6;
+    // Security laser field barrier blocking the seminar hall doorway (x: 2, z: 0)
+    const gateGeo = new THREE.BoxGeometry(0.3, doorH, 3.8);
+    const gateMat = new THREE.MeshStandardMaterial({
+      color: 0xff2222,
+      emissive: 0xaa1111,
+      roughness: 0.3,
+      metalness: 0.8,
+      transparent: true,
+      opacity: 0.85
+    });
+    const gateMesh = new THREE.Mesh(gateGeo, gateMat);
+    gateMesh.position.set(2, doorH / 2, 0);
+    this.scene.add(gateMesh);
+
+    const gateCollider = new THREE.Box3();
+    const half = new THREE.Vector3(0.15, doorH / 2, 1.9);
+    const center = new THREE.Vector3(2, doorH / 2, 0);
+    gateCollider.min.subVectors(center, half);
+    gateCollider.max.addVectors(center, half);
+    this.colliders.push(gateCollider);
+
+    this.seminarGate = {
+      mesh: gateMesh,
+      collider: gateCollider,
+      isUnlocked: false,
+      requiresKills: 20,
+      x: 2,
+      z: 0
+    };
+  }
+
+  unlockSeminarGate() {
+    if (!this.seminarGate || this.seminarGate.isUnlocked) return;
+    this.seminarGate.isUnlocked = true;
+    if (this.seminarGate.mesh) {
+      this.seminarGate.mesh.visible = false;
+    }
+    const idx = this.colliders.indexOf(this.seminarGate.collider);
+    if (idx !== -1) {
+      this.colliders.splice(idx, 1);
+    }
+  }
+
+  resetSeminarGate() {
+    if (!this.seminarGate) return;
+    this.seminarGate.isUnlocked = false;
+    if (this.seminarGate.mesh) {
+      this.seminarGate.mesh.visible = true;
+    }
+    if (!this.colliders.includes(this.seminarGate.collider)) {
+      this.colliders.push(this.seminarGate.collider);
+    }
   }
 
   addStaticWall(x, y, z, wx, hy, lz, addCollider = true) {

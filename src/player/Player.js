@@ -28,6 +28,8 @@ export class Player {
     this.sprintSpeed = 7.5;
     this.yaw = 0;
     this.pitch = 0;
+    this.targetYaw = 0;
+    this.targetPitch = 0;
 
     // Camera bobbing
     this.bobTimer = 0;
@@ -81,11 +83,13 @@ export class Player {
     });
   }
 
-  reset(startPosition = new THREE.Vector3(0, this.height, 18)) {
+  reset(startPosition = new THREE.Vector3(0, this.height, 18), startYaw = 0) {
     this.position.copy(startPosition);
     this.velocity.set(0, 0, 0);
-    this.yaw = 0;
+    this.yaw = startYaw;
     this.pitch = 0;
+    this.targetYaw = startYaw;
+    this.targetPitch = 0;
     this.health = this.maxHealth;
     this.isDead = false;
     this.hasPhotocopy = false;
@@ -114,13 +118,18 @@ export class Player {
       this.switchSlot(requestedSlot);
     }
 
-    // 1. Process Look (Mouse or Touch Drag)
+    // 1. Process Look (Mouse or Touch Drag) with Smooth Interpolation
     const { yaw: deltaYaw, pitch: deltaPitch } = this.input.getLookDelta();
-    this.yaw += deltaYaw;
-    this.pitch += deltaPitch;
+    this.targetYaw += deltaYaw;
+    this.targetPitch += deltaPitch;
 
     const maxPitch = (85 * Math.PI) / 180;
-    this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+    this.targetPitch = Math.max(-maxPitch, Math.min(maxPitch, this.targetPitch));
+
+    // Smooth exponential damping: ultra-smooth turning on mobile while maintaining responsive PC aim
+    const smoothFactor = Math.min(1.0, deltaTime * 28.0);
+    this.yaw += (this.targetYaw - this.yaw) * smoothFactor;
+    this.pitch += (this.targetPitch - this.pitch) * smoothFactor;
 
     // 2. Process Movement
     const move = this.input.getMoveVector();
