@@ -1,8 +1,9 @@
 /**
  * WeaponBase Module
  * Shared base class for firearm weapons (Rifle, Pistol).
- * Provides viewmodel rendering, hitscan raycasting, recoil, muzzle flash,
- * and particle sparks so adding future weapons is simple.
+ * Provides 3D first-person viewmodel rendering with held arms/hands,
+ * authentic first-person perspective angle, hitscan raycasting, recoil,
+ * muzzle flash, weapon sway, and impact particles.
  */
 import * as THREE from 'three';
 import { loadTexture } from '../config/assets.js';
@@ -31,7 +32,23 @@ export class WeaponBase {
     this.viewHeight = config.viewHeight || 0.35;
     this.restPosition = config.restPosition
       ? config.restPosition.clone()
-      : new THREE.Vector3(0.24, -0.22, -0.55);
+      : new THREE.Vector3(0.19, -0.18, -0.46);
+
+    // Realistic first-person viewing angle (aiming down range with inward cant)
+    this.baseRotation = config.baseRotation
+      ? config.baseRotation.clone()
+      : new THREE.Euler(0.10, -0.42, 0.08, 'YXZ');
+
+    this.muzzleOffset = config.muzzleOffset
+      ? config.muzzleOffset.clone()
+      : new THREE.Vector3(-0.245, 0.055, 0.01);
+
+    this.armsBuilder = config.armsBuilder || null;
+
+    // Dynamic Sway & Bobbing
+    this.swayX = 0;
+    this.swayY = 0;
+    this.swayRotZ = 0;
 
     // Timers & States
     this.fireTimer = 0;
@@ -44,8 +61,8 @@ export class WeaponBase {
     this.currentRecoilZ = 0;
     this.currentRecoilRot = 0;
     this.cameraRecoilPitch = 0;
-    this.recoilKickZ = config.recoilKickZ || 0.06;
-    this.recoilKickRot = config.recoilKickRot || 0.12;
+    this.recoilKickZ = config.recoilKickZ || 0.05;
+    this.recoilKickRot = config.recoilKickRot || 0.09;
     this.cameraKick = config.cameraKick || 0.012;
 
     // Raycaster for hitscan
@@ -63,7 +80,13 @@ export class WeaponBase {
   }
 
   buildViewmodel() {
-    // 1. Weapon Sprite Plane with transparent PNG
+    // 1. Viewmodel Pivot Group (holds gun + arms together at the authentic held angle)
+    this.viewmodelPivot = new THREE.Group();
+    this.viewmodelPivot.position.copy(this.restPosition);
+    this.viewmodelPivot.rotation.copy(this.baseRotation);
+    this.viewmodelGroup.add(this.viewmodelPivot);
+
+    // 2. Weapon Sprite Plane
     const gunGeo = new THREE.PlaneGeometry(this.viewWidth, this.viewHeight);
     const gunTex = loadTexture(this.spriteUrl, 1, 1, '#333333', '#111111');
     const gunMat = new THREE.MeshBasicMaterial({
@@ -75,29 +98,36 @@ export class WeaponBase {
     });
 
     this.gunMesh = new THREE.Mesh(gunGeo, gunMat);
-    this.gunMesh.renderOrder = 999; // Always render over world geometry
-    this.gunMesh.position.copy(this.restPosition);
-    this.viewmodelGroup.add(this.gunMesh);
+    this.gunMesh.renderOrder = 998; // Renders over hands back, under gripping fingers
+    this.gunMesh.position.set(0, 0, 0);
+    this.viewmodelPivot.add(this.gunMesh);
 
-    // 2. Muzzle Flash Sprite
+    // 3. Held Arms & Hands (First-person player model)
+    if (this.armsBuilder) {
+      this.armsGroup = this.armsBuilder();
+      this.viewmodelPivot.add(this.armsGroup);
+    }
+
+    // 4. Muzzle Flash Sprite (positioned precisely at barrel tip)
     const flashGeo = new THREE.PlaneGeometry(0.18, 0.18);
     const flashMat = new THREE.MeshBasicMaterial({
       color: 0xffe600,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
     this.muzzleFlash = new THREE.Mesh(flashGeo, flashMat);
-    this.muzzleFlash.position.set(0.14, 0.07, 0.01);
+    this.muzzleFlash.renderOrder = 1000;
+    this.muzzleFlash.position.copy(this.muzzleOffset);
     this.muzzleFlash.visible = false;
-    this.gunMesh.add(this.muzzleFlash);
+    this.viewmodelPivot.add(this.muzzleFlash);
 
-    // 3. Muzzle Flash Point Light
+    // 5. Muzzle Flash Point Light
     this.flashLight = new THREE.PointLight(0xffaa22, 0, 8);
-    this.flashLight.position.set(0.2, -0.15, -0.6);
-    this.viewmodelGroup.add(this.flashLight);
+    this.flashLight.position.copy(this.muzzleOffset);
+    this.viewmodelPivot.add(this.flashLight);
   }
 
   buildImpactParticleSystem() {
@@ -154,7 +184,6 @@ export class WeaponBase {
     if (this.ammoInMag <= 0) {
       this.audio.playEmptyClick();
       this.fireTimer = 0.25;
-      // Auto-reload immediately when attempting to fire with empty magazine
       if (this.reserveAmmo > 0 && !this.isReloading) {
         this.reload();
       }
@@ -165,7 +194,6 @@ export class WeaponBase {
     this.ammoInMag--;
     this.fireTimer = this.fireInterval;
 
-    // Automatic reload countdown when the last bullet is spent
     if (this.ammoInMag === 0 && this.reserveAmmo > 0) {
       this.autoReloadDelay = 0.25;
     }
@@ -179,7 +207,7 @@ export class WeaponBase {
     this.flashLight.intensity = 2.5;
     this.muzzleFlashTimer = 0.05;
 
-    // Recoil Kick
+    // Recoil Kick (viewmodel kicks back and barrel rises)
     this.currentRecoilZ = this.recoilKickZ;
     this.currentRecoilRot = this.recoilKickRot;
     this.cameraRecoilPitch = this.cameraKick;
@@ -272,11 +300,14 @@ export class WeaponBase {
       }
     }
 
-    // 3. Reloading animation
+    // 3. Calculate Viewmodel Animation, Recoil, Sway, and Movement Bob
+    let reloadDip = 0;
+    let reloadPitch = 0;
     if (this.isReloading) {
       this.reloadTimer -= deltaTime;
-      const reloadDip = Math.sin((this.reloadTimer / this.reloadDuration) * Math.PI) * 0.18;
-      this.gunMesh.position.y = this.restPosition.y - reloadDip;
+      const reloadProgress = 1 - (this.reloadTimer / this.reloadDuration);
+      reloadDip = Math.sin(reloadProgress * Math.PI) * 0.16;
+      reloadPitch = Math.sin(reloadProgress * Math.PI) * 0.18;
 
       if (this.reloadTimer <= 0) {
         const needed = this.magSize - this.ammoInMag;
@@ -284,24 +315,62 @@ export class WeaponBase {
         this.ammoInMag += available;
         this.reserveAmmo -= available;
         this.isReloading = false;
-        this.gunMesh.position.y = this.restPosition.y;
       }
-    } else {
-      // 4. Recoil spring recovery
-      this.currentRecoilZ = THREE.MathUtils.lerp(this.currentRecoilZ, 0, deltaTime * 16);
-      this.currentRecoilRot = THREE.MathUtils.lerp(this.currentRecoilRot, 0, deltaTime * 16);
-
-      this.gunMesh.position.z = this.restPosition.z + this.currentRecoilZ;
-      this.gunMesh.rotation.z = this.currentRecoilRot;
     }
 
-    // 5. Camera recoil absorption
+    // Recoil spring recovery
+    this.currentRecoilZ = THREE.MathUtils.lerp(this.currentRecoilZ, 0, Math.min(1.0, deltaTime * 16));
+    this.currentRecoilRot = THREE.MathUtils.lerp(this.currentRecoilRot, 0, Math.min(1.0, deltaTime * 16));
+
+    // Dynamic Mouse Sway
+    const lookYaw = player ? (player.lastDeltaYaw || 0) : 0;
+    const lookPitch = player ? (player.lastDeltaPitch || 0) : 0;
+    this.swayX = THREE.MathUtils.lerp(this.swayX, -lookYaw * 0.022, Math.min(1.0, deltaTime * 14.0));
+    this.swayY = THREE.MathUtils.lerp(this.swayY, lookPitch * 0.022, Math.min(1.0, deltaTime * 14.0));
+    this.swayRotZ = THREE.MathUtils.lerp(this.swayRotZ, -lookYaw * 0.045, Math.min(1.0, deltaTime * 14.0));
+
+    // Movement Bobbing
+    let bobX = 0;
+    let bobY = 0;
+    let crouchSlideY = 0;
+    let slideRotZ = 0;
+
+    if (player) {
+      if (player.bobTimer > 0 && player.isGrounded) {
+        const bobSpeed = player.input && player.input.isSprinting() ? 1.3 : 1.0;
+        bobX = Math.cos(player.bobTimer * 0.5) * 0.007;
+        bobY = Math.sin(player.bobTimer) * 0.005;
+      }
+
+      if (player.isSliding) {
+        crouchSlideY = -0.025;
+        slideRotZ = -0.04;
+      } else if (player.isCrouching) {
+        crouchSlideY = -0.015;
+      }
+    }
+
+    // Apply combined transforms to the viewmodel pivot
+    this.viewmodelPivot.position.set(
+      this.restPosition.x + this.swayX + bobX,
+      this.restPosition.y + this.swayY + bobY - reloadDip + crouchSlideY,
+      this.restPosition.z + this.currentRecoilZ
+    );
+
+    this.viewmodelPivot.rotation.set(
+      this.baseRotation.x + this.currentRecoilRot - reloadPitch,
+      this.baseRotation.y,
+      this.baseRotation.z + this.swayRotZ + slideRotZ,
+      'YXZ'
+    );
+
+    // 4. Camera recoil absorption
     if (this.cameraRecoilPitch > 0 && player) {
       player.pitch += this.cameraRecoilPitch;
       this.cameraRecoilPitch = 0;
     }
 
-    // 6. Impact particles
+    // 5. Impact particles
     for (let p of this.impactParticles) {
       if (p.mesh.visible) {
         p.life += deltaTime;
@@ -321,8 +390,13 @@ export class WeaponBase {
     this.isReloading = false;
     this.fireTimer = 0;
     this.reloadTimer = 0;
-    this.gunMesh.position.copy(this.restPosition);
-    this.gunMesh.rotation.set(0, 0, 0);
+    this.currentRecoilZ = 0;
+    this.currentRecoilRot = 0;
+    this.swayX = 0;
+    this.swayY = 0;
+    this.swayRotZ = 0;
+    this.viewmodelPivot.position.copy(this.restPosition);
+    this.viewmodelPivot.rotation.copy(this.baseRotation);
   }
 
   destroy() {

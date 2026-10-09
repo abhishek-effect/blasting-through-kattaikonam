@@ -4,6 +4,7 @@
  * Automatically discovers any images in images/enemies/,
  * supports runtime photo uploads from users,
  * and falls back to a procedural retro sprite if no photos are present.
+ * Includes texture caching and preloading system to eliminate runtime lag.
  */
 import * as THREE from 'three';
 import { discoveredEnemyFiles } from 'virtual:enemy-list';
@@ -23,7 +24,6 @@ export const ASSET_PATHS = {
     laserBeam: assetUrl('/images/textures/laser-texture.png'),
   },
   weapons: {
-    // Transparent PNGs for viewmodels and HUD
     ak47: assetUrl('/images/weapons/ak47.png'),
     pistol: assetUrl('/images/weapons/pistol.png'),
     medkit: assetUrl('/images/weapons/medkit.png'),
@@ -31,8 +31,12 @@ export const ASSET_PATHS = {
   items: {
     grenade: assetUrl('/images/grenade.avif'),
   },
+  ui: {
+    blastingTitle: assetUrl('/images/blasting.png'),
+    favicon: assetUrl('/favicon.png'),
+    credits: assetUrl('/credits.txt'),
+  },
   enemies: {
-    // Fully dynamic: filled by auto-discovery and user photo uploads
     types: {}
   },
   audio: {
@@ -57,19 +61,17 @@ export function createProceduralEnemySprite() {
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
 
-  // Retro school campus patrol silhouette
   ctx.fillStyle = '#b71540';
   ctx.beginPath();
-  ctx.arc(64, 40, 24, 0, Math.PI * 2); // Head
+  ctx.arc(64, 40, 24, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillRect(36, 60, 56, 50); // Body
-  ctx.fillRect(24, 66, 14, 40); // Left arm
-  ctx.fillRect(90, 66, 14, 40); // Right arm
-  ctx.fillRect(44, 110, 16, 18); // Left leg
-  ctx.fillRect(68, 110, 16, 18); // Right leg
+  ctx.fillRect(36, 60, 56, 50);
+  ctx.fillRect(24, 66, 14, 40);
+  ctx.fillRect(90, 66, 14, 40);
+  ctx.fillRect(44, 110, 16, 18);
+  ctx.fillRect(68, 110, 16, 18);
 
-  // Eyes
   ctx.fillStyle = '#fffa65';
   ctx.fillRect(52, 34, 8, 8);
   ctx.fillRect(68, 34, 8, 8);
@@ -78,7 +80,6 @@ export function createProceduralEnemySprite() {
   ctx.fillRect(56, 36, 4, 4);
   ctx.fillRect(72, 36, 4, 4);
 
-  // Tie / Badge
   ctx.fillStyle = '#f6b93b';
   ctx.fillRect(60, 68, 8, 22);
 
@@ -95,10 +96,10 @@ function deriveStats(name) {
   }
   const posHash = Math.abs(hash);
   return {
-    hp: 85 + (posHash % 40), // 85 - 125 HP
-    speed: 2.6 + ((posHash >> 2) % 8) * 0.1, // 2.6 - 3.3 speed
-    scale: 1.68, // Uniform human proportion matching player eye height (1.65m)
-    damage: 12 + ((posHash >> 6) % 7) * 1.5, // 12 - 21 damage
+    hp: 85 + (posHash % 40),
+    speed: 2.6 + ((posHash >> 2) % 8) * 0.1,
+    scale: 1.68,
+    damage: 12 + ((posHash >> 6) % 7) * 1.5,
   };
 }
 
@@ -119,9 +120,7 @@ export function registerEnemyType(id, name, spriteUrl, stats = {}) {
   };
 }
 
-/**
- * Auto-discover any photos present in images/enemies/ via virtual:enemy-list
- */
+// Auto-discover any photos present in images/enemies/ via virtual:enemy-list
 if (Array.isArray(discoveredEnemyFiles)) {
   discoveredEnemyFiles.forEach((fileName) => {
     const id = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
@@ -133,9 +132,7 @@ if (Array.isArray(discoveredEnemyFiles)) {
   });
 }
 
-/**
- * Storage helpers for user-uploaded custom enemy photos
- */
+// Storage helpers for user-uploaded custom enemy photos
 const STORAGE_KEY = 'kattaikonam_custom_enemies';
 
 export function loadCustomEnemiesFromStorage() {
@@ -197,9 +194,6 @@ export function ensureAtLeastOneEnemyType() {
 }
 ensureAtLeastOneEnemyType();
 
-/**
- * Helper to downscale and process user-uploaded image files into fast billboard textures
- */
 export function processUploadedImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -239,10 +233,11 @@ export function processUploadedImage(file) {
 }
 
 const textureLoader = new THREE.TextureLoader();
+const textureCache = new Map();
+const metricsCache = new Map();
 
 /**
  * Creates a procedural checkerboard/colored fallback texture
- * to guarantee materials render even before images load or if a file is missing.
  */
 export function createFallbackTexture(color1 = '#777777', color2 = '#444444', size = 64) {
   const canvas = document.createElement('canvas');
@@ -260,11 +255,8 @@ export function createFallbackTexture(color1 = '#777777', color2 = '#444444', si
   return texture;
 }
 
-const metricsCache = new Map();
-
 /**
  * Analyzes alpha channel bounding box and aspect ratio of a sprite image
- * Ensures characters match human proportions and removes arbitrary head-space offset
  */
 export function analyzeImageMetrics(img) {
   if (!img || !img.width || !img.height) {
@@ -329,15 +321,25 @@ export function getImageMetrics(url) {
 }
 
 /**
- * Safe texture loader with automatic fallback and texture wrapping
+ * High-performance texture loader with automatic caching and texture wrapping
+ * Never creates duplicate textures or re-runs canvas pixel scanning for the same asset.
  */
 export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#555555', fallbackColor2 = '#333333', onMetricsReady = null) {
+  if (!url) {
+    return createFallbackTexture(fallbackColor1, fallbackColor2);
+  }
+
+  const cacheKey = `${url}__${repeatX}__${repeatY}`;
+  if (textureCache.has(cacheKey)) {
+    const cached = textureCache.get(cacheKey);
+    if (onMetricsReady && cached.userData && cached.userData.metrics) {
+      onMetricsReady(cached.userData.metrics);
+    }
+    return cached;
+  }
+
   const fallback = createFallbackTexture(fallbackColor1, fallbackColor2);
   fallback.repeat.set(repeatX, repeatY);
-
-  if (!url) {
-    return fallback;
-  }
 
   const texture = textureLoader.load(
     url,
@@ -349,11 +351,17 @@ export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#55
       loadedTex.needsUpdate = true;
 
       if (loadedTex.image && loadedTex.image.width) {
-        const metrics = analyzeImageMetrics(loadedTex.image);
-        metricsCache.set(url, metrics);
-        loadedTex.userData.metrics = metrics;
-        if (onMetricsReady) onMetricsReady(metrics);
-        if (loadedTex.userData.onMetrics) loadedTex.userData.onMetrics(metrics);
+        if (!metricsCache.has(url)) {
+          const metrics = analyzeImageMetrics(loadedTex.image);
+          metricsCache.set(url, metrics);
+          loadedTex.userData.metrics = metrics;
+        } else {
+          loadedTex.userData.metrics = metricsCache.get(url);
+        }
+        if (onMetricsReady) onMetricsReady(loadedTex.userData.metrics);
+        if (loadedTex.userData && loadedTex.userData.onMetrics) {
+          loadedTex.userData.onMetrics(loadedTex.userData.metrics);
+        }
       }
     },
     undefined,
@@ -369,5 +377,60 @@ export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#55
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(repeatX, repeatY);
+
+  textureCache.set(cacheKey, texture);
   return texture;
+}
+
+/**
+ * Preloads all crucial environment, weapon, enemy, and UI textures ahead of time.
+ * Calculates metrics in advance so zero CPU image processing happens during gameplay!
+ */
+export async function preloadAllAssets(onProgress = null) {
+  const urlsToPreload = new Set();
+
+  // 1. Environment textures
+  Object.values(ASSET_PATHS.textures).forEach((u) => urlsToPreload.add(u));
+
+  // 2. Weapons & items
+  Object.values(ASSET_PATHS.weapons).forEach((u) => urlsToPreload.add(u));
+  if (ASSET_PATHS.items && ASSET_PATHS.items.grenade) {
+    urlsToPreload.add(ASSET_PATHS.items.grenade);
+  }
+
+  // 3. UI images (blasting title display, favicon)
+  urlsToPreload.add(ASSET_PATHS.ui.blastingTitle);
+  urlsToPreload.add(ASSET_PATHS.ui.favicon);
+
+  // 4. Enemy textures
+  Object.values(ASSET_PATHS.enemies.types).forEach((e) => {
+    if (e.sprite) urlsToPreload.add(e.sprite);
+  });
+
+  const urlList = Array.from(urlsToPreload);
+  let loadedCount = 0;
+  const total = urlList.length;
+
+  const loadSingle = (url) => {
+    return new Promise((resolve) => {
+      loadTexture(url, 1, 1, '#444', '#222', () => {
+        loadedCount++;
+        if (onProgress) {
+          onProgress(loadedCount / total, `LOADING ASSETS (${Math.round((loadedCount / total) * 100)}%)...`);
+        }
+        resolve();
+      });
+
+      // Timeout safety fallback
+      setTimeout(() => {
+        resolve();
+      }, 3500);
+    });
+  };
+
+  await Promise.all(urlList.map(loadSingle));
+
+  if (onProgress) {
+    onProgress(1.0, 'WARMING UP SHADERS & AUDIO...');
+  }
 }

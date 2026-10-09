@@ -1,7 +1,8 @@
 /**
  * GrenadeManager Module
  * Handles throwing, projectile physics, radius blast damage falloff,
- * retro explosion VFX, and dropped grenade pickups every 3 kills.
+ * pre-allocated retro explosion VFX pooling (zero runtime GPU shader recompilation or memory allocation),
+ * and dropped grenade pickups every 3 kills.
  */
 import * as THREE from 'three';
 
@@ -27,9 +28,6 @@ export class GrenadeManager {
     // Active pickups in the world
     this.pickups = [];
 
-    // Active visual explosion effects
-    this.explosions = [];
-
     // Shared Geometries & Materials
     this.grenadeGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.18, 8);
     this.grenadeMat = new THREE.MeshStandardMaterial({
@@ -43,6 +41,55 @@ export class GrenadeManager {
       emissive: 0x114411,
       roughness: 0.4
     });
+
+    // Pre-allocate explosion VFX pool so zero meshes or PointLights are added during action!
+    this.initExplosionPool(5);
+  }
+
+  initExplosionPool(poolSize = 5) {
+    this.explosionPool = [];
+    const sphereGeo = new THREE.SphereGeometry(1, 12, 12);
+    const ringGeo = new THREE.RingGeometry(0.5, 0.8, 20);
+
+    for (let i = 0; i < poolSize; i++) {
+      const sphereMat = new THREE.MeshBasicMaterial({
+        color: 0xff7711,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+      sphere.visible = false;
+      this.scene.add(sphere);
+
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffbb33,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      this.scene.add(ring);
+
+      const light = new THREE.PointLight(0xff6600, 0, 14);
+      light.visible = false;
+      this.scene.add(light);
+
+      this.explosionPool.push({
+        sphere,
+        ring,
+        light,
+        active: false,
+        timer: 0,
+        duration: 0.45,
+        maxRadius: this.blastRadius * 0.8
+      });
+    }
   }
 
   canThrow() {
@@ -118,7 +165,6 @@ export class GrenadeManager {
       if (enemy.isDead) return;
       const dist = pos.distanceTo(enemy.position);
       if (dist <= this.blastRadius) {
-        // Linear falloff: 1.0 at center, 0.0 at edge
         const falloff = 1.0 - (dist / this.blastRadius);
         const damage = Math.round(this.maxBlastDamage * falloff);
         enemy.takeDamage(damage, pos);
@@ -135,50 +181,33 @@ export class GrenadeManager {
       }
     }
 
-    // 2. Visual Explosion Effect (Retro Expanding Sphere & Sparks)
-    this.createExplosionVFX(pos);
+    // 2. Visual Explosion Effect from pre-allocated pool (zero memory allocation)
+    this.activateExplosionFromPool(pos);
   }
 
-  createExplosionVFX(pos) {
-    // Expanding flash sphere
-    const sphereGeo = new THREE.SphereGeometry(1, 12, 12);
-    const sphereMat = new THREE.MeshBasicMaterial({
-      color: 0xff7711,
-      transparent: true,
-      opacity: 0.85,
-      blending: THREE.AdditiveBlending
-    });
-    const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-    sphere.position.copy(pos);
-    this.scene.add(sphere);
+  activateExplosionFromPool(pos) {
+    let exp = this.explosionPool.find((e) => !e.active);
+    if (!exp) {
+      // If all are busy, recycle the oldest
+      exp = this.explosionPool[0];
+    }
 
-    // Shockwave ring
-    const ringGeo = new THREE.RingGeometry(0.5, 0.8, 24);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffbb33,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
-      blending: THREE.AdditiveBlending
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(pos.x, 0.1, pos.z);
-    this.scene.add(ring);
+    exp.active = true;
+    exp.timer = 0;
 
-    // Point Light Flash
-    const light = new THREE.PointLight(0xff6600, 5.0, 14);
-    light.position.copy(pos);
-    this.scene.add(light);
+    exp.sphere.position.copy(pos);
+    exp.sphere.scale.set(0.5, 0.5, 0.5);
+    exp.sphere.material.opacity = 0.85;
+    exp.sphere.visible = true;
 
-    this.explosions.push({
-      sphere,
-      ring,
-      light,
-      timer: 0,
-      duration: 0.45,
-      maxRadius: this.blastRadius * 0.8
-    });
+    exp.ring.position.set(pos.x, 0.1, pos.z);
+    exp.ring.scale.set(0.5, 0.5, 0.5);
+    exp.ring.material.opacity = 0.9;
+    exp.ring.visible = true;
+
+    exp.light.position.copy(pos);
+    exp.light.intensity = 5.0;
+    exp.light.visible = true;
   }
 
   update(deltaTime, enemies = [], player = null) {
@@ -200,7 +229,7 @@ export class GrenadeManager {
       // Floor bounce
       if (p.mesh.position.y <= 0.12) {
         p.mesh.position.y = 0.12;
-        p.velocity.y = -p.velocity.y * 0.45; // Bounce absorption
+        p.velocity.y = -p.velocity.y * 0.45;
         p.velocity.x *= 0.7;
         p.velocity.z *= 0.7;
       }
@@ -208,7 +237,7 @@ export class GrenadeManager {
       // Wall collision
       this.world.resolveSphereCollision(p.mesh.position, 0.15);
 
-      // Check collision or proximity with living enemies (auto-explode if within 1.6m or collision)
+      // Check collision or proximity with living enemies
       let enemyNearby = false;
       const grenadePos = p.mesh.position;
       const proximityThreshold = 1.6;
@@ -224,7 +253,6 @@ export class GrenadeManager {
         }
       }
 
-      // Detonate if fuse expired OR enemy is nearby / collided!
       if (p.fuse <= 0 || enemyNearby) {
         const blastPos = p.mesh.position.clone();
         this.scene.remove(p.mesh);
@@ -240,7 +268,6 @@ export class GrenadeManager {
       pickup.group.rotation.y += deltaTime * 2;
       pickup.group.position.y = 0.35 + Math.sin(pickup.bobTimer) * 0.08;
 
-      // Check player collection
       if (player && !player.isDead) {
         const dist = player.position.distanceTo(pickup.position);
         if (dist < 1.6) {
@@ -257,17 +284,20 @@ export class GrenadeManager {
       }
     }
 
-    // 3. Update Visual Explosions
-    for (let i = this.explosions.length - 1; i >= 0; i--) {
-      const exp = this.explosions[i];
+    // 3. Update Pooled Explosions
+    for (let i = 0; i < this.explosionPool.length; i++) {
+      const exp = this.explosionPool[i];
+      if (!exp.active) continue;
+
       exp.timer += deltaTime;
       const progress = exp.timer / exp.duration;
 
       if (progress >= 1.0) {
-        this.scene.remove(exp.sphere);
-        this.scene.remove(exp.ring);
-        this.scene.remove(exp.light);
-        this.explosions.splice(i, 1);
+        exp.active = false;
+        exp.sphere.visible = false;
+        exp.ring.visible = false;
+        exp.light.visible = false;
+        exp.light.intensity = 0;
       } else {
         const radius = THREE.MathUtils.lerp(0.5, exp.maxRadius, progress);
         exp.sphere.scale.set(radius, radius, radius);
@@ -288,11 +318,14 @@ export class GrenadeManager {
     this.projectiles = [];
     this.pickups.forEach((p) => this.scene.remove(p.group));
     this.pickups = [];
-    this.explosions.forEach((e) => {
-      this.scene.remove(e.sphere);
-      this.scene.remove(e.ring);
-      this.scene.remove(e.light);
+
+    // Reset pooled explosions
+    this.explosionPool.forEach((e) => {
+      e.active = false;
+      e.sphere.visible = false;
+      e.ring.visible = false;
+      e.light.visible = false;
+      e.light.intensity = 0;
     });
-    this.explosions = [];
   }
 }

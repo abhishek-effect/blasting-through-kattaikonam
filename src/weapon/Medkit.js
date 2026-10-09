@@ -1,10 +1,11 @@
 /**
  * Medkit Module (Slot 3)
- * Non-weapon consumable healing item with viewmodel, animation,
- * consumable charges, and 2-minute cooldown.
+ * Non-weapon consumable healing item with first-person held arms viewmodel,
+ * use animation, consumable charges, and 2-minute cooldown.
  */
 import * as THREE from 'three';
 import { loadTexture, ASSET_PATHS } from '../config/assets.js';
+import { createMedkitArms } from './ArmsViewmodel.js';
 
 export class Medkit {
   constructor(camera, scene, audio) {
@@ -23,7 +24,11 @@ export class Medkit {
     this.isUsing = false;
 
     // Viewmodel
-    this.restPosition = new THREE.Vector3(0.18, -0.22, -0.52);
+    this.restPosition = new THREE.Vector3(0.02, -0.18, -0.44);
+    this.baseRotation = new THREE.Euler(0.16, -0.06, 0.02, 'YXZ');
+    this.swayX = 0;
+    this.swayY = 0;
+
     this.viewmodelGroup = new THREE.Group();
     this.viewmodelGroup.visible = false;
     this.camera.add(this.viewmodelGroup);
@@ -31,7 +36,12 @@ export class Medkit {
   }
 
   buildViewmodel() {
-    const geo = new THREE.PlaneGeometry(0.38, 0.38);
+    this.viewmodelPivot = new THREE.Group();
+    this.viewmodelPivot.position.copy(this.restPosition);
+    this.viewmodelPivot.rotation.copy(this.baseRotation);
+    this.viewmodelGroup.add(this.viewmodelPivot);
+
+    const geo = new THREE.PlaneGeometry(0.36, 0.36);
     const tex = loadTexture(ASSET_PATHS.weapons.medkit, 1, 1, '#16a085', '#2ecc71');
     const mat = new THREE.MeshBasicMaterial({
       map: tex,
@@ -42,9 +52,12 @@ export class Medkit {
     });
 
     this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.renderOrder = 999;
-    this.mesh.position.copy(this.restPosition);
-    this.viewmodelGroup.add(this.mesh);
+    this.mesh.renderOrder = 998;
+    this.mesh.position.set(0, 0, 0);
+    this.viewmodelPivot.add(this.mesh);
+
+    this.armsGroup = createMedkitArms();
+    this.viewmodelPivot.add(this.armsGroup);
   }
 
   setVisible(visible) {
@@ -83,30 +96,47 @@ export class Medkit {
 
     if (!this.viewmodelGroup.visible) return;
 
+    // Viewmodel sway & bob
+    const lookYaw = player ? (player.lastDeltaYaw || 0) : 0;
+    const lookPitch = player ? (player.lastDeltaPitch || 0) : 0;
+    this.swayX = THREE.MathUtils.lerp(this.swayX, -lookYaw * 0.02, Math.min(1.0, deltaTime * 12.0));
+    this.swayY = THREE.MathUtils.lerp(this.swayY, lookPitch * 0.02, Math.min(1.0, deltaTime * 12.0));
+
+    let bobX = 0;
+    let bobY = 0;
+    if (player && player.bobTimer > 0 && player.isGrounded) {
+      bobX = Math.cos(player.bobTimer * 0.5) * 0.005;
+      bobY = Math.sin(player.bobTimer) * 0.004;
+    }
+
     // Use animation
     if (this.isUsing) {
       this.useTimer -= deltaTime;
       const progress = 1 - (this.useTimer / this.useDuration);
       // Lift towards center and pulse
       const lift = Math.sin(progress * Math.PI) * 0.12;
-      this.mesh.position.set(
-        this.restPosition.x - lift * 0.5,
-        this.restPosition.y + lift,
-        this.restPosition.z
+      this.viewmodelPivot.position.set(
+        this.restPosition.x + this.swayX + bobX,
+        this.restPosition.y + this.swayY + bobY + lift,
+        this.restPosition.z + lift * 0.5
       );
 
       if (this.useTimer <= 0) {
         this.isUsing = false;
         this.count--;
         this.cooldownTimer = this.cooldownDuration;
-        this.mesh.position.copy(this.restPosition);
+        this.viewmodelPivot.position.copy(this.restPosition);
 
         // Apply heal
         player.health = Math.min(player.maxHealth, player.health + this.healAmount);
         this.audio.playMedkitUse();
       }
     } else {
-      this.mesh.position.copy(this.restPosition);
+      this.viewmodelPivot.position.set(
+        this.restPosition.x + this.swayX + bobX,
+        this.restPosition.y + this.swayY + bobY,
+        this.restPosition.z
+      );
     }
   }
 
@@ -124,7 +154,8 @@ export class Medkit {
     this.cooldownTimer = 0;
     this.useTimer = 0;
     this.isUsing = false;
-    this.mesh.position.copy(this.restPosition);
+    this.viewmodelPivot.position.copy(this.restPosition);
+    this.viewmodelPivot.rotation.copy(this.baseRotation);
   }
 
   destroy() {

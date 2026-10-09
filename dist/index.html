@@ -4,9 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Blasting Through Kattaikonam - Retro FPS</title>
-  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-mMtYY-N1.js"></script>
-  <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-BvaaxBm9.js">
-  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-Dt9nOzX_.css">
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-CS8wh38g.js"></script>
+  <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-CtN9bkNg.js">
+  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-PNWNW0Sy.css">
 </head>
 <body>
   <div id="game-container">
@@ -114,6 +115,7 @@
       <div class="mobile-action-buttons">
         <div class="mobile-btn-row">
           <button id="btn-mobile-sprint" class="mobile-btn">RUN</button>
+          <button id="btn-mobile-crouch" class="mobile-btn" style="background: rgba(142, 68, 173, 0.85); border-color: #9b59b6;">CROUCH</button>
           <button id="btn-mobile-jump" class="mobile-btn" style="background: rgba(39, 174, 96, 0.85); border-color: #2ecc71; font-size: 18px;" title="Jump">⬆️</button>
           <button id="btn-mobile-reload" class="mobile-btn" style="font-size: 18px;" title="Reload">🔄️</button>
           <button id="btn-mobile-interact" class="mobile-btn" style="background: rgba(41, 128, 185, 0.85);">USE [E]</button>
@@ -125,60 +127,131 @@
       </div>
     </div>
 
-    <!-- Screen Overlay (Title, Pause, Game Over, Victory) -->
-    <div id="game-overlay">
-      <h1 id="overlay-title">BLASTING THROUGH KATTAIKONAM</h1>
-      <p id="overlay-subtitle">FLOOR 1 - RETRO SCHOOL FPS</p>
+    <!-- Intro & Loading Screen Presentation -->
+    <div id="intro-screen">
+      <div class="intro-box">
+        <div class="intro-badge">RETRO ARCADE CLASSIC</div>
+        <h1 class="intro-presenter">IIT CHANTHAVILA COMPUTER ENTERTAINMENT PRESENTS</h1>
+        
+        <div class="intro-loading-wrapper">
+          <div class="intro-loading-bar-track">
+            <div id="intro-loading-fill"></div>
+          </div>
+          <div id="intro-loading-status">INITIALIZING CAMPUS ASSETS...</div>
+        </div>
 
-      <!-- Pause Menu Sensitivity Slider -->
-      <div id="pause-settings-panel" class="settings-panel hidden">
-        <label for="slider-sensitivity" class="settings-label">
-          TURN SENSITIVITY: <span id="sens-val-display">1.0x</span>
-        </label>
-        <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
+        <button id="btn-intro-continue" class="intro-continue-btn hidden">PRESS ANY KEY OR CLICK TO ENTER</button>
+      </div>
+    </div>
+
+    <!-- Screen Overlay (Main Menu, Pause, Options, Credits, Game Over, Victory) -->
+    <div id="game-overlay" class="hidden">
+      <!-- Title Header: blasting.png logo display (NOT favicon) -->
+      <div class="menu-header">
+        <img id="menu-title-img" src="/blasting-through-kattaikonam/assets/blasting-DxHQrS3N.png" alt="Blasting Through Kattaikonam" class="menu-title-display" />
+        <h1 id="overlay-title" class="hidden">BLASTING THROUGH KATTAIKONAM</h1>
+        <p id="overlay-subtitle">FLOOR 1 - RETRO SCHOOL FPS</p>
       </div>
 
-      <div class="instructions-grid">
-        <div id="card-pc-controls" class="instruction-card">
-          <h3>PC Controls</h3>
-          <ul>
-            <li><b>WASD</b>: Move | <b>Space</b>: Jump</li>
-            <li><b>Mouse</b>: Look around (Pointer Lock)</li>
-            <li><b>Left Click</b>: Fire weapon / Use medkit</li>
-            <li><b>1, 2, 3</b>: Switch (Rifle, Pistol, Medkit)</li>
-            <li><b>G</b>: Throw Grenade (Drops every 3 kills)</li>
-            <li><b>E</b>: Interact / Elevator</li>
-            <li><b>Shift</b>: Sprint | <b>R</b>: Reload | <b>P / Esc</b>: Pause</li>
-          </ul>
-        </div>
-        <div id="card-mobile-controls" class="instruction-card">
-          <h3>Mobile Controls</h3>
-          <ul>
-            <li><b>Left Thumbstick</b>: Move</li>
-            <li><b>Right Half Drag</b>: Aim & Look</li>
-            <li><b>⬆️ Button</b>: Leap over laser traps</li>
-            <li><b>Tap Gun / Picture</b>: Switch weapons</li>
-            <li><b>💥 FIRE Button</b>: Shoot / Use item</li>
-            <li><b>🔄️ Button</b>: Reload weapon</li>
-            <li><b>💣 G Button</b>: Throw Grenade</li>
-            <li><b>USE [E]</b>: Elevator interaction</li>
-            <li><b>RUN Button</b>: Toggle sprint</li>
-            <li><b>⏸️ Button</b>: Pause menu</li>
-          </ul>
+      <!-- 1. Main Menu Buttons View -->
+      <div id="main-menu-view" class="menu-view">
+        <div class="menu-buttons-list">
+          <button id="btn-menu-continue" class="menu-btn continue-btn disabled">▶ CONTINUE</button>
+          <button id="btn-menu-newgame" class="menu-btn primary-btn">★ NEW GAME</button>
+          <button id="btn-menu-options" class="menu-btn">⚙ OPTIONS</button>
+          <button id="btn-menu-credits" class="menu-btn">📜 CREDITS</button>
         </div>
       </div>
 
-      <!-- Dynamic Enemy Photo Uploader & Roster Preview -->
-      <div id="photo-upload-section" class="photo-upload-container">
-        <label for="enemy-photo-input" class="btn-upload-photo" id="lbl-upload-photo">
-          📸 UPLOAD ENEMY PHOTO (PNG / JPG)
-        </label>
-        <input type="file" id="enemy-photo-input" accept="image/*" multiple style="display: none;" />
-        <span id="upload-status" class="upload-status-text"></span>
-        <div id="roster-preview" class="roster-preview-row"></div>
+      <!-- 2. Pause Menu View -->
+      <div id="pause-menu-view" class="menu-view hidden">
+        <div class="menu-buttons-list">
+          <button id="btn-pause-resume" class="menu-btn primary-btn">▶ RESUME GAME</button>
+          <button id="btn-pause-options" class="menu-btn">⚙ OPTIONS</button>
+          <button id="btn-pause-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
+        </div>
       </div>
 
-      <button id="btn-start-game">ENTER LEVEL (CLICK TO PLAY)</button>
+      <!-- 3. Game Over / Victory View -->
+      <div id="gameover-menu-view" class="menu-view hidden">
+        <div class="menu-buttons-list">
+          <button id="btn-gameover-restart" class="menu-btn primary-btn">🔄 TRY AGAIN</button>
+          <button id="btn-gameover-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
+        </div>
+      </div>
+
+      <!-- 4. Options & Settings View -->
+      <div id="options-view" class="menu-view hidden">
+        <h2 class="view-title">GAME OPTIONS</h2>
+
+        <!-- Turn Sensitivity Slider -->
+        <div class="settings-panel">
+          <label for="slider-sensitivity" class="settings-label">
+            TURN SENSITIVITY: <span id="sens-val-display">1.0x</span>
+          </label>
+          <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
+        </div>
+
+        <!-- Audio Settings -->
+        <div class="options-audio-row">
+          <button id="btn-toggle-bgm" class="menu-sub-btn">🎵 MUSIC: ON</button>
+          <button id="btn-toggle-sfx" class="menu-sub-btn">🔊 SOUND: ON</button>
+        </div>
+
+        <!-- Controls Guide Grid -->
+        <div class="instructions-grid">
+          <div id="card-pc-controls" class="instruction-card">
+            <h3>PC Controls</h3>
+            <ul>
+              <li><b>WASD</b>: Move | <b>Space</b>: Jump</li>
+              <li><b>Mouse</b>: Look around (Pointer Lock)</li>
+              <li><b>Left Click</b>: Fire weapon / Use medkit</li>
+              <li><b>1, 2, 3</b>: Switch (Rifle, Pistol, Medkit)</li>
+              <li><b>G</b>: Throw Grenade (Drops every 3 kills)</li>
+              <li><b>E</b>: Interact / Elevator</li>
+              <li><b>Shift</b>: Sprint | <b>C</b>: Crouch | <b>Ctrl</b>: Slide</li>
+              <li><b>R</b>: Reload | <b>P / Esc</b>: Pause</li>
+            </ul>
+          </div>
+          <div id="card-mobile-controls" class="instruction-card">
+            <h3>Mobile Controls</h3>
+            <ul>
+              <li><b>Left Thumbstick</b>: Move</li>
+              <li><b>Right Half Drag</b>: Aim & Look</li>
+              <li><b>⬆️ Button</b>: Leap over laser traps</li>
+              <li><b>Tap Gun / Picture</b>: Switch weapons</li>
+              <li><b>💥 FIRE Button</b>: Shoot / Use item</li>
+              <li><b>🔄️ Button</b>: Reload weapon</li>
+              <li><b>💣 G Button</b>: Throw Grenade</li>
+              <li><b>USE [E]</b>: Elevator interaction</li>
+              <li><b>RUN Button</b>: Toggle sprint</li>
+              <li><b>CROUCH Button</b>: Crouch / Slide</li>
+              <li><b>⏸️ Button</b>: Pause menu</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Dynamic Enemy Photo Uploader -->
+        <div id="photo-upload-section" class="photo-upload-container">
+          <label for="enemy-photo-input" class="btn-upload-photo" id="lbl-upload-photo">
+            📸 UPLOAD CUSTOM ENEMY PHOTO (PNG / JPG)
+          </label>
+          <input type="file" id="enemy-photo-input" accept="image/*" multiple style="display: none;" />
+          <span id="upload-status" class="upload-status-text"></span>
+          <div id="roster-preview" class="roster-preview-row"></div>
+        </div>
+
+        <button id="btn-options-back" class="menu-btn back-btn">← BACK</button>
+      </div>
+
+      <!-- 5. Credits View (reads from credits.txt) -->
+      <div id="credits-view" class="menu-view hidden">
+        <h2 class="view-title">CREDITS</h2>
+        <div class="credits-box">
+          <pre id="credits-text-content" class="credits-pre">LOADING CREDITS...</pre>
+        </div>
+        <button id="btn-credits-back" class="menu-btn back-btn">← BACK TO MENU</button>
+      </div>
     </div>
   </div>
 

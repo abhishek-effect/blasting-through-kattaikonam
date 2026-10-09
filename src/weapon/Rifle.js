@@ -1,10 +1,12 @@
 /**
  * Rifle Module (Slot 1)
- * Automatic assault rifle using transparent PNG viewmodel.
+ * Automatic assault rifle with realistic first-person viewing angle
+ * and modeled first-person arms holding the weapon.
  */
 import * as THREE from 'three';
 import { WeaponBase } from './WeaponBase.js';
 import { ASSET_PATHS } from '../config/assets.js';
+import { createRifleArms } from './ArmsViewmodel.js';
 
 export class Rifle extends WeaponBase {
   constructor(camera, scene, audio) {
@@ -22,9 +24,12 @@ export class Rifle extends WeaponBase {
       isAutomatic: true,
       viewWidth: 0.52,
       viewHeight: 0.32,
-      restPosition: new THREE.Vector3(0.24, -0.22, -0.55),
-      recoilKickZ: 0.06,
-      recoilKickRot: 0.10,
+      restPosition: new THREE.Vector3(0.19, -0.18, -0.46),
+      baseRotation: new THREE.Euler(0.10, -0.42, 0.08, 'YXZ'),
+      muzzleOffset: new THREE.Vector3(-0.245, 0.055, 0.01),
+      armsBuilder: createRifleArms,
+      recoilKickZ: 0.05,
+      recoilKickRot: 0.09,
       cameraKick: 0.012
     });
   }

@@ -27,7 +27,15 @@ export class InputManager {
       Digit2: false,
       Digit3: false,
       Space: false,
+      KeyC: false,
+      ControlLeft: false,
+      ControlRight: false,
     };
+
+    // Crouch & Slide state
+    this.crouchActive = false;
+    this.crouchKeyDownTime = 0;
+    this.slideRequested = false;
 
     // Virtual joystick state
     this.joystick = {
@@ -137,12 +145,33 @@ export class InputManager {
         this.requestedSlot = 1;
       } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
         this.requestedSlot = 2;
+      } else if (e.code === 'KeyC') {
+        this.crouchKeyDownTime = performance.now();
+        this.crouchActive = !this.crouchActive;
+      } else if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        this.slideRequested = true;
+        if (e.cancelable && this.isPointerLocked) {
+          e.preventDefault();
+        }
+      }
+
+      // Jumping or sprinting automatically stands up from crouch
+      if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        this.crouchActive = false;
       }
     });
 
     window.addEventListener('keyup', (e) => {
       if (this.keys.hasOwnProperty(e.code)) {
         this.keys[e.code] = false;
+      }
+
+      if (e.code === 'KeyC') {
+        const heldTime = performance.now() - (this.crouchKeyDownTime || 0);
+        // If held for over 220ms, release crouch on keyup (hold-to-crouch behavior)
+        if (heldTime > 220) {
+          this.crouchActive = false;
+        }
       }
     });
 
@@ -198,6 +227,7 @@ export class InputManager {
     const btnFire = document.getElementById('btn-mobile-fire');
     const btnReload = document.getElementById('btn-mobile-reload');
     const btnSprint = document.getElementById('btn-mobile-sprint');
+    const btnCrouch = document.getElementById('btn-mobile-crouch');
     const btnJump = document.getElementById('btn-mobile-jump');
     const btnGrenade = document.getElementById('btn-mobile-grenade');
     const btnInteract = document.getElementById('btn-mobile-interact');
@@ -319,6 +349,19 @@ export class InputManager {
         e.preventDefault();
         this.isSprintToggledMobile = !this.isSprintToggledMobile;
         btnSprint.classList.toggle('active', this.isSprintToggledMobile);
+      }, { passive: false });
+    }
+
+    // 5b. Crouch / Slide button
+    if (btnCrouch) {
+      btnCrouch.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (this.isSprinting()) {
+          this.slideRequested = true;
+        } else {
+          this.crouchActive = !this.crouchActive;
+          btnCrouch.classList.toggle('active', this.crouchActive);
+        }
       }, { passive: false });
     }
 
@@ -484,5 +527,25 @@ export class InputManager {
 
   requestSlot(slotIndex) {
     this.requestedSlot = slotIndex;
+  }
+
+  isCrouching() {
+    return this.crouchActive;
+  }
+
+  setCrouching(crouching) {
+    this.crouchActive = !!crouching;
+    const btnCrouch = document.getElementById('btn-mobile-crouch');
+    if (btnCrouch) {
+      btnCrouch.classList.toggle('active', this.crouchActive);
+    }
+  }
+
+  checkAndConsumeSlide() {
+    if (this.slideRequested) {
+      this.slideRequested = false;
+      return true;
+    }
+    return false;
   }
 }

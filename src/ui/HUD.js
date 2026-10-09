@@ -19,9 +19,11 @@ import {
 } from '../config/assets.js';
 
 export class HUD {
-  constructor(gameState, input) {
+  constructor(gameState, input, audio = null) {
     this.gameState = gameState;
     this.input = input;
+    this.audio = audio;
+    this.previousState = STATES.MENU;
 
     // Elements
     this.healthEl = document.getElementById('hud-health-val');
@@ -49,28 +51,62 @@ export class HUD {
     this.interactionTitle = document.getElementById('interaction-title');
     this.interactionSubtitle = document.getElementById('interaction-subtitle');
 
-    // Overlays
+    // Intro Screen Presentation Elements
+    this.introScreen = document.getElementById('intro-screen');
+    this.introLoadingFill = document.getElementById('intro-loading-fill');
+    this.introLoadingStatus = document.getElementById('intro-loading-status');
+    this.btnIntroContinue = document.getElementById('btn-intro-continue');
+
+    // Overlays & Header (blasting.png title logo)
     this.screenOverlay = document.getElementById('game-overlay');
+    this.menuTitleImg = document.getElementById('menu-title-img');
     this.overlayTitle = document.getElementById('overlay-title');
     this.overlaySubtitle = document.getElementById('overlay-subtitle');
-    this.btnStart = document.getElementById('btn-start-game');
 
-    // Pause Menu & Settings Elements
-    this.pauseSettingsPanel = document.getElementById('pause-settings-panel');
+    // Menu Views
+    this.mainMenuView = document.getElementById('main-menu-view');
+    this.pauseMenuView = document.getElementById('pause-menu-view');
+    this.gameoverMenuView = document.getElementById('gameover-menu-view');
+    this.optionsView = document.getElementById('options-view');
+    this.creditsView = document.getElementById('credits-view');
+
+    // Main Menu Buttons
+    this.btnMenuContinue = document.getElementById('btn-menu-continue');
+    this.btnMenuNewGame = document.getElementById('btn-menu-newgame');
+    this.btnMenuOptions = document.getElementById('btn-menu-options');
+    this.btnMenuCredits = document.getElementById('btn-menu-credits');
+
+    // Pause Menu Buttons
+    this.btnPauseResume = document.getElementById('btn-pause-resume');
+    this.btnPauseOptions = document.getElementById('btn-pause-options');
+    this.btnPauseMainMenu = document.getElementById('btn-pause-mainmenu');
+
+    // Game Over Buttons
+    this.btnGameoverRestart = document.getElementById('btn-gameover-restart');
+    this.btnGameoverMainMenu = document.getElementById('btn-gameover-mainmenu');
+
+    // Options Controls & Audio Toggles
     this.sliderSens = document.getElementById('slider-sensitivity');
     this.sensValDisplay = document.getElementById('sens-val-display');
+    this.btnToggleBgm = document.getElementById('btn-toggle-bgm');
+    this.btnToggleSfx = document.getElementById('btn-toggle-sfx');
+    this.btnOptionsBack = document.getElementById('btn-options-back');
     this.cardPcControls = document.getElementById('card-pc-controls');
     this.cardMobileControls = document.getElementById('card-mobile-controls');
     this.photoUploadSection = document.getElementById('photo-upload-section');
-    this.btnMobilePause = document.getElementById('btn-mobile-pause');
+
+    // Credits Elements
+    this.creditsTextEl = document.getElementById('credits-text-content');
+    this.btnCreditsBack = document.getElementById('btn-credits-back');
 
     // Photo Upload Elements
     this.photoInput = document.getElementById('enemy-photo-input');
     this.uploadStatusEl = document.getElementById('upload-status');
     this.rosterPreviewEl = document.getElementById('roster-preview');
 
-    // Mobile controls container
+    // Mobile controls container & pause
     this.mobileControlsEl = document.getElementById('mobile-controls');
+    this.btnMobilePause = document.getElementById('btn-mobile-pause');
 
     this.hitmarkerTimer = 0;
     this.notificationTimer = 0;
@@ -83,6 +119,8 @@ export class HUD {
     this.renderRosterPreview();
     this.checkMobileVisibility();
     this.updateControlsCardVisibility();
+    this.loadCredits();
+    this.updateAudioButtons();
   }
 
   initPhotoUpload() {
@@ -247,109 +285,355 @@ export class HUD {
       this.onStateChange(newState);
     });
 
-    const handleStart = (e) => {
-      if (e) e.stopPropagation();
-
-      // Trigger browser full screen mode when Play, Try Again, or Resume is clicked
-      this.requestFullscreen();
-
-      if (this.screenOverlay) {
-        this.screenOverlay.classList.add('hidden');
-      }
-
-      if (
-        this.gameState.current === STATES.MENU ||
-        this.gameState.current === STATES.GAME_OVER ||
-        this.gameState.current === STATES.VICTORY
-      ) {
-        this.gameState.emit('restartGame');
-      } else if (this.gameState.current === STATES.PAUSED) {
+    // 1. Main Menu Buttons
+    if (this.btnMenuContinue) {
+      this.btnMenuContinue.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!this.gameState.hasActiveSession) return;
+        this.requestFullscreen();
+        if (this.audio) this.audio.ensureContext();
         this.gameState.setState(STATES.PLAYING);
         this.input.requestPointerLock();
-      }
-    };
-
-    if (this.btnStart) {
-      this.btnStart.addEventListener('click', handleStart);
-      this.btnStart.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        handleStart(e);
       });
     }
 
-    // Support clicking anywhere on overlay to start/resume
-    if (this.screenOverlay) {
-      this.screenOverlay.addEventListener('click', (e) => {
-        // If clicked on overlay background
-        if (e.target === this.screenOverlay) {
-          handleStart(e);
+    if (this.btnMenuNewGame) {
+      this.btnMenuNewGame.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.requestFullscreen();
+        if (this.audio) this.audio.ensureContext();
+        this.gameState.emit('restartGame');
+      });
+    }
+
+    if (this.btnMenuOptions) {
+      this.btnMenuOptions.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.previousState = STATES.MENU;
+        this.gameState.setState(STATES.OPTIONS);
+      });
+    }
+
+    if (this.btnMenuCredits) {
+      this.btnMenuCredits.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.previousState = STATES.MENU;
+        this.gameState.setState(STATES.CREDITS);
+      });
+    }
+
+    // 2. Pause Menu Buttons
+    if (this.btnPauseResume) {
+      this.btnPauseResume.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.requestFullscreen();
+        if (this.audio) this.audio.ensureContext();
+        this.gameState.setState(STATES.PLAYING);
+        this.input.requestPointerLock();
+      });
+    }
+
+    if (this.btnPauseOptions) {
+      this.btnPauseOptions.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.previousState = STATES.PAUSED;
+        this.gameState.setState(STATES.OPTIONS);
+      });
+    }
+
+    if (this.btnPauseMainMenu) {
+      this.btnPauseMainMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.gameState.setState(STATES.MENU);
+      });
+    }
+
+    // 3. Game Over / Victory Buttons
+    if (this.btnGameoverRestart) {
+      this.btnGameoverRestart.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.requestFullscreen();
+        if (this.audio) this.audio.ensureContext();
+        this.gameState.emit('restartGame');
+      });
+    }
+
+    if (this.btnGameoverMainMenu) {
+      this.btnGameoverMainMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.gameState.setState(STATES.MENU);
+      });
+    }
+
+    // 4. Options View Buttons & Toggles
+    if (this.btnOptionsBack) {
+      this.btnOptionsBack.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.gameState.setState(this.previousState || STATES.MENU);
+      });
+    }
+
+    if (this.btnToggleBgm) {
+      this.btnToggleBgm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.audio) {
+          this.audio.toggleBGM();
+          this.updateAudioButtons();
         }
       });
     }
 
-    // Support keyboard Enter and Space keys to enter level / restart / resume
+    if (this.btnToggleSfx) {
+      this.btnToggleSfx.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.audio) {
+          this.audio.toggleSFX();
+          this.updateAudioButtons();
+        }
+      });
+    }
+
+    // 5. Credits View Buttons
+    if (this.btnCreditsBack) {
+      this.btnCreditsBack.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.gameState.setState(STATES.MENU);
+      });
+    }
+
+    // 6. Keyboard shortcuts (Enter / Space to play or resume)
     window.addEventListener('keydown', (e) => {
-      if (
-        this.screenOverlay &&
-        !this.screenOverlay.classList.contains('hidden') &&
-        (e.code === 'Enter' || e.code === 'Space' || e.key === 'Enter' || e.key === ' ')
-      ) {
-        e.preventDefault();
-        handleStart(e);
+      if (e.code === 'Enter' || e.code === 'Space' || e.key === 'Enter') {
+        if (this.gameState.current === STATES.MENU) {
+          if (this.gameState.hasActiveSession) {
+            this.requestFullscreen();
+            this.gameState.setState(STATES.PLAYING);
+            this.input.requestPointerLock();
+          } else {
+            this.requestFullscreen();
+            this.gameState.emit('restartGame');
+          }
+        } else if (this.gameState.current === STATES.PAUSED) {
+          this.requestFullscreen();
+          this.gameState.setState(STATES.PLAYING);
+          this.input.requestPointerLock();
+        } else if (this.gameState.current === STATES.GAME_OVER || this.gameState.current === STATES.VICTORY) {
+          this.requestFullscreen();
+          this.gameState.emit('restartGame');
+        }
       }
     });
   }
 
-  onStateChange(state) {
-    if (!this.screenOverlay) return;
+  updateAudioButtons() {
+    if (this.btnToggleBgm && this.audio) {
+      const on = !this.audio.bgmMuted;
+      this.btnToggleBgm.textContent = on ? '🎵 MUSIC: ON' : '🎵 MUSIC: OFF';
+      this.btnToggleBgm.style.borderColor = on ? '#2ecc71' : '#7f8c8d';
+      this.btnToggleBgm.style.color = on ? '#a3f7bf' : '#bdc3c7';
+    }
+    if (this.btnToggleSfx && this.audio) {
+      const on = !this.audio.sfxMuted;
+      this.btnToggleSfx.textContent = on ? '🔊 SOUND: ON' : '🔊 SOUND: OFF';
+      this.btnToggleSfx.style.borderColor = on ? '#2ecc71' : '#7f8c8d';
+      this.btnToggleSfx.style.color = on ? '#a3f7bf' : '#bdc3c7';
+    }
+  }
 
+  async loadCredits() {
+    const fallback = `Special Thanks: YOU!
+Thanks for Playing! <3
+Lead Developer: Pinky
+Creative Head: Dip-u
+Gameplay Music: Alex Morgan
+Assets: Magnify, Pixaby
+Created by Abhishek U and Devkrishna Dipu
+Coded by Gemini 3.8 Flash`;
+
+    try {
+      const res = await fetch('./credits.txt');
+      if (res.ok) {
+        const text = await res.text();
+        if (this.creditsTextEl && text.trim().length > 0) {
+          this.creditsTextEl.textContent = text.trim();
+          return;
+        }
+      }
+    } catch (e) {}
+
+    if (this.creditsTextEl) {
+      this.creditsTextEl.textContent = fallback;
+    }
+  }
+
+  updateIntroLoading(progress, message) {
+    if (this.introLoadingFill) {
+      this.introLoadingFill.style.width = `${Math.min(100, Math.round(progress * 100))}%`;
+    }
+    if (this.introLoadingStatus && message) {
+      this.introLoadingStatus.textContent = message;
+    }
+  }
+
+  finishIntroLoading(onComplete) {
+    if (this.introLoadingFill) {
+      this.introLoadingFill.style.width = '100%';
+    }
+    if (this.introLoadingStatus) {
+      this.introLoadingStatus.textContent = 'CAMPUS SYSTEMS READY. CLICK OR PRESS ANY KEY';
+    }
+    if (this.btnIntroContinue) {
+      this.btnIntroContinue.classList.remove('hidden');
+    }
+
+    let transitioned = false;
+    const proceed = (e) => {
+      if (transitioned) return;
+      transitioned = true;
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      this.requestFullscreen();
+      if (this.audio) this.audio.ensureContext();
+
+      if (this.introScreen) {
+        this.introScreen.classList.add('fade-out');
+        setTimeout(() => {
+          this.introScreen.classList.add('hidden');
+          this.introScreen.classList.remove('fade-out');
+          if (onComplete) onComplete();
+        }, 350);
+      } else {
+        if (onComplete) onComplete();
+      }
+
+      window.removeEventListener('keydown', keyProceed);
+      if (this.introScreen) {
+        this.introScreen.removeEventListener('click', proceed);
+      }
+      if (this.btnIntroContinue) {
+        this.btnIntroContinue.removeEventListener('click', proceed);
+      }
+    };
+    const keyProceed = (e) => {
+      proceed(e);
+    };
+
+    if (this.btnIntroContinue) {
+      this.btnIntroContinue.addEventListener('click', proceed);
+    }
+    if (this.introScreen) {
+      this.introScreen.addEventListener('click', proceed);
+    }
+    window.addEventListener('keydown', keyProceed);
+  }
+
+  hideAllViews() {
+    if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
+    if (this.pauseMenuView) this.pauseMenuView.classList.add('hidden');
+    if (this.gameoverMenuView) this.gameoverMenuView.classList.add('hidden');
+    if (this.optionsView) this.optionsView.classList.add('hidden');
+    if (this.creditsView) this.creditsView.classList.add('hidden');
+  }
+
+  onStateChange(state) {
     this.updateControlsCardVisibility();
 
+    if (state === STATES.INTRO) {
+      if (this.introScreen) this.introScreen.classList.remove('hidden');
+      if (this.screenOverlay) this.screenOverlay.classList.add('hidden');
+      if (this.btnMobilePause) this.btnMobilePause.style.display = 'none';
+      return;
+    }
+
+    if (this.introScreen) {
+      this.introScreen.classList.add('hidden');
+    }
+
     if (state === STATES.PLAYING) {
-      this.screenOverlay.classList.add('hidden');
+      if (this.screenOverlay) this.screenOverlay.classList.add('hidden');
       if (this.btnMobilePause && this.input.isTouchDevice) {
         this.btnMobilePause.style.display = 'flex';
       }
-    } else {
-      this.screenOverlay.classList.remove('hidden');
-      if (this.btnMobilePause) {
-        this.btnMobilePause.style.display = 'none';
-      }
+      return;
+    }
 
-      if (state === STATES.MENU) {
-        this.overlayTitle.textContent = 'BLASTING THROUGH KATTAIKONAM';
+    if (this.screenOverlay) {
+      this.screenOverlay.classList.remove('hidden');
+    }
+    if (this.btnMobilePause) {
+      this.btnMobilePause.style.display = 'none';
+    }
+
+    this.hideAllViews();
+
+    if (state === STATES.MENU) {
+      if (this.mainMenuView) this.mainMenuView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
+      if (this.overlaySubtitle) {
         this.overlaySubtitle.textContent = 'FLOOR 1 - RETRO SCHOOL FPS';
-        this.btnStart.textContent = 'ENTER LEVEL (CLICK TO PLAY)';
-        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
-        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
-      } else if (state === STATES.GAME_OVER) {
-        this.overlayTitle.textContent = 'DETENTION! YOU FAILED!';
-        this.overlaySubtitle.textContent = 'Expelled by the campus patrol.';
-        this.btnStart.textContent = 'TRY AGAIN';
-        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
-        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
-      } else if (state === STATES.VICTORY) {
-        this.overlayTitle.textContent = 'CAMPUS CLEARED!';
-        this.overlaySubtitle.textContent = 'All enemies eliminated. Find the elevator to proceed!';
-        this.btnStart.textContent = 'PLAY AGAIN';
-        if (this.pauseSettingsPanel) this.pauseSettingsPanel.classList.add('hidden');
-        if (this.photoUploadSection) this.photoUploadSection.classList.remove('hidden');
-      } else if (state === STATES.PAUSED) {
-        this.overlayTitle.textContent = 'GAME PAUSED';
-        this.overlaySubtitle.textContent = 'Adjust turn sensitivity & review controls';
-        this.btnStart.textContent = 'RESUME GAME';
-        if (this.pauseSettingsPanel) {
-          this.pauseSettingsPanel.classList.remove('hidden');
-          if (this.sliderSens && this.input.getCurrentSensitivityMultiplier) {
-            const currentMult = this.input.getCurrentSensitivityMultiplier();
-            this.sliderSens.value = currentMult.toFixed(1);
-            if (this.sensValDisplay) {
-              this.sensValDisplay.textContent = `${parseFloat(currentMult).toFixed(1)}x`;
-            }
-          }
-        }
-        if (this.photoUploadSection) this.photoUploadSection.classList.add('hidden');
       }
+      if (this.btnMenuContinue) {
+        if (this.gameState.hasActiveSession) {
+          this.btnMenuContinue.classList.remove('disabled');
+        } else {
+          this.btnMenuContinue.classList.add('disabled');
+        }
+      }
+    } else if (state === STATES.PAUSED) {
+      if (this.pauseMenuView) this.pauseMenuView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) {
+        this.overlayTitle.classList.remove('hidden');
+        this.overlayTitle.textContent = 'GAME PAUSED';
+      }
+      if (this.overlaySubtitle) {
+        this.overlaySubtitle.textContent = 'Adjust turn sensitivity & review controls';
+      }
+    } else if (state === STATES.GAME_OVER) {
+      if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) {
+        this.overlayTitle.classList.remove('hidden');
+        this.overlayTitle.textContent = 'DETENTION! YOU FAILED!';
+      }
+      if (this.overlaySubtitle) {
+        this.overlaySubtitle.textContent = 'Expelled by the campus patrol.';
+      }
+      if (this.btnGameoverRestart) {
+        this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
+      }
+    } else if (state === STATES.VICTORY) {
+      if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) {
+        this.overlayTitle.classList.remove('hidden');
+        this.overlayTitle.textContent = 'CAMPUS CLEARED!';
+      }
+      if (this.overlaySubtitle) {
+        this.overlaySubtitle.textContent = 'All enemies eliminated. Find the elevator to proceed!';
+      }
+      if (this.btnGameoverRestart) {
+        this.btnGameoverRestart.textContent = '★ PLAY AGAIN';
+      }
+    } else if (state === STATES.OPTIONS) {
+      if (this.optionsView) this.optionsView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
+      if (this.sliderSens && this.input.getCurrentSensitivityMultiplier) {
+        const mult = this.input.getCurrentSensitivityMultiplier();
+        this.sliderSens.value = mult.toFixed(1);
+        if (this.sensValDisplay) {
+          this.sensValDisplay.textContent = `${parseFloat(mult).toFixed(1)}x`;
+        }
+      }
+      this.updateAudioButtons();
+    } else if (state === STATES.CREDITS) {
+      if (this.creditsView) this.creditsView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
     }
   }
 

@@ -18,29 +18,38 @@ export const ENEMY_STATES = {
   DEAD: 'DEAD',
 };
 
-/**
- * Creates a glowing radial muzzle flash canvas texture
- */
-function createMuzzleFlashTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
+let sharedMuzzleTexture = null;
 
-  const gradient = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  gradient.addColorStop(0, '#ffffff');
-  gradient.addColorStop(0.3, '#ffea75');
-  gradient.addColorStop(0.7, '#ff6a00');
-  gradient.addColorStop(1, 'rgba(255, 60, 0, 0)');
+function getSharedMuzzleFlashTexture() {
+  if (!sharedMuzzleTexture) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(32, 32, 30, 0, Math.PI * 2);
-  ctx.fill();
+    const gradient = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.3, '#ffea75');
+    gradient.addColorStop(0.7, '#ff6a00');
+    gradient.addColorStop(1, 'rgba(255, 60, 0, 0)');
 
-  const texture = new THREE.CanvasTexture(canvas);
-  return texture;
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(32, 32, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    sharedMuzzleTexture = new THREE.CanvasTexture(canvas);
+  }
+  return sharedMuzzleTexture;
 }
+
+const sharedHitGeo = new THREE.SphereGeometry(0.7, 8, 8);
+const sharedHitMat = new THREE.MeshBasicMaterial({ visible: false });
+const sharedTracerMat = new THREE.LineBasicMaterial({
+  color: 0xffe600,
+  transparent: true,
+  opacity: 0.85,
+});
 
 export class Enemy {
   constructor(scene, world, audio, config = {}, instanceId = 'enemy_001') {
@@ -150,8 +159,8 @@ export class Enemy {
     this.weaponSprite.visible = this.attackStyle === 'ranged';
     this.sprite.add(this.weaponSprite);
 
-    // 2. Muzzle Flash Sprite
-    const muzzleTex = createMuzzleFlashTexture();
+    // 2. Muzzle Flash Sprite (shared texture to eliminate canvas allocations)
+    const muzzleTex = getSharedMuzzleFlashTexture();
     this.muzzleMaterial = new THREE.SpriteMaterial({
       map: muzzleTex,
       transparent: true,
@@ -169,19 +178,12 @@ export class Enemy {
       new THREE.Vector3(),
       new THREE.Vector3()
     ]);
-    const tracerMat = new THREE.LineBasicMaterial({
-      color: 0xffe600,
-      transparent: true,
-      opacity: 0.85,
-    });
-    this.tracerLine = new THREE.Line(tracerGeo, tracerMat);
+    this.tracerLine = new THREE.Line(tracerGeo, sharedTracerMat);
     this.tracerLine.visible = false;
     this.scene.add(this.tracerLine);
 
-    // Invisible hit sphere for player raycasting / weapon hits
-    const hitGeo = new THREE.SphereGeometry(0.7, 8, 8);
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-    this.hitMesh = new THREE.Mesh(hitGeo, hitMat);
+    // Invisible hit sphere for player raycasting / weapon hits (shared geometry & material)
+    this.hitMesh = new THREE.Mesh(sharedHitGeo, sharedHitMat);
     this.hitMesh.userData.enemy = this;
     this.scene.add(this.hitMesh);
   }
@@ -485,7 +487,6 @@ export class Enemy {
     if (this.tracerLine) {
       this.scene.remove(this.tracerLine);
       if (this.tracerLine.geometry) this.tracerLine.geometry.dispose();
-      if (this.tracerLine.material) this.tracerLine.material.dispose();
     }
     if (this.material) this.material.dispose();
     if (this.weaponMaterial) this.weaponMaterial.dispose();

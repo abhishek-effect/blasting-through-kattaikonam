@@ -523,6 +523,12 @@ html, body {
   border-color: #a3f7bf;
 }
 
+#btn-mobile-crouch.active {
+  background: rgba(155, 89, 182, 1) !important;
+  border-color: #e8d7f1 !important;
+  box-shadow: 0 0 12px rgba(155, 89, 182, 0.8) !important;
+}
+
 #btn-mobile-jump {
   background: rgba(39, 174, 96, 0.85);
   border-color: #2ecc71;
@@ -559,14 +565,139 @@ html, body {
   background: rgba(45, 45, 65, 0.95);
 }
 
-/* --- Overlays (Title, Game Over, Victory) --- */
+/* --- Intro & Loading Presentation Screen --- */
+#intro-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, #141724 0%, #08080c 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 24px;
+  text-align: center;
+  transition: opacity 0.5s ease-out;
+}
+
+#intro-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#intro-screen.hidden {
+  display: none !important;
+}
+
+.intro-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 680px;
+  gap: 18px;
+}
+
+.intro-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #ff3333;
+  border: 1px solid rgba(255, 50, 50, 0.4);
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgba(255, 50, 50, 0.08);
+}
+
+.intro-presenter {
+  font-size: clamp(20px, 4.2vw, 36px);
+  font-weight: 900;
+  color: #ffdf40;
+  text-shadow: 0 0 20px rgba(255, 223, 64, 0.6), 2px 2px 0px #000;
+  letter-spacing: 2px;
+  line-height: 1.3;
+  margin: 0;
+  text-transform: uppercase;
+  animation: introGlow 2s infinite alternate;
+}
+
+@keyframes introGlow {
+  from {
+    text-shadow: 0 0 14px rgba(255, 223, 64, 0.4), 2px 2px 0px #000;
+  }
+  to {
+    text-shadow: 0 0 26px rgba(255, 223, 64, 0.85), 2px 2px 0px #000;
+  }
+}
+
+.intro-loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 380px;
+  margin-top: 10px;
+}
+
+.intro-loading-bar-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+#intro-loading-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #2ecc71, #f1c40f);
+  box-shadow: 0 0 10px #2ecc71;
+  border-radius: 4px;
+  transition: width 0.2s ease-out;
+}
+
+#intro-loading-status {
+  font-size: 12px;
+  font-family: monospace;
+  color: #a3f7bf;
+  letter-spacing: 1px;
+}
+
+.intro-continue-btn {
+  background: #ff3333;
+  color: #fff;
+  border: 2px solid #ff9999;
+  padding: 12px 28px;
+  font-size: clamp(13px, 2.5vw, 15px);
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 0 20px rgba(255, 50, 50, 0.6);
+  margin-top: 14px;
+  animation: pulseButton 1s infinite alternate;
+  pointer-events: auto;
+}
+
+@keyframes pulseButton {
+  from { transform: scale(1.0); }
+  to { transform: scale(1.04); }
+}
+
+/* --- Overlays (Main Menu, Pause, Options, Credits, Game Over) --- */
 #game-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(8, 8, 12, 0.88);
+  background: rgba(8, 8, 14, 0.92);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -574,10 +705,29 @@ html, body {
   z-index: 100;
   padding: 20px;
   text-align: center;
+  overflow-y: auto;
 }
 
 #game-overlay.hidden {
-  display: none;
+  display: none !important;
+}
+
+.menu-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+/* blasting.png title display logo */
+.menu-title-display {
+  max-width: min(90vw, 480px);
+  max-height: clamp(80px, 16vh, 140px);
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(255, 40, 40, 0.45));
+  margin-bottom: 6px;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 #overlay-title {
@@ -590,9 +740,163 @@ html, body {
 }
 
 #overlay-subtitle {
-  font-size: clamp(14px, 2.5vw, 17px);
-  color: #e0e0e0;
+  font-size: clamp(13px, 2.2vw, 15px);
+  color: #d1d5db;
+  letter-spacing: 1.5px;
+  margin: 0;
+}
+
+.view-title {
+  font-size: clamp(18px, 3.5vw, 24px);
+  font-weight: 800;
+  color: #ffdf40;
+  text-shadow: 2px 2px 0px #000;
+  letter-spacing: 2px;
   margin-bottom: 16px;
+}
+
+.menu-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 680px;
+}
+
+.menu-view.hidden {
+  display: none !important;
+}
+
+.menu-buttons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.menu-btn {
+  background: rgba(30, 35, 48, 0.85);
+  color: #f3f4f6;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  padding: 12px 24px;
+  font-size: clamp(14px, 2.5vw, 16px);
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  pointer-events: auto;
+  text-transform: uppercase;
+}
+
+.menu-btn:hover:not(.disabled) {
+  background: rgba(45, 55, 75, 0.95);
+  border-color: #ffdf40;
+  color: #ffdf40;
+  transform: translateY(-2px);
+  box-shadow: 0 0 14px rgba(255, 223, 64, 0.35);
+}
+
+.menu-btn:active:not(.disabled) {
+  transform: translateY(1px);
+}
+
+.menu-btn.primary-btn {
+  background: #ff3333;
+  border-color: #ff7777;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(255, 50, 50, 0.4);
+}
+
+.menu-btn.primary-btn:hover {
+  background: #e62222;
+  border-color: #ffaaaa;
+  color: #fff;
+  box-shadow: 0 0 18px rgba(255, 50, 50, 0.6);
+}
+
+.menu-btn.continue-btn {
+  border-color: #2ecc71;
+}
+
+.menu-btn.continue-btn:hover:not(.disabled) {
+  background: rgba(46, 204, 113, 0.25);
+  border-color: #2ecc71;
+  color: #a3f7bf;
+}
+
+.menu-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: #555;
+  color: #777;
+}
+
+.menu-btn.secondary-btn {
+  background: rgba(50, 55, 65, 0.7);
+  border-color: #666;
+  font-size: 13px;
+}
+
+.menu-btn.back-btn {
+  margin-top: 16px;
+  max-width: 220px;
+  background: rgba(30, 35, 48, 0.9);
+  border-color: #888;
+}
+
+/* Audio toggle buttons in options */
+.options-audio-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.menu-sub-btn {
+  flex: 1;
+  background: rgba(25, 25, 35, 0.92);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.menu-sub-btn:hover {
+  border-color: #ffdf40;
+  color: #ffdf40;
+}
+
+/* Credits box (displaying credits.txt) */
+.credits-box {
+  background: rgba(10, 15, 24, 0.95);
+  border: 2px solid #2ecc71;
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(46, 204, 113, 0.25);
+  padding: 20px;
+  width: 100%;
+  max-width: 540px;
+  text-align: left;
+}
+
+.credits-pre {
+  color: #a3f7bf;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(12px, 2.2vw, 14px);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  margin: 0;
+  text-shadow: 0 0 8px rgba(46, 204, 113, 0.4);
 }
 
 /* Pause Settings Panel */
@@ -608,10 +912,6 @@ html, body {
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 0 14px rgba(255, 223, 64, 0.25);
-}
-
-.settings-panel.hidden {
-  display: none !important;
 }
 
 .settings-label {
@@ -636,11 +936,11 @@ html, body {
   gap: 14px;
   max-width: 680px;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .instruction-card {
-  flex: 1 1 290px;
+  flex: 1 1 280px;
   background: rgba(25, 25, 35, 0.85);
   border: 1px solid #4a4a5a;
   border-radius: 6px;
@@ -664,6 +964,8 @@ html, body {
   font-size: 11px;
   line-height: 1.6;
   color: #ccc;
+  padding: 0;
+  margin: 0;
 }
 
 .instruction-card li b {
@@ -744,27 +1046,3 @@ html, body {
   color: #a3f7bf;
 }
 
-#btn-start-game {
-  background: #ff3333;
-  color: #fff;
-  border: 2px solid #ff7777;
-  padding: 12px 26px;
-  font-size: clamp(14px, 2.5vw, 17px);
-  font-family: inherit;
-  font-weight: bold;
-  letter-spacing: 1px;
-  cursor: pointer;
-  border-radius: 4px;
-  box-shadow: 0 4px 15px rgba(255, 50, 50, 0.4);
-  transition: transform 0.1s, background-color 0.2s;
-  pointer-events: auto;
-}
-
-#btn-start-game:hover {
-  background: #e62222;
-  transform: translateY(-2px);
-}
-
-#btn-start-game:active {
-  transform: translateY(1px);
-}

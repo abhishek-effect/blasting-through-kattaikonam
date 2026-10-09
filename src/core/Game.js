@@ -23,7 +23,7 @@ import { GrenadeManager } from '../weapon/GrenadeManager.js';
 import { EnemySpawner } from '../enemy/EnemySpawner.js';
 import { LaserManager } from '../interactive/LaserObstacle.js';
 import { HUD } from '../ui/HUD.js';
-import { ASSET_PATHS } from '../config/assets.js';
+import { ASSET_PATHS, preloadAllAssets } from '../config/assets.js';
 
 export class Game {
   constructor() {
@@ -81,8 +81,8 @@ export class Game {
       this.grenadeManager
     );
 
-    // HUD & Interaction System
-    this.hud = new HUD(this.gameState, this.input);
+    // HUD & Interaction System (pass audio for toggle controls)
+    this.hud = new HUD(this.gameState, this.input, this.audio);
     this.interactionSystem = new InteractionSystem(this.level, this.hud, this.enemySpawner);
 
     // Laser Obstacle Trap System
@@ -98,11 +98,65 @@ export class Game {
     // 3. Setup Listeners
     this.initListeners();
 
-    // 4. Preload Audio
+    // 4. Initial Spawning from Predefined Zones (reduced on mobile)
+    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones, this.input.isTouchDevice);
+
+    // 5. Preload All Assets & Warm Up Shaders
+    this.initPreloadAndIntro();
+  }
+
+  async initPreloadAndIntro() {
+    this.gameState.setState(STATES.INTRO);
+
+    // Step 1: Preload Audio
     this.audio.loadSound('grenade', ASSET_PATHS.audio.grenade);
 
-    // Initial Spawning from Predefined Zones (reduced on mobile)
-    this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones, this.input.isTouchDevice);
+    // Step 2: Preload All Textures & Precompute Metrics
+    await preloadAllAssets((progress, msg) => {
+      this.hud.updateIntroLoading(progress * 0.85, msg);
+    });
+
+    // Step 3: Warm Up WebGL Shaders (Viewmodels & Explosion pool)
+    this.hud.updateIntroLoading(0.92, 'WARMING UP GRAPHICS ENGINE...');
+    this.warmupShaders();
+
+    // Step 4: Finish Intro Loading
+    this.hud.updateIntroLoading(1.0, 'SYSTEMS ONLINE');
+    this.hud.finishIntroLoading(() => {
+      this.gameState.setState(STATES.MENU);
+    });
+  }
+
+  warmupShaders() {
+    try {
+      // Make weapons temporarily visible to compile shaders upfront
+      this.rifle.mesh.visible = true;
+      this.pistol.mesh.visible = true;
+      this.medkit.mesh.visible = true;
+
+      if (this.grenadeManager && this.grenadeManager.explosionPool) {
+        this.grenadeManager.explosionPool.forEach((item) => {
+          item.sphere.visible = true;
+          item.ring.visible = true;
+          item.light.visible = true;
+        });
+      }
+
+      // Compile all materials against current scene lighting and fog
+      this.renderer.compile(this.scene, this.camera);
+
+      // Restore initial slot visibility
+      if (this.grenadeManager && this.grenadeManager.explosionPool) {
+        this.grenadeManager.explosionPool.forEach((item) => {
+          item.sphere.visible = false;
+          item.ring.visible = false;
+          item.light.visible = false;
+        });
+      }
+      this.player.switchSlot(0);
+    } catch (e) {
+      console.warn('[Game] Shader warmup encountered non-fatal error:', e);
+    }
   }
 
   initListeners() {
@@ -147,6 +201,8 @@ export class Game {
       } else if (this.gameState.current === STATES.PAUSED) {
         this.gameState.setState(STATES.PLAYING);
         this.input.requestPointerLock();
+      } else if (this.gameState.current === STATES.OPTIONS || this.gameState.current === STATES.CREDITS) {
+        this.gameState.setState(this.hud.previousState || STATES.MENU);
       }
     };
 
@@ -157,13 +213,10 @@ export class Game {
     this.gameState.on('stateChange', ({ newState }) => {
       if (newState === STATES.PLAYING) {
         this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
-      } else if (newState === STATES.GAME_OVER) {
-        // Stop metal bgm when player dies
+      } else if (newState === STATES.GAME_OVER || newState === STATES.VICTORY) {
         this.audio.stopBGM();
-      } else if (newState === STATES.PAUSED) {
+      } else if (newState === STATES.PAUSED || newState === STATES.MENU) {
         this.audio.pauseBGM();
-      } else if (newState === STATES.VICTORY) {
-        this.audio.stopBGM();
       }
     });
   }

@@ -1,21 +1,26 @@
 /**
  * GameState Manager
- * Handles transitions between Menu, Playing, Paused, and Game Over / Victory.
+ * Handles transitions between Intro, Menu, Playing, Paused, Options, Credits,
+ * and Game Over / Victory states.
  */
 export const STATES = {
+  INTRO: 'INTRO',
   MENU: 'MENU',
   PLAYING: 'PLAYING',
   PAUSED: 'PAUSED',
+  OPTIONS: 'OPTIONS',
+  CREDITS: 'CREDITS',
   GAME_OVER: 'GAME_OVER',
   VICTORY: 'VICTORY'
 };
 
 export class GameState {
   constructor() {
-    this.current = STATES.MENU;
+    this.current = STATES.INTRO;
     this.score = 0;
     this.kills = 0;
     this.totalEnemies = 0;
+    this.hasActiveSession = false;
     this.listeners = new Map();
   }
 
@@ -36,6 +41,9 @@ export class GameState {
     if (this.current === newState) return;
     const oldState = this.current;
     this.current = newState;
+    if (newState === STATES.PLAYING) {
+      this.hasActiveSession = true;
+    }
     this.emit('stateChange', { oldState, newState });
   }
 
@@ -52,6 +60,7 @@ export class GameState {
     this.kills = 0;
     this.score = 0;
     this.totalEnemies = totalEnemies;
+    this.hasActiveSession = true;
     this.setState(STATES.PLAYING);
     this.emit('reset', { totalEnemies });
   }
