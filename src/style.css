@@ -949,6 +949,37 @@ html, body {
   box-shadow: 0 0 18px rgba(255, 50, 50, 0.6);
 }
 
+.menu-btn.play-btn {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  border-color: #2ecc71;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(46, 204, 113, 0.4);
+}
+
+.menu-btn.play-btn:hover:not(.disabled) {
+  background: linear-gradient(135deg, #2ecc71, #1abc9c);
+  border-color: #a8e6cf;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 0 18px rgba(46, 204, 113, 0.7);
+}
+
+.menu-btn.shoot-btn {
+  background: linear-gradient(135deg, #d35400, #c0392b);
+  border-color: #f39c12;
+  color: #fff;
+  letter-spacing: 1.5px;
+  box-shadow: 0 4px 15px rgba(230, 126, 34, 0.45);
+}
+
+.menu-btn.shoot-btn:hover:not(.disabled) {
+  background: linear-gradient(135deg, #e67e22, #d63031);
+  border-color: #ffeb3b;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 159, 26, 0.75);
+}
+
 .menu-btn.continue-btn {
   border-color: #2ecc71;
 }

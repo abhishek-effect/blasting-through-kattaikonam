@@ -14,9 +14,16 @@ export const STATES = {
   VICTORY: 'VICTORY'
 };
 
+export const GAME_MODES = {
+  NONE: 'NONE',
+  PLAY: 'PLAY',
+  SHOOT_SHOOT_SHOOT: 'SHOOT_SHOOT_SHOOT'
+};
+
 export class GameState {
   constructor() {
     this.current = STATES.INTRO;
+    this.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
     this.score = 0;
     this.kills = 0;
     this.totalEnemies = 0;
@@ -67,5 +74,18 @@ export class GameState {
 
   isPlaying() {
     return this.current === STATES.PLAYING;
+  }
+
+  isGameOver() {
+    return this.current === STATES.GAME_OVER;
+  }
+
+  isVictory() {
+    return this.current === STATES.VICTORY;
+  }
+
+  setMode(mode) {
+    this.currentMode = mode;
+    this.emit('modeChange', { mode });
   }
 }

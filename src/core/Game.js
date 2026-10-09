@@ -9,7 +9,7 @@
  * - Heads-Up Display and Unified Controls
  */
 import * as THREE from 'three';
-import { GameState, STATES } from './GameState.js';
+import { GameState, STATES, GAME_MODES } from './GameState.js';
 import { AudioManager } from './AudioManager.js';
 import { InputManager } from './InputManager.js';
 import { level1Data } from '../level/level1Data.js';
@@ -236,8 +236,13 @@ export class Game {
       }
     };
 
-    this.gameState.on('restartGame', () => {
-      this.restart();
+    this.gameState.on('restartGame', (data) => {
+      const mode = (data && data.mode) ? data.mode : this.gameState.currentMode;
+      this.restart(mode);
+    });
+
+    this.gameState.on('startMode', ({ mode }) => {
+      this.launchMode(mode);
     });
 
     this.gameState.on('stateChange', ({ newState }) => {
@@ -251,7 +256,21 @@ export class Game {
     });
   }
 
-  restart() {
+  launchMode(mode) {
+    this.audio.ensureContext();
+    this.gameState.currentMode = mode;
+    this.restart(mode);
+    if (mode === GAME_MODES.SHOOT_SHOOT_SHOOT) {
+      this.hud.showNotification('💥 MODE: SHOOT SHOOT SHOOT', 3.0);
+    } else {
+      this.hud.showNotification('▶ MODE: PLAY (CORE MISSION)', 3.0);
+    }
+  }
+
+  restart(mode = null) {
+    if (mode) {
+      this.gameState.currentMode = mode;
+    }
     this.audio.ensureContext();
 
     const startPos = new THREE.Vector3(

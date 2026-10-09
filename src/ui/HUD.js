@@ -10,7 +10,7 @@
  * - Temporary action banners and notifications
  */
 import * as THREE from 'three';
-import { STATES } from '../core/GameState.js';
+import { STATES, GAME_MODES } from '../core/GameState.js';
 import {
   ASSET_PATHS,
   processUploadedImage,
@@ -99,9 +99,9 @@ export class HUD {
     this.optionsView = document.getElementById('options-view');
     this.creditsView = document.getElementById('credits-view');
 
-    // Main Menu Buttons
-    this.btnMenuContinue = document.getElementById('btn-menu-continue');
-    this.btnMenuNewGame = document.getElementById('btn-menu-newgame');
+    // Main Menu Buttons (PLAY & SHOOT SHOOT SHOOT)
+    this.btnMenuPlay = document.getElementById('btn-menu-play');
+    this.btnMenuShoot = document.getElementById('btn-menu-shoot');
     this.btnMenuOptions = document.getElementById('btn-menu-options');
     this.btnMenuCredits = document.getElementById('btn-menu-credits');
 
@@ -331,24 +331,48 @@ export class HUD {
       this.triggerKillFeedback();
     });
 
-    // 1. Main Menu Buttons
-    if (this.btnMenuContinue) {
-      this.btnMenuContinue.addEventListener('click', (e) => {
+    // 1. Main Menu Buttons (PLAY & SHOOT SHOOT SHOOT)
+    if (this.btnMenuPlay) {
+      this.btnMenuPlay.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!this.gameState.hasActiveSession) return;
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
-        this.gameState.setState(STATES.PLAYING);
-        this.input.requestPointerLock();
+
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.PLAY &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          // Resume active Play mode session
+          this.gameState.setState(STATES.PLAYING);
+          this.input.requestPointerLock();
+        } else {
+          // Start fresh Play mode session
+          this.gameState.emit('startMode', { mode: GAME_MODES.PLAY });
+        }
       });
     }
 
-    if (this.btnMenuNewGame) {
-      this.btnMenuNewGame.addEventListener('click', (e) => {
+    if (this.btnMenuShoot) {
+      this.btnMenuShoot.addEventListener('click', (e) => {
         e.stopPropagation();
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
-        this.gameState.emit('restartGame');
+
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          // Resume active Shoot Shoot Shoot session
+          this.gameState.setState(STATES.PLAYING);
+          this.input.requestPointerLock();
+        } else {
+          // Launch Shoot Shoot Shoot gameplay mode
+          this.gameState.emit('startMode', { mode: GAME_MODES.SHOOT_SHOOT_SHOOT });
+        }
       });
     }
 
@@ -746,11 +770,28 @@ Coded by Gemini 3.8 Flash`;
       if (this.overlaySubtitle) {
         this.overlaySubtitle.textContent = 'GROUND FLOOR';
       }
-      if (this.btnMenuContinue) {
-        if (this.gameState.hasActiveSession) {
-          this.btnMenuContinue.classList.remove('disabled');
+      if (this.btnMenuPlay) {
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.PLAY &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          this.btnMenuPlay.textContent = '▶ PLAY (CONTINUE)';
         } else {
-          this.btnMenuContinue.classList.add('disabled');
+          this.btnMenuPlay.textContent = '▶ PLAY';
+        }
+      }
+      if (this.btnMenuShoot) {
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          this.btnMenuShoot.textContent = '💥 SHOOT SHOOT SHOOT (RESUME)';
+        } else {
+          this.btnMenuShoot.textContent = '💥 SHOOT SHOOT SHOOT';
         }
       }
     } else if (state === STATES.PAUSED) {
@@ -761,7 +802,8 @@ Coded by Gemini 3.8 Flash`;
         this.overlayTitle.textContent = 'GAME PAUSED';
       }
       if (this.overlaySubtitle) {
-        this.overlaySubtitle.textContent = 'Adjust turn sensitivity & review controls';
+        const modeName = this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ? 'SHOOT SHOOT SHOOT' : 'PLAY';
+        this.overlaySubtitle.textContent = `MODE: ${modeName} - Adjust sensitivity & controls`;
       }
     } else if (state === STATES.GAME_OVER) {
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
