@@ -195,6 +195,9 @@ export class GrenadeManager {
         const falloff = 1.0 - (dist / this.blastRadius);
         const damage = Math.round(this.maxBlastDamage * falloff);
         enemy.takeDamage(damage, pos);
+        if (this.onEnemyDamaged) {
+          this.onEnemyDamaged(enemy, damage, false, enemy.position);
+        }
       }
     });
 

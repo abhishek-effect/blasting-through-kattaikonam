@@ -248,9 +248,28 @@ export class WeaponBase {
 
     if (hitResult) {
       if (hitResult.type === 'enemy') {
-        hitResult.enemy.takeDamage(this.damage, hitResult.point);
-        this.spawnImpactSparks(hitResult.point, new THREE.Vector3(0, 1, 0), 0xff2222);
-        return { fired: true, hit: true, target: 'enemy' };
+        const enemy = hitResult.enemy;
+        const hitPoint = hitResult.point;
+        const isCritical = enemy.checkIsHeadshot ? enemy.checkIsHeadshot(hitPoint) : false;
+        // Critical Hit gives 2.0x extra damage (1.5x - 2.5x range)
+        const mult = isCritical ? 2.0 : 1.0;
+        const finalDamage = Math.round(this.damage * mult);
+
+        enemy.takeDamage(finalDamage, hitPoint, isCritical);
+        this.spawnImpactSparks(
+          hitPoint,
+          new THREE.Vector3(0, 1, 0),
+          isCritical ? 0xffea00 : 0xff2222
+        );
+        return {
+          fired: true,
+          hit: true,
+          target: 'enemy',
+          enemy,
+          damage: finalDamage,
+          isCritical,
+          point: hitPoint
+        };
       } else if (hitResult.type === 'wall') {
         this.spawnImpactSparks(hitResult.point, new THREE.Vector3(0, 1, 0), 0xffbb44);
         return { fired: true, hit: true, target: 'wall' };

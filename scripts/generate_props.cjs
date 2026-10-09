@@ -85,3 +85,4 @@ const chairObj = '# Lab Chair OBJ\no Chair\n' + createBoxObj(chairBoxes);
 });
 
 console.log('Successfully created table.obj and chair.obj in images/props and public/images/props');
+

@@ -17,7 +17,7 @@ export const ASSET_PATHS = {
     floor: assetUrl('/images/textures/floor-tile.png'),
     wall: assetUrl('/images/textures/wall-color.png'),
     ceiling: assetUrl('/images/textures/ceiling-white.png'),
-    door: assetUrl('/images/textures/door-texture.jpg'),
+    door: assetUrl('/images/textures/door-texture-new.webp'),
     chairs: assetUrl('/images/textures/cartoon-chairs.webp'),
     elevator: assetUrl('/images/textures/elevator.jpg'),
     laserLauncher: assetUrl('/images/textures/laser-launcher.png'),

@@ -244,19 +244,19 @@ export class LevelGenerator {
       { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
       // Elevator directly replaces the door at x: 14, z: 39 (no redundant door)
       { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      { id: 'door_bio_lab', name: 'BIO LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      { id: 'door_stairs_sw', name: 'STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
+      { id: 'door_bio_lab', name: 'BIOLOGY LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      { id: 'door_stairs_sw', name: 'SOUTH STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
 
       // North Wall Doors
       { id: 'door_nw_lock', name: 'DOOR LOCKED', x: 6, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
-      { id: 'door_nw_stairs', name: 'STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
-      { id: 'door_phy_lab', name: 'PHY LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
-      { id: 'door_locked_room', name: 'LOCKED ROOM', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
+      { id: 'door_nw_stairs', name: 'NORTH STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+      { id: 'door_phy_lab', name: 'PHYSICS LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+      { id: 'door_locked_room', name: 'FACULTY ARCHIVES', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
       { id: 'door_unlockable_room', name: 'UNLOCKABLE ROOM', x: 90, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
 
       // South Wall Doors
       { id: 'door_board_room', name: 'BOARD ROOM', x: 55, z: 85, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
-      { id: 'door_library', name: 'LIBRARY', x: 80, z: 83, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
+      { id: 'door_library', name: 'CAMPUS LIBRARY', x: 80, z: 83, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
     ];
 
     doorConfigs.forEach((cfg) => {
@@ -329,22 +329,42 @@ export class LevelGenerator {
     obj.scale.set(1.0, 1.0, 1.0);
     obj.position.set(0, 0, 0);
 
-    // Apply double-sided rendering, shadows, and light pink (#fae6e7) wall coloring
+    // Floor texture: repeating rectangle tiles with black borders
+    const floorTex = loadTexture(ASSET_PATHS.textures.floor, 35, 35, '#f5f6fa', '#2f3542');
+    floorTex.wrapS = THREE.RepeatWrapping;
+    floorTex.wrapT = THREE.RepeatWrapping;
+
+    // Apply materials: floor tiles, corridor light pink (#fae6e7) outside rooms, pure white (#ffffff) inside rooms
     obj.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
 
         const formatMaterial = (mat) => {
-          mat.side = THREE.DoubleSide;
-          mat.roughness = 0.7;
+          mat.roughness = 0.65;
           mat.metalness = 0.05;
-          // Apply light pink color #fae6e7 to all walls
-          if (
-            mat.name === 'boundary_wall' ||
-            (!mat.name.includes('black') && !mat.name.includes('white') && !mat.name.includes('ceiling'))
-          ) {
+
+          if (mat.name === 'white_tiles') {
+            mat.map = floorTex;
+            mat.side = THREE.DoubleSide;
+            mat.color.setHex(0xffffff);
+          } else if (mat.name === 'black_solid') {
+            mat.color.setHex(0x111111);
+            mat.side = THREE.DoubleSide;
+          } else if (mat.name === 'ceiling') {
+            mat.color.setHex(0xffffff);
+            mat.side = THREE.DoubleSide;
+          } else if (mat.name === 'room_wall_white') {
+            // Inside the rooms: pure white
+            mat.color.setHex(0xffffff);
+            mat.side = THREE.DoubleSide;
+          } else if (mat.name === 'corridor_wall_pink' || mat.name === 'boundary_wall') {
+            // Outside the rooms: light pink
             mat.color.setHex(0xfae6e7);
+            mat.side = THREE.DoubleSide;
+          } else {
+            mat.color.setHex(0xfae6e7);
+            mat.side = THREE.DoubleSide;
           }
         };
 
@@ -492,21 +512,17 @@ export class LevelGenerator {
   buildFurniture() {
     this.furniture = [];
 
-    // Shared chair materials
-    const chairTex = loadTexture(ASSET_PATHS.textures.chairs, 1, 1, '#b2bec3', '#636e72');
-    chairTex.wrapS = THREE.ClampToEdgeWrapping;
-    chairTex.wrapT = THREE.ClampToEdgeWrapping;
-
+    // Pure white chair materials
     const chairCushionMat = new THREE.MeshStandardMaterial({
-      map: chairTex,
-      roughness: 0.65,
-      metalness: 0.1,
+      color: 0xffffff, // Pure white colored chair cushions
+      roughness: 0.35,
+      metalness: 0.05,
     });
 
     const chairFrameMat = new THREE.MeshStandardMaterial({
-      color: 0x2d3436,
-      roughness: 0.45,
-      metalness: 0.65,
+      color: 0xdedede, // Clean light-silver/white metallic frame
+      roughness: 0.3,
+      metalness: 0.6,
     });
 
     // Room-specific tabletop materials

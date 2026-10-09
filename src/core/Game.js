@@ -84,7 +84,14 @@ export class Game {
     // HUD & Interaction System (pass audio for toggle controls)
     this.hud = new HUD(this.gameState, this.input, this.audio);
     this.hud.setPlayer(this.player);
+    this.hud.setCamera(this.camera);
     this.interactionSystem = new InteractionSystem(this.level, this.hud, this.enemySpawner);
+
+    this.grenadeManager.onEnemyDamaged = (enemy, dmg, isCrit, pos) => {
+      if (this.hud && this.hud.showDamageNumber) {
+        this.hud.showDamageNumber(enemy, dmg, isCrit, pos);
+      }
+    };
 
     // Laser Obstacle Trap System
     this.laserManager = new LaserManager(this.scene, this.audio, level1Data.lasers || []);
@@ -300,6 +307,14 @@ export class Game {
             );
             if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
               this.hud.triggerHitmarker();
+              if (this.hud.showDamageNumber) {
+                this.hud.showDamageNumber(
+                  shootResult.enemy,
+                  shootResult.damage,
+                  shootResult.isCritical,
+                  shootResult.point
+                );
+              }
             }
           }
         } else if (activeItem.type === 'pistol') {
@@ -311,6 +326,14 @@ export class Game {
             );
             if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
               this.hud.triggerHitmarker();
+              if (this.hud.showDamageNumber) {
+                this.hud.showDamageNumber(
+                  shootResult.enemy,
+                  shootResult.damage,
+                  shootResult.isCritical,
+                  shootResult.point
+                );
+              }
             }
           }
         } else if (activeItem.type === 'medkit') {
@@ -359,7 +382,7 @@ export class Game {
     }
 
     // 9. Update HUD
-    this.hud.update(deltaTime, this.player, this.grenadeManager);
+    this.hud.update(deltaTime, this.player, this.grenadeManager, this.camera);
 
     // 10. Render 3D Scene
     this.renderer.render(this.scene, this.camera);

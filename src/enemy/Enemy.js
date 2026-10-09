@@ -43,7 +43,7 @@ function getSharedMuzzleFlashTexture() {
   return sharedMuzzleTexture;
 }
 
-const sharedHitGeo = new THREE.SphereGeometry(0.7, 8, 8);
+const sharedHitGeo = new THREE.CylinderGeometry(0.65, 0.65, 2.2, 10);
 const sharedHitMat = new THREE.MeshBasicMaterial({ visible: false });
 const sharedTracerMat = new THREE.LineBasicMaterial({
   color: 0xffe600,
@@ -213,12 +213,16 @@ export class Enemy {
     this.material.color.setRGB(1, 1, 1);
   }
 
-  takeDamage(amount, hitPoint = null) {
+  takeDamage(amount, hitPoint = null, isCritical = false) {
     if (this.isDead) return;
 
     this.health -= amount;
     this.hurtTimer = 0.18;
-    this.material.color.setRGB(1.0, 0.2, 0.2); // Flash red
+    if (isCritical) {
+      this.material.color.setRGB(1.0, 0.85, 0.15); // Flash vibrant gold on critical headshot
+    } else {
+      this.material.color.setRGB(1.0, 0.2, 0.2); // Flash red on normal hit
+    }
     this.audio.playEnemyHit();
 
     // Knockback
@@ -229,9 +233,33 @@ export class Enemy {
       this.world.resolveSphereCollision(this.position, this.radius);
     }
 
+    if (this.onDamageReceived) {
+      this.onDamageReceived(amount, isCritical, hitPoint);
+    }
+
     if (this.health <= 0) {
       this.die();
     }
+  }
+
+  /**
+   * Checks whether the hit point struck the top head area of the enemy
+   */
+  checkIsHeadshot(hitPoint) {
+    if (!hitPoint) return false;
+    const headThreshold = this.position.y + (this.scaleHeight * 0.22);
+    return hitPoint.y >= headThreshold;
+  }
+
+  /**
+   * Returns world position of enemy's head for floating damage numbers
+   */
+  getHeadPosition() {
+    return new THREE.Vector3(
+      this.position.x,
+      this.position.y + (this.scaleHeight * 0.45),
+      this.position.z
+    );
   }
 
   die() {

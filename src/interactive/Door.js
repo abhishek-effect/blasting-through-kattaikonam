@@ -31,22 +31,24 @@ export class Door {
     this.targetAngle = 0;
     this.isPlayerNear = false;
 
-    // Shared door material using door-texture.jpg
+    // Rich brown door material using door-texture-new.webp
     const doorTex = loadTexture(ASSET_PATHS.textures.door, 1, 1, '#8b5a2b', '#5c3a21');
     doorTex.wrapS = THREE.ClampToEdgeWrapping;
     doorTex.wrapT = THREE.ClampToEdgeWrapping;
 
     this.doorMaterial = new THREE.MeshStandardMaterial({
       map: doorTex,
-      roughness: 0.6,
-      metalness: 0.15,
+      color: 0x8d5b32, // Warm rich brown
+      roughness: 0.55,
+      metalness: 0.1,
       side: THREE.DoubleSide
     });
 
-    // Dark trim frame for door handles / edge
+    // Deep brown frame
     this.frameMaterial = new THREE.MeshStandardMaterial({
-      color: 0x332924,
-      roughness: 0.8
+      color: 0x3d2314,
+      roughness: 0.75,
+      metalness: 0.1
     });
 
     this.group = new THREE.Group();
@@ -54,6 +56,9 @@ export class Door {
 
     // Build Double-Leaf Hinge Rig
     this.buildDoubleDoor();
+
+    // Build Blue Plaque Sign with White Border & White Text Above Door Frame
+    this.buildRoomSign();
 
     // Closed Collider
     this.collider = new THREE.Box3();
@@ -208,12 +213,71 @@ export class Door {
     };
   }
 
+  /**
+   * Builds the blue plaque sign with white borders and white text displaying room name above door frame
+   */
+  buildRoomSign() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Blue Frame Background
+    ctx.fillStyle = '#1e3799'; // Deep campus blue
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // 2. White Borders
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(10, 10, 1004, 236);
+
+    ctx.lineWidth = 4;
+    ctx.strokeRect(26, 26, 972, 204);
+
+    // 3. Crisp White Room Title Text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 76px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.name.toUpperCase(), 512, 128);
+
+    const signTex = new THREE.CanvasTexture(canvas);
+    signTex.wrapS = THREE.ClampToEdgeWrapping;
+    signTex.wrapT = THREE.ClampToEdgeWrapping;
+
+    const signMat = new THREE.MeshStandardMaterial({
+      map: signTex,
+      roughness: 0.45,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+
+    const signW = 2.4;
+    const signH = 0.55;
+    const signD = 0.08;
+
+    const signGeo = new THREE.BoxGeometry(
+      this.dir === 'x' ? signW : signD,
+      signH,
+      this.dir === 'x' ? signD : signW
+    );
+
+    this.signMesh = new THREE.Mesh(signGeo, signMat);
+    this.signMesh.position.set(this.x, this.height + 0.38, this.z);
+    this.signMesh.castShadow = true;
+    this.scene.add(this.signMesh);
+  }
+
   destroy() {
     const idx = this.collidersList.indexOf(this.collider);
     if (idx !== -1) {
       this.collidersList.splice(idx, 1);
     }
+    if (this.signMesh) {
+      this.scene.remove(this.signMesh);
+    }
     this.scene.remove(this.group);
   }
 }
+
 

@@ -58,6 +58,11 @@ export class HUD {
     this.killTauntsEnabled = localStorage.getItem('kattaikonam_kill_taunts') !== 'false';
     this.tauntMessages = ["ELIMINATED!", "CRY.", "SENT TO PRINCIPAL", "GET OUT", "BYE"];
 
+    // Floating Damage Numbers
+    this.damageNumbersLayer = document.getElementById('damage-numbers-layer');
+    this.damageNumbers = [];
+    this.camera = null;
+
     // Slot Elements
     this.slotEls = [
       document.getElementById('hud-slot-1'),
@@ -291,6 +296,10 @@ export class HUD {
 
   setPlayer(player) {
     this.player = player;
+  }
+
+  setCamera(camera) {
+    this.camera = camera;
   }
 
   initSlotClickHandlers() {
@@ -735,7 +744,7 @@ Coded by Gemini 3.8 Flash`;
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
       if (this.overlaySubtitle) {
-        this.overlaySubtitle.textContent = 'FLOOR 1 - RETRO SCHOOL FPS';
+        this.overlaySubtitle.textContent = 'GROUND FLOOR';
       }
       if (this.btnMenuContinue) {
         if (this.gameState.hasActiveSession) {
@@ -807,6 +816,95 @@ Coded by Gemini 3.8 Flash`;
     }
   }
 
+  /**
+   * Spawns or rapidly increments floating damage numbers in 3D world space.
+   * Stacks continuous hits (e.g. 10 -> 20 -> 30) for rapid-fire feedback.
+   * If critical (headshot), displays prominent glowing badge and extra-large numbers.
+   */
+  showDamageNumber(enemy, damage, isCritical = false, hitPoint = null) {
+    if (!this.damageNumbersLayer) return;
+
+    // Check if there is an active damage number entry for this enemy
+    let entry = this.damageNumbers.find((d) => d.enemy === enemy && d.life > 0.08);
+
+    if (entry) {
+      entry.currentDamage += damage;
+      if (isCritical) {
+        entry.isCritical = true;
+      }
+      entry.valueEl.textContent = `${Math.round(entry.currentDamage)}`;
+      if (entry.isCritical) {
+        entry.element.classList.add('critical');
+        if (!entry.critBadgeEl) {
+          const badge = document.createElement('div');
+          badge.className = 'crit-badge';
+          badge.textContent = 'CRITICAL HIT!';
+          entry.element.insertBefore(badge, entry.valueEl);
+          entry.critBadgeEl = badge;
+        }
+      }
+
+      // Re-trigger punchy pop scale animation
+      entry.element.classList.remove('pop');
+      void entry.element.offsetWidth; // Reflow
+      entry.element.classList.add('pop');
+
+      // Update position tracking
+      if (entry.isCritical && enemy && enemy.getHeadPosition) {
+        entry.worldPos.copy(enemy.getHeadPosition());
+      } else if (hitPoint) {
+        entry.worldPos.copy(hitPoint);
+      } else if (enemy && enemy.position) {
+        entry.worldPos.copy(enemy.position);
+        entry.worldPos.y += 1.3;
+      }
+
+      // Reset timer for rapid continuous chaining
+      entry.life = 0.85;
+      entry.floatOffset = Math.max(0, entry.floatOffset - 0.08);
+    } else {
+      const el = document.createElement('div');
+      el.className = `damage-number-tag pop ${isCritical ? 'critical' : ''}`;
+
+      let critBadge = null;
+      if (isCritical) {
+        critBadge = document.createElement('div');
+        critBadge.className = 'crit-badge';
+        critBadge.textContent = 'CRITICAL HIT!';
+        el.appendChild(critBadge);
+      }
+
+      const valSpan = document.createElement('div');
+      valSpan.className = 'dmg-val';
+      valSpan.textContent = `${Math.round(damage)}`;
+      el.appendChild(valSpan);
+
+      this.damageNumbersLayer.appendChild(el);
+
+      const pos = new THREE.Vector3();
+      if (isCritical && enemy && enemy.getHeadPosition) {
+        pos.copy(enemy.getHeadPosition());
+      } else if (hitPoint) {
+        pos.copy(hitPoint);
+      } else if (enemy && enemy.position) {
+        pos.copy(enemy.position);
+        pos.y += 1.3;
+      }
+
+      this.damageNumbers.push({
+        enemy,
+        element: el,
+        valueEl: valSpan,
+        critBadgeEl: critBadge,
+        currentDamage: damage,
+        isCritical,
+        worldPos: pos,
+        floatOffset: 0,
+        life: 0.85
+      });
+    }
+  }
+
   showNotification(text, duration = 2.5) {
     if (this.notificationEl) {
       this.notificationEl.textContent = text;
@@ -833,7 +931,7 @@ Coded by Gemini 3.8 Flash`;
     }
   }
 
-  update(deltaTime, player, grenadeManager) {
+  update(deltaTime, player, grenadeManager, camera = null) {
     // 1. Health
     if (this.healthEl && player) {
       const hp = Math.max(0, Math.round(player.health));
@@ -996,6 +1094,64 @@ Coded by Gemini 3.8 Flash`;
         this.injuryVignetteEl.style.opacity = pulse.toFixed(2);
       } else {
         this.injuryVignetteEl.style.opacity = '0';
+      }
+    }
+
+    // 12. Floating Damage Numbers update & screen projection
+    const activeCam = camera || this.camera;
+    if (this.damageNumbersLayer && activeCam && this.damageNumbers.length > 0) {
+      const widthHalf = window.innerWidth / 2;
+      const heightHalf = window.innerHeight / 2;
+      const tempVec = new THREE.Vector3();
+      const camDir = new THREE.Vector3();
+      activeCam.getWorldDirection(camDir);
+
+      for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
+        const dn = this.damageNumbers[i];
+        dn.life -= deltaTime;
+        dn.floatOffset += deltaTime * 0.55;
+
+        // Follow living enemy horizontally if moving
+        if (dn.enemy && !dn.enemy.isDead && dn.enemy.position) {
+          dn.worldPos.x = dn.enemy.position.x;
+          dn.worldPos.z = dn.enemy.position.z;
+        }
+
+        if (dn.life <= 0) {
+          if (dn.element && dn.element.parentNode) {
+            dn.element.parentNode.removeChild(dn.element);
+          }
+          this.damageNumbers.splice(i, 1);
+          continue;
+        }
+
+        if (dn.life < 0.25) {
+          dn.element.style.opacity = (dn.life / 0.25).toFixed(2);
+        } else {
+          dn.element.style.opacity = '1';
+        }
+
+        tempVec.copy(dn.worldPos);
+        tempVec.y += dn.floatOffset;
+
+        // Check if point is in front of camera
+        const toPos = new THREE.Vector3().subVectors(tempVec, activeCam.position);
+        if (toPos.dot(camDir) <= 0.1) {
+          dn.element.style.display = 'none';
+          continue;
+        }
+
+        const proj = tempVec.clone().project(activeCam);
+        if (proj.z > 1 || proj.z < -1) {
+          dn.element.style.display = 'none';
+          continue;
+        }
+
+        dn.element.style.display = 'flex';
+        const screenX = (proj.x * widthHalf) + widthHalf;
+        const screenY = -(proj.y * heightHalf) + heightHalf;
+        dn.element.style.left = `${screenX.toFixed(1)}px`;
+        dn.element.style.top = `${screenY.toFixed(1)}px`;
       }
     }
   }

@@ -32,9 +32,9 @@ export const level1Data = {
     { id: 'infirmary', name: 'School Infirmary', x: 7, z: 22, w: 14, l: 12 },
     { id: 'elevator_room', name: 'Campus Elevator Lobby', x: 7, z: 39, w: 14, l: 14 },
     { id: 'computer_lab', name: 'Computer Lab', x: 7, z: 57, w: 14, l: 14 },
-    { id: 'bio_lab', name: 'Bio Lab', x: 7, z: 75, w: 14, l: 14 },
+    { id: 'bio_lab', name: 'Biology Lab', x: 7, z: 75, w: 14, l: 14 },
     { id: 'central_atrium', name: 'Central Hall (Black Tiles)', x: 31, z: 49.5, w: 18, l: 43, hasBlackTiles: true },
-    { id: 'phy_lab', name: 'Physics Laboratory', x: 48.5, z: 7, w: 27, l: 14 },
+    { id: 'phy_lab', name: 'Physics Lab', x: 48.5, z: 7, w: 27, l: 14 },
     { id: 'locked_room', name: 'Faculty Archives (Locked)', x: 72.5, z: 7, w: 15, l: 14 },
     { id: 'unlockable_room', name: 'Unlockable Room', x: 91.5, z: 7, w: 17, l: 14 },
     { id: 'seminar_hall', name: 'Seminar Hall (Auditorium & Stage)', x: 77.5, z: 46.5, w: 45, l: 39, requiresKills: 20 },
@@ -45,11 +45,11 @@ export const level1Data = {
     { id: 'd_infirmary', x: 14, z: 22, w: 4.0, dir: 'z', label: 'INFIRMARY' },
     // Elevator directly occupies West Wing doorway opening at x: 14, z: 39 (replaces door)
     { id: 'd_computer_lab', x: 14, z: 57, w: 4.0, dir: 'z', label: 'COMPUTER LAB' },
-    { id: 'd_bio_lab', x: 14, z: 75, w: 4.0, dir: 'z', label: 'BIO LAB' },
-    { id: 'd_unusable_stairs_sw', x: 20, z: 91, w: 4.0, dir: 'z', label: 'STAIRS' },
+    { id: 'd_bio_lab', x: 14, z: 75, w: 4.0, dir: 'z', label: 'BIOLOGY LAB' },
+    { id: 'd_unusable_stairs_sw', x: 20, z: 91, w: 4.0, dir: 'z', label: 'SOUTH STAIRS' },
     { id: 'd_nw_lock', x: 6, z: 10, w: 4.0, dir: 'x', label: 'DOOR LOCKED' },
-    { id: 'd_nw_stairs', x: 24, z: 10, w: 4.0, dir: 'x', label: 'STAIRS' },
-    { id: 'd_phy_lab', x: 48, z: 14, w: 4.0, dir: 'x', label: 'PHY LAB' },
+    { id: 'd_nw_stairs', x: 24, z: 10, w: 4.0, dir: 'x', label: 'NORTH STAIRS' },
+    { id: 'd_phy_lab', x: 48, z: 14, w: 4.0, dir: 'x', label: 'PHYSICS LAB' },
     { id: 'd_locked_room', x: 72, z: 14, w: 4.0, dir: 'x', label: 'LOCKED ROOM' },
     { id: 'd_unlockable_room', x: 90, z: 14, w: 4.0, dir: 'x', label: 'UNLOCKABLE ROOM' },
     { id: 'd_board_room', x: 55, z: 85, w: 4.0, dir: 'x', label: 'BOARD ROOM' },
@@ -157,10 +157,10 @@ export const level1Data = {
       difficulty: 2,
     },
 
-    // 7. Bio Lab (West Lower)
+    // 7. Biology Lab (West Lower)
     {
       id: 'zone_bio_lab',
-      name: 'Bio Lab Researchers',
+      name: 'Biology Lab Researchers',
       center: { x: 7.0, z: 75.0 },
       triggerRadius: 14.0,
       radius: 3.5,
