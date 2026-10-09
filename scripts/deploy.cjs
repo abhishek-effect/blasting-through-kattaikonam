@@ -32,7 +32,7 @@ try {
   console.log('No existing gh-pages commit found.');
 }
 
-const commitMsg = 'Deploy Ground Floor updates: white chairs, blue room signs, brown doors, pink corridor walls, white lab walls, floor tiles, floating damage numbers, and critical headshots';
+const commitMsg = 'Deploy Roblox Evade multiplayer mode under PLAY button: PeerJS P2P networking, Nextbots with uncropped photos, locked doors key hunt, revive mechanic, seminar hall escape, preserving Shoot Shoot Shoot';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

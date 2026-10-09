@@ -24,6 +24,7 @@ import { EnemySpawner } from '../enemy/EnemySpawner.js';
 import { LaserManager } from '../interactive/LaserObstacle.js';
 import { HUD } from '../ui/HUD.js';
 import { ASSET_PATHS, preloadAllAssets } from '../config/assets.js';
+import { EvadeGame } from '../evade/EvadeGame.js';
 
 export class Game {
   constructor() {
@@ -105,6 +106,17 @@ export class Game {
     this.player.onDamageTaken = (amount, sourcePos) => {
       this.hud.triggerDamageFlash(sourcePos, this.player);
     };
+
+    // Evade Multiplayer Mode Subsystem
+    this.evadeGame = new EvadeGame(
+      this.scene,
+      this.camera,
+      this.level,
+      this.player,
+      this.input,
+      this.audio,
+      this.gameState
+    );
 
     this.clock = new THREE.Clock();
 
@@ -247,11 +259,19 @@ export class Game {
 
     this.gameState.on('stateChange', ({ newState }) => {
       if (newState === STATES.PLAYING) {
-        this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+        if (!this.evadeGame || !this.evadeGame.isActive) {
+          this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+        }
       } else if (newState === STATES.GAME_OVER || newState === STATES.VICTORY) {
         this.audio.stopBGM();
-      } else if (newState === STATES.PAUSED || newState === STATES.MENU) {
+      } else if (newState === STATES.PAUSED) {
         this.audio.pauseBGM();
+      } else if (newState === STATES.MENU) {
+        this.audio.pauseBGM();
+        if (this.evadeGame && this.evadeGame.isActive) {
+          this.evadeGame.stop();
+        }
+        document.body.classList.remove('evade-mode');
       }
     });
   }
@@ -259,11 +279,40 @@ export class Game {
   launchMode(mode) {
     this.audio.ensureContext();
     this.gameState.currentMode = mode;
-    this.restart(mode);
-    if (mode === GAME_MODES.SHOOT_SHOOT_SHOOT) {
-      this.hud.showNotification('💥 MODE: SHOOT SHOOT SHOOT', 3.0);
+
+    if (mode === GAME_MODES.PLAY) {
+      // --- PLAY (ROBLOX EVADE MULTIPLAYER MODE) ---
+      if (this.evadeGame) {
+        this.evadeGame.stop();
+      }
+      this.enemySpawner.clear();
+      if (this.laserManager) {
+        this.laserManager.clear();
+      }
+      if (this.player.setWeaponsVisible) {
+        this.player.setWeaponsVisible(false);
+      }
+      document.body.classList.add('evade-mode');
+
+      this.evadeGame.openLobby();
+      this.hud.showNotification('▶ MODE: EVADE MULTIPLAYER', 3.0);
     } else {
-      this.hud.showNotification('▶ MODE: PLAY (CORE MISSION)', 3.0);
+      // --- SHOOT SHOOT SHOOT MODE (UNTOUCHED) ---
+      document.body.classList.remove('evade-mode');
+      if (this.evadeGame) {
+        this.evadeGame.stop();
+      }
+      if (this.player.setWeaponsVisible) {
+        this.player.setWeaponsVisible(true);
+      }
+      if (this.level && this.level.doors) {
+        this.level.doors.forEach((d) => {
+          d.setOpen(false);
+          d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
+        });
+      }
+      this.restart(mode);
+      this.hud.showNotification('💥 MODE: SHOOT SHOOT SHOOT', 3.0);
     }
   }
 
@@ -272,6 +321,21 @@ export class Game {
       this.gameState.currentMode = mode;
     }
     this.audio.ensureContext();
+
+    if (this.gameState.currentMode === GAME_MODES.PLAY) {
+      if (this.evadeGame) {
+        this.evadeGame.startMatch(this.evadeGame.remotePlayers.size === 0);
+      }
+      return;
+    }
+
+    document.body.classList.remove('evade-mode');
+    if (this.evadeGame) {
+      this.evadeGame.stop();
+    }
+    if (this.player.setWeaponsVisible) {
+      this.player.setWeaponsVisible(true);
+    }
 
     const startPos = new THREE.Vector3(
       level1Data.playerStart.x,
@@ -288,6 +352,12 @@ export class Game {
     this.grenadeManager.reset();
     if (this.level && this.level.resetSeminarGate) {
       this.level.resetSeminarGate();
+    }
+    if (this.level && this.level.doors) {
+      this.level.doors.forEach((d) => {
+        d.setOpen(false);
+        d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
+      });
     }
     this.enemySpawner.spawnLevelEnemies(level1Data.spawnZones, this.input.isTouchDevice);
     if (this.laserManager) {
@@ -308,96 +378,107 @@ export class Game {
     const deltaTime = Math.min(rawDelta, 0.1);
 
     if (this.gameState.isPlaying()) {
-      const activeItem = this.player.getActiveItem();
+      if (this.evadeGame && this.evadeGame.isActive && this.evadeGame.isMatchRunning) {
+        // --- EVADE MULTIPLAYER MODE ---
+        this.player.update(deltaTime);
+        this.evadeGame.update(deltaTime);
+        if (this.level && this.level.update) {
+          this.level.update(deltaTime, this.player.position);
+        }
+        this.interactionSystem.update(this.player, this.input);
+      } else {
+        // --- SHOOT SHOOT SHOOT MODE (PRESERVED UNTOUCHED) ---
+        const activeItem = this.player.getActiveItem();
 
-      // 1. Check Reload Input (for weapons)
-      if (this.input.checkAndConsumeReload() && activeItem && activeItem.reload) {
-        activeItem.reload();
-      }
+        // 1. Check Reload Input (for weapons)
+        if (this.input.checkAndConsumeReload() && activeItem && activeItem.reload) {
+          activeItem.reload();
+        }
 
-      // 2. Check Firing / Use Input
-      if (activeItem) {
-        if (activeItem.type === 'rifle') {
-          // Automatic rifle: continuous fire while held
-          if (this.input.isFiring() && activeItem.canShoot()) {
-            const shootResult = activeItem.shoot(
-              this.enemySpawner.getEnemies(),
-              this.level.colliders
-            );
-            if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
-              this.hud.triggerHitmarker();
-              if (this.hud.showDamageNumber) {
-                this.hud.showDamageNumber(
-                  shootResult.enemy,
-                  shootResult.damage,
-                  shootResult.isCritical,
-                  shootResult.point
-                );
+        // 2. Check Firing / Use Input
+        if (activeItem) {
+          if (activeItem.type === 'rifle') {
+            // Automatic rifle: continuous fire while held
+            if (this.input.isFiring() && activeItem.canShoot()) {
+              const shootResult = activeItem.shoot(
+                this.enemySpawner.getEnemies(),
+                this.level.colliders
+              );
+              if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
+                this.hud.triggerHitmarker();
+                if (this.hud.showDamageNumber) {
+                  this.hud.showDamageNumber(
+                    shootResult.enemy,
+                    shootResult.damage,
+                    shootResult.isCritical,
+                    shootResult.point
+                  );
+                }
+              }
+            }
+          } else if (activeItem.type === 'pistol') {
+            // Semi-automatic pistol: fires once per click/tap
+            if (this.input.checkAndConsumeTrigger() && activeItem.canShoot()) {
+              const shootResult = activeItem.shoot(
+                this.enemySpawner.getEnemies(),
+                this.level.colliders
+              );
+              if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
+                this.hud.triggerHitmarker();
+                if (this.hud.showDamageNumber) {
+                  this.hud.showDamageNumber(
+                    shootResult.enemy,
+                    shootResult.damage,
+                    shootResult.isCritical,
+                    shootResult.point
+                  );
+                }
+              }
+            }
+          } else if (activeItem.type === 'medkit') {
+            // Consumable Medkit: uses on click/tap
+            if (this.input.checkAndConsumeTrigger()) {
+              const res = activeItem.use(this.player);
+              if (res.message) {
+                this.hud.showNotification(res.message);
               }
             }
           }
-        } else if (activeItem.type === 'pistol') {
-          // Semi-automatic pistol: fires once per click/tap
-          if (this.input.checkAndConsumeTrigger() && activeItem.canShoot()) {
-            const shootResult = activeItem.shoot(
-              this.enemySpawner.getEnemies(),
-              this.level.colliders
-            );
-            if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
-              this.hud.triggerHitmarker();
-              if (this.hud.showDamageNumber) {
-                this.hud.showDamageNumber(
-                  shootResult.enemy,
-                  shootResult.damage,
-                  shootResult.isCritical,
-                  shootResult.point
-                );
-              }
-            }
-          }
-        } else if (activeItem.type === 'medkit') {
-          // Consumable Medkit: uses on click/tap
-          if (this.input.checkAndConsumeTrigger()) {
-            const res = activeItem.use(this.player);
-            if (res.message) {
-              this.hud.showNotification(res.message);
-            }
+        }
+
+        // 3. Check Grenade Throw (Key G or Mobile Button)
+        if (this.input.checkAndConsumeGrenade()) {
+          const thrown = this.grenadeManager.throw(this.camera);
+          if (!thrown && this.grenadeManager.grenades <= 0) {
+            this.hud.showNotification('NO GRENADES REMAINING!');
           }
         }
-      }
 
-      // 3. Check Grenade Throw (Key G or Mobile Button)
-      if (this.input.checkAndConsumeGrenade()) {
-        const thrown = this.grenadeManager.throw(this.camera);
-        if (!thrown && this.grenadeManager.grenades <= 0) {
-          this.hud.showNotification('NO GRENADES REMAINING!');
+        // 4. Update Player & Camera
+        this.player.update(deltaTime);
+
+        // 5. Update Active Weapon & Passive Item Cooldowns
+        this.rifle.update(deltaTime, this.player);
+        this.pistol.update(deltaTime, this.player);
+        this.medkit.update(deltaTime, this.player);
+
+        // 6. Update Grenades (projectiles, pickups, explosion VFX)
+        this.grenadeManager.update(deltaTime, this.enemySpawner.getEnemies(), this.player);
+
+        // 7. Update Level Enemies
+        this.enemySpawner.update(deltaTime, this.player);
+
+        // 7b. Update Laser Obstacle Traps
+        if (this.laserManager) {
+          this.laserManager.update(deltaTime, this.player, this.hud);
         }
+
+        // 8. Update Proximity Interactions & Campus Doors
+        if (this.level && this.level.update) {
+          this.level.update(deltaTime, this.player.position);
+        }
+        this.interactionSystem.update(this.player, this.input);
       }
-
-      // 4. Update Player & Camera
-      this.player.update(deltaTime);
-
-      // 5. Update Active Weapon & Passive Item Cooldowns
-      this.rifle.update(deltaTime, this.player);
-      this.pistol.update(deltaTime, this.player);
-      this.medkit.update(deltaTime, this.player);
-
-      // 6. Update Grenades (projectiles, pickups, explosion VFX)
-      this.grenadeManager.update(deltaTime, this.enemySpawner.getEnemies(), this.player);
-
-      // 7. Update Level Enemies
-      this.enemySpawner.update(deltaTime, this.player);
-
-      // 7b. Update Laser Obstacle Traps
-      if (this.laserManager) {
-        this.laserManager.update(deltaTime, this.player, this.hud);
-      }
-
-      // 8. Update Proximity Interactions & Campus Doors
-      if (this.level && this.level.update) {
-        this.level.update(deltaTime, this.player.position);
-      }
-      this.interactionSystem.update(this.player, this.input);
     }
 
     // 9. Update HUD

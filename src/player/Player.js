@@ -79,6 +79,7 @@ export class Player {
 
   setInventory(slots = []) {
     this.slots = slots;
+    this.weaponsHidden = false;
     // Hide all viewmodels initially
     this.slots.forEach((s) => {
       if (s && s.setVisible) s.setVisible(false);
@@ -87,11 +88,24 @@ export class Player {
     this.switchSlot(0);
   }
 
+  setWeaponsVisible(visible) {
+    this.weaponsHidden = !visible;
+    if (!visible) {
+      this.slots.forEach((s) => {
+        if (s && s.setVisible) s.setVisible(false);
+      });
+    } else {
+      this.switchSlot(this.activeSlotIndex);
+    }
+  }
+
   getActiveItem() {
+    if (this.weaponsHidden) return null;
     return this.slots[this.activeSlotIndex] || null;
   }
 
   switchSlot(slotIndex) {
+    if (this.weaponsHidden) return;
     if (slotIndex < 0 || slotIndex >= this.slots.length) return;
     this.activeSlotIndex = slotIndex;
 
