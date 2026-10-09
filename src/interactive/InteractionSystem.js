@@ -72,6 +72,32 @@ export class InteractionSystem {
       }
     }
 
+    // 3. Check Interactable Campus Doors
+    if (!promptFound && this.level && this.level.doors && this.level.doors.length > 0) {
+      let nearestDoor = null;
+      let minDoorDist = Infinity;
+
+      for (let i = 0; i < this.level.doors.length; i++) {
+        const door = this.level.doors[i];
+        const dist = Math.hypot(player.position.x - door.x, player.position.z - door.z);
+        if (dist <= door.interactionRadius && dist < minDoorDist) {
+          minDoorDist = dist;
+          nearestDoor = door;
+        }
+      }
+
+      if (nearestDoor) {
+        promptFound = true;
+        const kills = this.enemySpawner ? this.enemySpawner.totalKills : 0;
+        this.activePrompt = nearestDoor.getPromptInfo(kills);
+
+        if (input && input.checkAndConsumeInteract()) {
+          nearestDoor.toggle();
+          this.activePrompt = nearestDoor.getPromptInfo(kills);
+        }
+      }
+    }
+
     if (!promptFound) {
       this.activePrompt = null;
     }

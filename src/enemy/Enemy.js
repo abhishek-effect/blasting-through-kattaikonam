@@ -235,6 +235,7 @@ export class Enemy {
   }
 
   die() {
+    if (this.isDead) return;
     this.isDead = true;
     this.state = ENEMY_STATES.DEAD;
     this.deathTimer = 0;
@@ -242,6 +243,9 @@ export class Enemy {
     if (this.muzzleSprite) this.muzzleSprite.visible = false;
     if (this.tracerLine) this.tracerLine.visible = false;
     this.audio.playEnemyDeath();
+    if (this.onDeath) {
+      this.onDeath(this);
+    }
   }
 
   checkRaycastHit(raycaster) {

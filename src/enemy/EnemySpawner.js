@@ -87,6 +87,11 @@ export class EnemySpawner {
       // Create independent enemy instance
       const enemy = new Enemy(this.scene, this.world, this.audio, typeConfig, instanceId);
 
+      // Bind onDeath to instantly record kills and grant grenades
+      enemy.onDeath = (deadEnemy) => {
+        this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+      };
+
       // Randomize placement within zone circle
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.sqrt(Math.random()) * zone.radius;
@@ -110,7 +115,26 @@ export class EnemySpawner {
     }
   }
 
+  handleEnemyKill(enemy, player) {
+    if (enemy._deathHandled) return;
+    enemy._deathHandled = true;
+
+    this.totalKills++;
+    this.gameState.recordKill();
+
+    // Automatically add a grenade to inventory every 3 kills
+    if (this.totalKills % 3 === 0 && this.grenadeManager) {
+      this.grenadeManager.addGrenade(1);
+      const p = player || this.lastPlayerRef;
+      if (p && p.onPickupNotification) {
+        p.onPickupNotification('+1 GRENADE ACQUIRED! (3 KILLS)');
+      }
+    }
+  }
+
   update(deltaTime, player) {
+    this.lastPlayerRef = player;
+
     // 1. Proximity Spawning: Only spawn enemies when player approaches their zone!
     if (this.pendingZones && this.pendingZones.length > 0 && player && player.position) {
       for (let i = 0; i < this.pendingZones.length; i++) {
@@ -131,21 +155,14 @@ export class EnemySpawner {
     // 3. Update each active enemy instance
     for (let i = 0; i < this.enemies.length; i++) {
       const enemy = this.enemies[i];
-      const wasDead = enemy.isDead;
 
       enemy.update(deltaTime, player.position, (dmg, sourcePos) => {
         player.takeDamage(dmg, sourcePos);
       });
 
-      // Check if enemy just died
-      if (!wasDead && enemy.isDead) {
-        this.totalKills++;
-        this.gameState.recordKill();
-
-        // Drop a grenade pickup every 3 kills!
-        if (this.totalKills % 3 === 0 && this.grenadeManager) {
-          this.grenadeManager.spawnPickup(enemy.position);
-        }
+      // Fallback check if death was triggered during update
+      if (enemy.isDead && !enemy._deathHandled) {
+        this.handleEnemyKill(enemy, player);
       }
     }
   }

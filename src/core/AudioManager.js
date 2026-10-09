@@ -116,6 +116,37 @@ export class AudioManager {
       laserData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sampleRate * 0.02));
     }
     this.precomputedBuffers.set('laser', laserBuf);
+
+    // 6. Precomputed zero-lag Medkit chime buffer
+    const medkitLen = Math.floor(sampleRate * 0.65);
+    const medkitBuf = this.ctx.createBuffer(1, medkitLen, sampleRate);
+    const medkitData = medkitBuf.getChannelData(0);
+    const freqs = [261.63, 329.63, 392.00, 523.25];
+    for (let i = 0; i < medkitLen; i++) {
+      const t = i / sampleRate;
+      let val = 0;
+      freqs.forEach((f, idx) => {
+        const noteStart = idx * 0.08;
+        if (t >= noteStart) {
+          const dt = t - noteStart;
+          val += Math.sin(2 * Math.PI * f * dt) * Math.exp(-dt * 6.0) * 0.24;
+        }
+      });
+      medkitData[i] = val;
+    }
+    this.precomputedBuffers.set('medkit', medkitBuf);
+
+    // 7. Precomputed mechanical door latch / creak buffer
+    const doorLen = Math.floor(sampleRate * 0.35);
+    const doorBuf = this.ctx.createBuffer(1, doorLen, sampleRate);
+    const doorData = doorBuf.getChannelData(0);
+    for (let i = 0; i < doorLen; i++) {
+      const t = i / sampleRate;
+      const click = (Math.random() * 2 - 1) * Math.exp(-t * 60.0) * 0.45;
+      const friction = Math.sin(2 * Math.PI * 110 * t) * (Math.random() * 0.3 + 0.7) * Math.exp(-t * 8.0) * 0.22;
+      doorData[i] = click + friction;
+    }
+    this.precomputedBuffers.set('door', doorBuf);
   }
 
   /**
@@ -388,28 +419,12 @@ export class AudioManager {
 
   playMedkitUse() {
     if (this.isMuted || this.sfxMuted) return;
-    this.ensureContext();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    this.playPrecomputed('medkit', 0.60);
+  }
 
-    [261.63, 329.63, 392.00, 523.25].forEach((freq, idx) => {
-      try {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const startT = now + idx * 0.08;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startT);
-
-        gain.gain.setValueAtTime(0.25, startT);
-        gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.35);
-
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-        osc.start(startT);
-        osc.stop(startT + 0.35);
-      } catch (e) {}
-    });
+  playDoorSound(isOpen) {
+    if (this.isMuted || this.sfxMuted) return;
+    this.playPrecomputed('door', 0.65);
   }
 
   playGrenadeThrow() {

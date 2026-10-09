@@ -44,6 +44,15 @@ export class GrenadeManager {
 
     // Pre-allocate explosion VFX pool so zero meshes or PointLights are added during action!
     this.initExplosionPool(5);
+
+    // Pre-allocate grenade projectile mesh pool (zero runtime allocations)
+    this.projectilePool = [];
+    for (let i = 0; i < 8; i++) {
+      const pMesh = new THREE.Mesh(this.grenadeGeo, this.grenadeMat);
+      pMesh.visible = false;
+      this.scene.add(pMesh);
+      this.projectilePool.push(pMesh);
+    }
   }
 
   initExplosionPool(poolSize = 5) {
@@ -76,8 +85,9 @@ export class GrenadeManager {
       ring.visible = false;
       this.scene.add(ring);
 
+      // Keep light.visible = true at all times with intensity = 0 to prevent shader recompilation lag
       const light = new THREE.PointLight(0xff6600, 0, 14);
-      light.visible = false;
+      light.visible = true;
       this.scene.add(light);
 
       this.explosionPool.push({
@@ -96,20 +106,37 @@ export class GrenadeManager {
     return this.grenades > 0;
   }
 
+  addGrenade(amount = 1) {
+    if (this.grenades < this.maxGrenades) {
+      this.grenades = Math.min(this.maxGrenades, this.grenades + amount);
+      if (this.audio && this.audio.playPickup) {
+        this.audio.playPickup();
+      }
+      return true;
+    }
+    return false;
+  }
+
   throw(camera) {
     if (!this.canThrow()) return false;
 
     this.grenades--;
     this.audio.playGrenadeThrow();
 
-    // Spawn projectile in front of player
-    const mesh = new THREE.Mesh(this.grenadeGeo, this.grenadeMat);
+    // Acquire pre-allocated mesh from pool
+    let mesh = this.projectilePool.find((m) => !m.visible);
+    if (!mesh) {
+      mesh = new THREE.Mesh(this.grenadeGeo, this.grenadeMat);
+      this.scene.add(mesh);
+      this.projectilePool.push(mesh);
+    }
+
     const forward = new THREE.Vector3();
     camera.getWorldDirection(forward);
 
     const spawnPos = camera.position.clone().addScaledVector(forward, 0.6);
     mesh.position.copy(spawnPos);
-    this.scene.add(mesh);
+    mesh.visible = true;
 
     // Initial velocity: throw forward with slight upward arc
     const velocity = forward.clone().multiplyScalar(this.throwSpeed);
@@ -255,7 +282,7 @@ export class GrenadeManager {
 
       if (p.fuse <= 0 || enemyNearby) {
         const blastPos = p.mesh.position.clone();
-        this.scene.remove(p.mesh);
+        p.mesh.visible = false;
         this.projectiles.splice(i, 1);
         this.triggerExplosion(blastPos, enemies, player);
       }
@@ -296,7 +323,6 @@ export class GrenadeManager {
         exp.active = false;
         exp.sphere.visible = false;
         exp.ring.visible = false;
-        exp.light.visible = false;
         exp.light.intensity = 0;
       } else {
         const radius = THREE.MathUtils.lerp(0.5, exp.maxRadius, progress);
@@ -314,8 +340,15 @@ export class GrenadeManager {
 
   reset() {
     this.grenades = 2;
-    this.projectiles.forEach((p) => this.scene.remove(p.mesh));
+    this.projectiles.forEach((p) => {
+      p.mesh.visible = false;
+    });
     this.projectiles = [];
+    if (this.projectilePool) {
+      this.projectilePool.forEach((m) => {
+        m.visible = false;
+      });
+    }
     this.pickups.forEach((p) => this.scene.remove(p.group));
     this.pickups = [];
 
@@ -324,7 +357,7 @@ export class GrenadeManager {
       e.active = false;
       e.sphere.visible = false;
       e.ring.visible = false;
-      e.light.visible = false;
+      e.light.visible = true;
       e.light.intensity = 0;
     });
   }

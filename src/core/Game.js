@@ -58,7 +58,7 @@ export class Game {
     this.input = new InputManager(this.canvas, this.hudContainer);
 
     // Build Deterministic Data-Driven Level
-    this.level = new LevelGenerator(this.scene, level1Data);
+    this.level = new LevelGenerator(this.scene, level1Data, this.audio);
 
     // Grenade System
     this.grenadeManager = new GrenadeManager(this.scene, this.level, this.audio);
@@ -83,6 +83,7 @@ export class Game {
 
     // HUD & Interaction System (pass audio for toggle controls)
     this.hud = new HUD(this.gameState, this.input, this.audio);
+    this.hud.setPlayer(this.player);
     this.interactionSystem = new InteractionSystem(this.level, this.hud, this.enemySpawner);
 
     // Laser Obstacle Trap System
@@ -146,16 +147,20 @@ export class Game {
 
   warmupShaders() {
     try {
-      // Make weapons temporarily visible to compile shaders upfront
-      this.rifle.mesh.visible = true;
-      this.pistol.mesh.visible = true;
-      this.medkit.mesh.visible = true;
+      // Make all viewmodel groups and arms temporarily visible to compile shaders upfront
+      if (this.rifle.viewmodelGroup) this.rifle.viewmodelGroup.visible = true;
+      if (this.pistol.viewmodelGroup) this.pistol.viewmodelGroup.visible = true;
+      if (this.medkit.viewmodelGroup) this.medkit.viewmodelGroup.visible = true;
+      if (this.rifle.mesh) this.rifle.mesh.visible = true;
+      if (this.pistol.mesh) this.pistol.mesh.visible = true;
+      if (this.medkit.mesh) this.medkit.mesh.visible = true;
 
       if (this.grenadeManager && this.grenadeManager.explosionPool) {
         this.grenadeManager.explosionPool.forEach((item) => {
           item.sphere.visible = true;
           item.ring.visible = true;
           item.light.visible = true;
+          item.light.intensity = 0;
         });
       }
 
@@ -167,7 +172,8 @@ export class Game {
         this.grenadeManager.explosionPool.forEach((item) => {
           item.sphere.visible = false;
           item.ring.visible = false;
-          item.light.visible = false;
+          item.light.visible = true;
+          item.light.intensity = 0;
         });
       }
       this.player.switchSlot(0);
@@ -345,7 +351,10 @@ export class Game {
         this.laserManager.update(deltaTime, this.player, this.hud);
       }
 
-      // 8. Update Proximity Interactions (Elevator Photocopy prompt)
+      // 8. Update Proximity Interactions & Campus Doors
+      if (this.level && this.level.update) {
+        this.level.update(deltaTime, this.player.position);
+      }
       this.interactionSystem.update(this.player, this.input);
     }
 

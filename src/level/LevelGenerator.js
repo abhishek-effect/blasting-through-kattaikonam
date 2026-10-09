@@ -1,12 +1,14 @@
 /**
  * LevelGenerator Module
- * Loads mappu.obj and mappu.mtl as the primary 3D level geometry.
+ * Loads mappu.obj and mappu.mtl as the primary 3D level geometry based on ground-floor-newer-plan.
  * Features:
- * - Direct integration of mappu.obj and mappu.mtl with double-sided PBR materials.
- * - Perfectly aligned 1:1 scale: 100m x 100m campus footprint, 5m ceiling height.
- * - 34 deterministic wall colliders matching all rooms and doorway openings.
+ * - Direct integration of mappu.obj and mappu.mtl with double-sided PBR light pink (#fae6e7) walls.
+ * - Aligned 1:1 scale: 100m x 100m campus footprint, 5m ceiling height.
+ * - 54 deterministic wall colliders matching all rooms and doorway openings.
+ * - Two cylindrical pillars matching blueprint circles.
+ * - Functional interactable doors on every room with door-texture.jpg.
  * - Robust axis-separated AABB collision resolution (zero wall/ceiling clipping).
- * - Comprehensive campus illumination rig with bright ambient, sun, and 14 ceiling luminaires.
+ * - Comprehensive campus illumination rig across all wings and rooms.
  * - Interactive Elevator and Seminar Hall security gate (requires 20 kills).
  */
 import * as THREE from 'three';
@@ -14,65 +16,104 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { ASSET_PATHS, loadTexture } from '../config/assets.js';
 import { Elevator } from '../interactive/Elevator.js';
+import { Door } from '../interactive/Door.js';
 
 export const MAPPU_WALLS = [
-  // Outer Boundaries (Height 5m)
+  // Outer Boundaries (100m x 100m)
   { id: 'b_north', minX: 0, maxX: 100, minZ: 0, maxZ: 0 },
   { id: 'b_south', minX: 0, maxX: 100, minZ: 100, maxZ: 100 },
   { id: 'b_east', minX: 100, maxX: 100, minZ: 0, maxZ: 100 },
   { id: 'b_west', minX: 0, maxX: 0, minZ: 0, maxZ: 100 },
 
-  // 1. Physics Lab (PHY LAB - Top Center) - Door gap at X=45 to 48
-  { id: 'phy_south_left', minX: 35, maxX: 45, minZ: 10, maxZ: 10 },
-  { id: 'phy_south_right', minX: 48, maxX: 60, minZ: 10, maxZ: 10 },
-  { id: 'phy_west', minX: 35, maxX: 35, minZ: 0, maxZ: 10 },
-  { id: 'phy_east', minX: 60, maxX: 60, minZ: 0, maxZ: 10 },
+  // 1. West Wing (X = 0 to 14)
+  // 1a. Infirmary (Z: 16 to 28) - Doorway at Z: 20 to 24
+  { id: 'inf_north', minX: 0, maxX: 14, minZ: 16, maxZ: 16 },
+  { id: 'inf_south', minX: 0, maxX: 14, minZ: 28, maxZ: 28 },
+  { id: 'inf_east_north', minX: 14, maxX: 14, minZ: 16, maxZ: 20 },
+  { id: 'inf_east_south', minX: 14, maxX: 14, minZ: 24, maxZ: 28 },
 
-  // 2. Seminar Hall (Right Auditorium) - Door gap at Z=40 to 45
-  { id: 'sem_west_north', minX: 55, maxX: 55, minZ: 25, maxZ: 40 },
-  { id: 'sem_west_south', minX: 55, maxX: 55, minZ: 45, maxZ: 60 },
-  { id: 'sem_south', minX: 55, maxX: 100, minZ: 60, maxZ: 60 },
-  { id: 'sem_north', minX: 55, maxX: 100, minZ: 25, maxZ: 25 },
+  // 1b. Elevator Lobby (Z: 32 to 46) - Doorway at Z: 37 to 41
+  { id: 'elev_north', minX: 0, maxX: 14, minZ: 32, maxZ: 32 },
+  { id: 'elev_south', minX: 0, maxX: 14, minZ: 46, maxZ: 46 },
+  { id: 'elev_east_north', minX: 14, maxX: 14, minZ: 32, maxZ: 37 },
+  { id: 'elev_east_south', minX: 14, maxX: 14, minZ: 41, maxZ: 46 },
 
-  // 3. Library (Bottom Right) - Door gap at X=65 to 70
-  { id: 'lib_north_left', minX: 55, maxX: 65, minZ: 85, maxZ: 85 },
-  { id: 'lib_north_right', minX: 70, maxX: 85, minZ: 85, maxZ: 85 },
-  { id: 'lib_west', minX: 55, maxX: 55, minZ: 85, maxZ: 100 },
-  { id: 'lib_east', minX: 85, maxX: 85, minZ: 85, maxZ: 100 },
+  // 1c. Computer Lab (Z: 50 to 64) - Doorway at Z: 55 to 59
+  { id: 'comp_north', minX: 0, maxX: 14, minZ: 50, maxZ: 50 },
+  { id: 'comp_south', minX: 0, maxX: 14, minZ: 64, maxZ: 64 },
+  { id: 'comp_east_north', minX: 14, maxX: 14, minZ: 50, maxZ: 55 },
+  { id: 'comp_east_south', minX: 14, maxX: 14, minZ: 59, maxZ: 64 },
 
-  // 4. Infirmary (West Upper) - Door gap at Z=18 to 21
-  { id: 'inf_east_north', minX: 12, maxX: 12, minZ: 15, maxZ: 18 },
-  { id: 'inf_east_south', minX: 12, maxX: 12, minZ: 21, maxZ: 25 },
-  { id: 'inf_north', minX: 0, maxX: 12, minZ: 15, maxZ: 15 },
-  { id: 'inf_south', minX: 0, maxX: 12, minZ: 25, maxZ: 25 },
+  // 1d. Bio Lab (Z: 68 to 82) - Doorway at Z: 73 to 77
+  { id: 'bio_north', minX: 0, maxX: 14, minZ: 68, maxZ: 68 },
+  { id: 'bio_south', minX: 0, maxX: 14, minZ: 82, maxZ: 82 },
+  { id: 'bio_east_north', minX: 14, maxX: 14, minZ: 68, maxZ: 73 },
+  { id: 'bio_east_south', minX: 14, maxX: 14, minZ: 77, maxZ: 82 },
 
-  // 5. Elevator & Open Room (West Middle) - Doors at Z=34-37 & Z=50-53
-  { id: 'elev_east_north', minX: 12, maxX: 12, minZ: 30, maxZ: 34 },
-  { id: 'elev_east_mid', minX: 12, maxX: 12, minZ: 37, maxZ: 40 },
-  { id: 'open_east_mid', minX: 12, maxX: 12, minZ: 45, maxZ: 50 },
-  { id: 'open_east_south', minX: 12, maxX: 12, minZ: 53, maxZ: 60 },
-  { id: 'elev_north', minX: 0, maxX: 12, minZ: 30, maxZ: 30 },
-  { id: 'open_south', minX: 0, maxX: 12, minZ: 60, maxZ: 60 },
+  // 1e. Unusable Stairs SW (X: 0 to 20, Z: 86 to 100) - Doorway at Z: 89 to 93
+  { id: 'stairs_sw_north', minX: 0, maxX: 20, minZ: 86, maxZ: 86 },
+  { id: 'stairs_sw_east_north', minX: 20, maxX: 20, minZ: 86, maxZ: 89 },
+  { id: 'stairs_sw_east_south', minX: 20, maxX: 20, minZ: 93, maxZ: 100 },
 
-  // 6. Locked Archives (Top Right) - Door gap at X=70 to 73
-  { id: 'arch_south_left', minX: 65, maxX: 70, minZ: 10, maxZ: 10 },
-  { id: 'arch_south_right', minX: 73, maxX: 80, minZ: 10, maxZ: 10 },
-  { id: 'arch_west', minX: 65, maxX: 65, minZ: 0, maxZ: 10 },
-  { id: 'arch_east', minX: 80, maxX: 80, minZ: 0, maxZ: 10 },
+  // 2. North Wall Rooms (Z: 0 to 14)
+  // 2a. Door Locked NW (X: 0 to 14, Z: 0 to 10) - Doorway at X: 4 to 8
+  { id: 'nw_lock_east', minX: 14, maxX: 14, minZ: 0, maxZ: 10 },
+  { id: 'nw_lock_south_w', minX: 0, maxX: 4, minZ: 10, maxZ: 10 },
+  { id: 'nw_lock_south_e', minX: 8, maxX: 14, minZ: 10, maxZ: 10 },
 
-  // 7. Unusable Stairs (Bottom Left) - Door gap at Z=88 to 91
-  { id: 'stairs_north', minX: 0, maxX: 20, minZ: 85, maxZ: 85 },
-  { id: 'stairs_south', minX: 0, maxX: 20, minZ: 95, maxZ: 95 },
-  { id: 'stairs_east_north', minX: 20, maxX: 20, minZ: 85, maxZ: 88 },
-  { id: 'stairs_east_south', minX: 20, maxX: 20, minZ: 91, maxZ: 95 },
+  // 2b. NW Stairs (X: 16 to 32, Z: 0 to 10) - Doorway at X: 22 to 26
+  { id: 'nw_stairs_west', minX: 16, maxX: 16, minZ: 0, maxZ: 10 },
+  { id: 'nw_stairs_east', minX: 32, maxX: 32, minZ: 0, maxZ: 10 },
+  { id: 'nw_stairs_south_w', minX: 16, maxX: 22, minZ: 10, maxZ: 10 },
+  { id: 'nw_stairs_south_e', minX: 26, maxX: 32, minZ: 10, maxZ: 10 },
+
+  // 2c. Physics Lab (X: 35 to 62, Z: 0 to 14) - Doorway at X: 46 to 50
+  { id: 'phy_west', minX: 35, maxX: 35, minZ: 0, maxZ: 14 },
+  { id: 'phy_east', minX: 62, maxX: 62, minZ: 0, maxZ: 14 },
+  { id: 'phy_south_w', minX: 35, maxX: 46, minZ: 14, maxZ: 14 },
+  { id: 'phy_south_e', minX: 50, maxX: 62, minZ: 14, maxZ: 14 },
+
+  // 2d. Locked Room (X: 65 to 80, Z: 0 to 14) - Doorway at X: 70 to 74
+  { id: 'lock_west', minX: 65, maxX: 65, minZ: 0, maxZ: 14 },
+  { id: 'lock_east', minX: 80, maxX: 80, minZ: 0, maxZ: 14 },
+  { id: 'lock_south_w', minX: 65, maxX: 70, minZ: 14, maxZ: 14 },
+  { id: 'lock_south_e', minX: 74, maxX: 80, minZ: 14, maxZ: 14 },
+
+  // 2e. Unlockable Room (X: 83 to 100, Z: 0 to 14) - Doorway at X: 88 to 92
+  { id: 'unlock_west', minX: 83, maxX: 83, minZ: 0, maxZ: 14 },
+  { id: 'unlock_south_w', minX: 83, maxX: 88, minZ: 14, maxZ: 14 },
+  { id: 'unlock_south_e', minX: 92, maxX: 100, minZ: 14, maxZ: 14 },
+
+  // 3. South Wall Rooms (Z: 85 to 100)
+  // 3a. Board Room (X: 46 to 64, Z: 85 to 100) - Doorway at X: 53 to 57
+  { id: 'board_west', minX: 46, maxX: 46, minZ: 85, maxZ: 100 },
+  { id: 'board_east', minX: 64, maxX: 64, minZ: 85, maxZ: 100 },
+  { id: 'board_north_w', minX: 46, maxX: 53, minZ: 85, maxZ: 85 },
+  { id: 'board_north_e', minX: 57, maxX: 64, minZ: 85, maxZ: 85 },
+
+  // 3b. Library (X: 66 to 100, Z: 83 to 100) - Doorway at X: 78 to 82
+  { id: 'lib_west', minX: 66, maxX: 66, minZ: 83, maxZ: 100 },
+  { id: 'lib_north_w', minX: 66, maxX: 78, minZ: 83, maxZ: 83 },
+  { id: 'lib_north_e', minX: 82, maxX: 100, minZ: 83, maxZ: 83 },
+
+  // 4. Seminar Hall & Stage (X: 55 to 100, Z: 27 to 66) - Security Gate at Z: 43 to 48, X=55
+  { id: 'sem_north', minX: 55, maxX: 100, minZ: 27, maxZ: 27 },
+  { id: 'sem_south', minX: 55, maxX: 100, minZ: 66, maxZ: 66 },
+  { id: 'sem_west_north', minX: 55, maxX: 55, minZ: 27, maxZ: 43 },
+  { id: 'sem_west_south', minX: 55, maxX: 55, minZ: 48, maxZ: 66 },
+  { id: 'sem_stage_div_north', minX: 83, maxX: 83, minZ: 27, maxZ: 40 },
+  { id: 'sem_stage_div_south', minX: 83, maxX: 83, minZ: 53, maxZ: 66 },
 ];
 
 export class LevelGenerator {
-  constructor(scene, levelData) {
+  constructor(scene, levelData, audio = null) {
     this.scene = scene;
     this.data = levelData;
+    this.audio = audio;
     this.colliders = []; // List of THREE.Box3 for player/enemy collisions
     this.lights = [];
+    this.doors = [];
+    this.pillars = [];
     this.elevator = null;
     this.seminarGate = null;
     this.mapModel = null;
@@ -104,17 +145,23 @@ export class LevelGenerator {
   buildMap() {
     const h = this.data.ceilingHeight || 5.0;
 
-    // 1. Build deterministic AABB colliders for all 34 walls defined in mappu.obj
+    // 1. Build deterministic AABB colliders for all 54 walls
     this.buildWallColliders(h);
 
-    // 2. Build Accessible Elevator inside West Wing Room (x: 6.0, z: 35.5)
+    // 2. Build the Two Cylindrical Pillars matching circles on ground-floor-newer-plan
+    this.buildPillars(h);
+
+    // 3. Build Functional Interactable Doors on every room with door-texture.jpg
+    this.buildDoors();
+
+    // 4. Build Accessible Elevator inside West Wing Elevator Room (x: 6.0, z: 39.0)
     if (this.data.elevator) {
       this.elevator = new Elevator(this.scene, this.data.elevator);
       const elevColliders = this.elevator.getColliders();
       elevColliders.forEach((box) => this.colliders.push(box));
     }
 
-    // 3. Build Seminar Hall Security Gate (x: 55, z: 42.5, width: 5.0m, locked until 20 kills)
+    // 5. Build Seminar Hall Security Gate (x: 55, z: 45.5, width: 5.0m, locked until 20 kills)
     this.buildSeminarGate(h);
   }
 
@@ -147,6 +194,78 @@ export class LevelGenerator {
   }
 
   /**
+   * Builds the two prominent cylindrical pillars to the left of black tiles
+   */
+  buildPillars(h = 5.0) {
+    const pillarRadius = 0.85;
+    const pillarGeo = new THREE.CylinderGeometry(pillarRadius, pillarRadius, h, 32);
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: 0xfae6e7, // Light pink matching campus walls
+      roughness: 0.65,
+      metalness: 0.1,
+    });
+
+    const pillarCoords = [
+      { id: 'pillar_north', x: 19.5, z: 31.0 },
+      { id: 'pillar_south', x: 19.5, z: 68.0 },
+    ];
+
+    pillarCoords.forEach((p) => {
+      const mesh = new THREE.Mesh(pillarGeo, pillarMat);
+      mesh.position.set(p.x, h / 2, p.z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      this.pillars.push(mesh);
+
+      // Robust cylinder AABB collider
+      const box = new THREE.Box3();
+      box.min.set(p.x - pillarRadius, 0, p.z - pillarRadius);
+      box.max.set(p.x + pillarRadius, h, p.z + pillarRadius);
+      this.colliders.push(box);
+    });
+  }
+
+  /**
+   * Builds functional interactable doors for every room
+   */
+  buildDoors() {
+    this.doors = [];
+    const doorConfigs = [
+      // West Wing Doors
+      { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      { id: 'door_elevator', name: 'ELEVATOR LOBBY', x: 14, z: 39, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      { id: 'door_bio_lab', name: 'BIO LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      { id: 'door_stairs_sw', name: 'STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
+
+      // North Wall Doors
+      { id: 'door_nw_lock', name: 'DOOR LOCKED', x: 6, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
+      { id: 'door_nw_stairs', name: 'STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+      { id: 'door_phy_lab', name: 'PHY LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+      { id: 'door_locked_room', name: 'LOCKED ROOM', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
+      { id: 'door_unlockable_room', name: 'UNLOCKABLE ROOM', x: 90, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+
+      // South Wall Doors
+      { id: 'door_board_room', name: 'BOARD ROOM', x: 55, z: 85, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
+      { id: 'door_library', name: 'LIBRARY', x: 80, z: 83, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
+    ];
+
+    doorConfigs.forEach((cfg) => {
+      const door = new Door(this.scene, this.colliders, this.audio, cfg);
+      this.doors.push(door);
+    });
+  }
+
+  update(deltaTime, playerPosition) {
+    if (this.doors) {
+      for (let i = 0; i < this.doors.length; i++) {
+        this.doors[i].update(deltaTime, playerPosition);
+      }
+    }
+  }
+
+  /**
    * Loads mappu.mtl and mappu.obj
    */
   loadMappu() {
@@ -168,7 +287,6 @@ export class LevelGenerator {
           undefined,
           (err) => {
             console.warn('[LevelGenerator] Error loading mappu.obj with materials:', err);
-            // Fallback load without mtl
             this.loadStandaloneOBJ(objUrl);
           }
         );
@@ -199,26 +317,33 @@ export class LevelGenerator {
     this.mapModel = obj;
     obj.name = 'MappuModel';
 
-    // Model coordinates are already in meters: 100m x 100m footprint, 5m height
+    // Model coordinates: 100m x 100m footprint, 5m height
     obj.scale.set(1.0, 1.0, 1.0);
     obj.position.set(0, 0, 0);
 
-    // Apply double-sided rendering, shadows, and clean roughness to all loaded materials
+    // Apply double-sided rendering, shadows, and light pink (#fae6e7) wall coloring
     obj.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
 
+        const formatMaterial = (mat) => {
+          mat.side = THREE.DoubleSide;
+          mat.roughness = 0.7;
+          mat.metalness = 0.05;
+          // Apply light pink color #fae6e7 to all walls
+          if (
+            mat.name === 'boundary_wall' ||
+            (!mat.name.includes('black') && !mat.name.includes('white') && !mat.name.includes('ceiling'))
+          ) {
+            mat.color.setHex(0xfae6e7);
+          }
+        };
+
         if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => {
-            mat.side = THREE.DoubleSide;
-            mat.roughness = 0.7;
-            mat.metalness = 0.1;
-          });
+          child.material.forEach(formatMaterial);
         } else if (child.material) {
-          child.material.side = THREE.DoubleSide;
-          child.material.roughness = 0.7;
-          child.material.metalness = 0.1;
+          formatMaterial(child.material);
         }
       }
     });
@@ -228,8 +353,7 @@ export class LevelGenerator {
   }
 
   /**
-   * Comprehensive Campus Lighting Rig:
-   * Ambient, hemisphere sky bounce, dual directional suns, and 14 fluorescent ceiling fixtures
+   * Campus Lighting Rig across all wings and rooms
    */
   buildCampusLights() {
     // 1. Ambient & Sky Fill
@@ -263,22 +387,25 @@ export class LevelGenerator {
     this.scene.add(fillSun);
     this.lights.push(fillSun);
 
-    // 4. Campus Fluorescent Tube Luminaires Grid (14 bright point lights with glowing fixtures at Y = 4.7)
+    // 4. Campus Fluorescent Tube Luminaires Grid (17 bright fixtures at Y = 4.7)
     const lightPositions = [
-      { x: 37.5, y: 4.7, z: 90.0, color: 0xfff5e6, intensity: 2.5, range: 28 }, // South Spawn Hall
+      { x: 34.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // South Spawn Hall
+      { x: 55.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.2, range: 26 }, // Board Room
+      { x: 82.0, y: 4.7, z: 91.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // Library
+      { x: 10.0, y: 4.7, z: 93.0, color: 0xffe0cc, intensity: 2.0, range: 24 }, // South Unusable Stairs
       { x: 45.0, y: 4.7, z: 75.0, color: 0xfff5e6, intensity: 2.2, range: 26 }, // South Corridor Junction
-      { x: 29.0, y: 4.7, z: 55.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (South)
-      { x: 29.0, y: 4.7, z: 35.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (North)
-      { x: 70.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // Library
-      { x: 10.0, y: 4.7, z: 90.0, color: 0xffe0cc, intensity: 2.0, range: 24 }, // South Unusable Stairs
-      { x: 6.0,  y: 4.7, z: 20.0, color: 0xe6f2ff, intensity: 2.2, range: 22 }, // Infirmary
-      { x: 6.0,  y: 4.7, z: 35.0, color: 0xffeedd, intensity: 2.2, range: 22 }, // Elevator Room
-      { x: 6.0,  y: 4.7, z: 52.0, color: 0xfff5e6, intensity: 2.2, range: 22 }, // Open Classroom
-      { x: 47.5, y: 4.7, z: 5.0,  color: 0xffeedd, intensity: 2.5, range: 28 }, // Physics Lab
-      { x: 72.5, y: 4.7, z: 5.0,  color: 0xffe0cc, intensity: 2.2, range: 24 }, // Locked Archives
-      { x: 75.0, y: 4.7, z: 42.5, color: 0xfff5e6, intensity: 3.0, range: 36 }, // Seminar Hall Auditorium Center
-      { x: 90.0, y: 4.7, z: 42.5, color: 0xffea77, intensity: 2.5, range: 26 }, // Seminar Hall Stage
-      { x: 50.0, y: 4.7, z: 20.0, color: 0xfff5e6, intensity: 2.2, range: 26 }, // North Corridor
+      { x: 31.0, y: 4.7, z: 58.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (South)
+      { x: 31.0, y: 4.7, z: 38.0, color: 0xfff8ee, intensity: 2.5, range: 30 }, // Central Hall (North)
+      { x: 7.0,  y: 4.7, z: 22.0, color: 0xe6f2ff, intensity: 2.2, range: 22 }, // Infirmary
+      { x: 7.0,  y: 4.7, z: 39.0, color: 0xffeedd, intensity: 2.2, range: 22 }, // Elevator Room
+      { x: 7.0,  y: 4.7, z: 57.0, color: 0xfff5e6, intensity: 2.2, range: 22 }, // Computer Lab
+      { x: 7.0,  y: 4.7, z: 75.0, color: 0xe6fff0, intensity: 2.2, range: 22 }, // Bio Lab
+      { x: 20.0, y: 4.7, z: 5.0,  color: 0xffeedd, intensity: 2.2, range: 24 }, // NW Storage / Stairs
+      { x: 48.5, y: 4.7, z: 7.0,  color: 0xffeedd, intensity: 2.5, range: 28 }, // Physics Lab
+      { x: 72.5, y: 4.7, z: 7.0,  color: 0xffe0cc, intensity: 2.2, range: 24 }, // Locked Archives
+      { x: 91.5, y: 4.7, z: 7.0,  color: 0xfff0e6, intensity: 2.2, range: 24 }, // Unlockable Room
+      { x: 70.0, y: 4.7, z: 46.5, color: 0xfff5e6, intensity: 3.0, range: 36 }, // Seminar Hall Auditorium
+      { x: 91.0, y: 4.7, z: 46.5, color: 0xffea77, intensity: 2.5, range: 26 }, // Seminar Hall Stage
     ];
 
     lightPositions.forEach((lp) => {
@@ -307,12 +434,12 @@ export class LevelGenerator {
       opacity: 0.85,
     });
     const gateMesh = new THREE.Mesh(gateGeo, gateMat);
-    gateMesh.position.set(55, h / 2, 42.5);
+    gateMesh.position.set(55, h / 2, 45.5);
     this.scene.add(gateMesh);
 
     const gateCollider = new THREE.Box3();
     const half = new THREE.Vector3(0.2, h / 2, 2.5);
-    const center = new THREE.Vector3(55, h / 2, 42.5);
+    const center = new THREE.Vector3(55, h / 2, 45.5);
     gateCollider.min.subVectors(center, half);
     gateCollider.max.addVectors(center, half);
     this.colliders.push(gateCollider);
@@ -323,7 +450,7 @@ export class LevelGenerator {
       isUnlocked: false,
       requiresKills: 20,
       x: 55,
-      z: 42.5,
+      z: 45.5,
     };
   }
 
@@ -356,11 +483,10 @@ export class LevelGenerator {
 
   /**
    * Robust Axis-Separated AABB Collision Resolution
-   * Completely prevents clipping or tunneling through walls.
    */
   resolveAxisCollision(position, radius, axis) {
     const playerFeet = Math.max(0, position.y - 1.6);
-    const playerHead = position.y + 0.2; // approx 1.85m
+    const playerHead = position.y + 0.2;
 
     const entityBox = new THREE.Box3();
     entityBox.min.set(position.x - radius, playerFeet, position.z - radius);

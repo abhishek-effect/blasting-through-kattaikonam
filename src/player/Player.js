@@ -44,9 +44,9 @@ export class Player {
     this.isCrouching = false;
     this.isSliding = false;
     this.slideTimer = 0;
-    this.slideDuration = 0.75;
+    this.slideDuration = 1.25; // Lasts ~1.25 seconds at a time
     this.slideCooldown = 0;
-    this.initialSlideSpeed = 10.5;
+    this.initialSlideSpeed = 9.2; // Slightly faster than sprinting (7.5)
     this.slideDirection = new THREE.Vector3();
     this.slideRoll = 0;
     this.currentSlideRoll = 0;
@@ -186,7 +186,7 @@ export class Player {
     ) {
       this.isSliding = true;
       this.slideTimer = 0;
-      this.slideCooldown = 0.25;
+      this.slideCooldown = 0.5;
       this.isCrouching = false;
       if (this.input.setCrouching) {
         this.input.setCrouching(false);
@@ -224,9 +224,10 @@ export class Player {
     if (this.isSliding) {
       this.slideTimer += deltaTime;
       const slideProgress = Math.min(1.0, this.slideTimer / this.slideDuration);
+      // Stays slightly faster than sprinting (sprintSpeed = 7.5) throughout the slide
       const currentSlideSpeed = THREE.MathUtils.lerp(
         this.initialSlideSpeed,
-        this.crouchSpeed,
+        8.0,
         Math.sin(slideProgress * Math.PI * 0.5)
       );
 
@@ -243,12 +244,14 @@ export class Player {
         this.isGrounded = false;
         this.isSliding = false;
         this.slideRoll = 0;
+        this.slideCooldown = 0.5;
         if (this.audio && this.audio.playJump) {
           this.audio.playJump();
         }
       } else if (this.slideTimer >= this.slideDuration) {
         this.isSliding = false;
         this.slideRoll = 0;
+        this.slideCooldown = 0.5;
         if (this.input.isCrouching && this.input.isCrouching()) {
           this.isCrouching = true;
         }

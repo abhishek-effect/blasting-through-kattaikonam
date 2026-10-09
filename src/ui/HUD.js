@@ -289,18 +289,26 @@ export class HUD {
     }
   }
 
+  setPlayer(player) {
+    this.player = player;
+  }
+
   initSlotClickHandlers() {
     // Clicking or tapping HUD slots, gun name, or gun image switches weapon/item instantly
     this.slotEls.forEach((slotEl, idx) => {
       if (!slotEl) return;
       const select = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (e && e.cancelable) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
         this.input.requestSlot(idx);
+        if (this.player && this.player.switchSlot) {
+          this.player.switchSlot(idx);
+        }
       };
-      // Register pointerdown and touchstart for zero-latency tap response on phones
+      // Register pointerdown, touchstart, touchend and click for zero-latency tap response on phones
       slotEl.addEventListener('pointerdown', select);
       slotEl.addEventListener('touchstart', select, { passive: false });
+      slotEl.addEventListener('touchend', select, { passive: false });
       slotEl.addEventListener('click', select);
     });
   }

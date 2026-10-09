@@ -371,7 +371,7 @@ html, body {
   justify-content: space-between;
   align-items: flex-end;
   pointer-events: none;
-  z-index: 60;
+  z-index: 85;
   background: linear-gradient(to top, rgba(10, 10, 15, 0.92) 0%, rgba(10, 10, 15, 0) 100%);
   gap: 12px;
 }
@@ -440,6 +440,7 @@ html, body {
   display: flex;
   gap: 8px;
   pointer-events: auto;
+  z-index: 90;
 }
 
 .inventory-slot {

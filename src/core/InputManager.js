@@ -284,6 +284,9 @@ export class InputManager {
     // 2. Right-side touch look
     if (lookZone) {
       lookZone.addEventListener('touchstart', (e) => {
+        if (e.target && e.target.closest && (e.target.closest('#hud') || e.target.closest('.inventory-slot'))) {
+          return;
+        }
         const touch = e.changedTouches[0];
         if (!this.touchLook.active) {
           this.touchLook.active = true;
