@@ -26,6 +26,15 @@ export const MSG_TYPES = {
   PLAYER_OOFED: 'PLAYER_OOFED'
 };
 
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' }
+];
+
 export class NetworkManager {
   constructor(localPlayerName = 'Survivor') {
     this.localPlayerName = localPlayerName;
@@ -69,20 +78,31 @@ export class NetworkManager {
     this.roomCode = (customCode || this.generateRoomCode()).toUpperCase();
     const fullPeerId = `btk-evade-${this.roomCode.toLowerCase()}`;
 
+    // Clean up existing peer if any
+    this.disconnect();
+
     return new Promise((resolve, reject) => {
+      let isResolved = false;
+
+      const timeoutId = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          this.disconnect();
+          reject(new Error('Creating room timed out on PeerJS network. Please try again.'));
+        }
+      }, 15000);
+
       try {
         this.peer = new Peer(fullPeerId, {
           debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-          }
+          config: { iceServers: ICE_SERVERS }
         });
 
         this.peer.on('open', (id) => {
+          if (isResolved) return;
+          isResolved = true;
+          clearTimeout(timeoutId);
+
           this.peerId = id;
           this.isConnected = true;
           this.connections.clear();
@@ -103,16 +123,32 @@ export class NetworkManager {
 
         this.peer.on('error', (err) => {
           if (err.type === 'unavailable-id') {
-            // Room code already taken, retry with random code
-            this.peer.destroy();
-            resolve(this.createRoom(this.generateRoomCode() + Math.floor(Math.random() * 9)));
+            console.warn('[NetworkManager] ID taken, generating new room code...');
+            if (this.peer) {
+              try { this.peer.destroy(); } catch (e) {}
+              this.peer = null;
+            }
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
+              // Retry with fresh random code
+              resolve(this.createRoom(this.generateRoomCode()));
+            }
           } else {
             console.error('[NetworkManager] Host PeerJS error:', err);
-            reject(err);
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
+              reject(err);
+            }
           }
         });
       } catch (err) {
-        reject(err);
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          reject(err);
+        }
       }
     });
   }
@@ -126,21 +162,38 @@ export class NetworkManager {
     this.localPlayerName = playerName;
     const targetPeerId = `btk-evade-${this.roomCode.toLowerCase()}`;
 
+    // Clean up existing peer if any
+    this.disconnect();
+
     return new Promise((resolve, reject) => {
+      let isResolved = false;
+      let handshakeInterval = null;
+
+      const cleanup = () => {
+        if (handshakeInterval) {
+          clearInterval(handshakeInterval);
+          handshakeInterval = null;
+        }
+      };
+
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        if (!isResolved) {
+          isResolved = true;
+          this.disconnect();
+          reject(new Error(`Connection timed out after 15s. Ensure Host created room [${this.roomCode}].`));
+        }
+      }, 15000);
+
       try {
-        // Create an ephemeral client peer
         this.peer = new Peer(null, {
           debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-          }
+          config: { iceServers: ICE_SERVERS }
         });
 
         this.peer.on('open', (myId) => {
           this.peerId = myId;
+
           const conn = this.peer.connect(targetPeerId, {
             reliable: true,
             metadata: {
@@ -151,31 +204,76 @@ export class NetworkManager {
 
           this.hostConn = conn;
 
-          conn.on('open', () => {
+          // Attach listeners IMMEDIATELY to prevent dropped packets
+          this.setupClientListeners(conn);
+
+          const sendJoin = () => {
+            if (conn.open) {
+              try {
+                conn.send({
+                  type: MSG_TYPES.JOIN_REQUEST,
+                  id: this.localId,
+                  name: this.localPlayerName
+                });
+              } catch (e) {}
+            }
+          };
+
+          const onConnOpen = () => {
             this.isConnected = true;
-            this.setupClientListeners(conn);
+            sendJoin();
 
-            // Send Join handshake
-            conn.send({
-              type: MSG_TYPES.JOIN_REQUEST,
-              id: this.localId,
-              name: this.localPlayerName
-            });
+            // Periodic heartbeat handshake retry until lobby received
+            if (!handshakeInterval) {
+              handshakeInterval = setInterval(() => {
+                if (this.isConnected && conn.open) {
+                  sendJoin();
+                } else {
+                  cleanup();
+                }
+              }, 1200);
+            }
 
-            resolve({ roomCode: this.roomCode, hostPeerId: targetPeerId });
-          });
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
+              resolve({ roomCode: this.roomCode, hostPeerId: targetPeerId });
+            }
+          };
+
+          if (conn.open) {
+            onConnOpen();
+          } else {
+            conn.on('open', onConnOpen);
+          }
 
           conn.on('error', (err) => {
-            console.error('[NetworkManager] Connection to host failed:', err);
-            reject(new Error('Could not connect to room. Please check the code.'));
+            console.error('[NetworkManager] DataConnection error:', err);
+            cleanup();
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
+              reject(new Error(`Failed to connect to room [${this.roomCode}]. Check the room code.`));
+            }
           });
         });
 
         this.peer.on('error', (err) => {
           console.error('[NetworkManager] Client Peer error:', err);
-          reject(err);
+          cleanup();
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutId);
+            if (err.type === 'peer-unavailable') {
+              reject(new Error(`Room [${this.roomCode}] not found. Ensure Host has created the room.`));
+            } else {
+              reject(new Error(err.message || 'Peer network connection error.'));
+            }
+          }
         });
       } catch (err) {
+        cleanup();
+        clearTimeout(timeoutId);
         reject(err);
       }
     });
@@ -183,17 +281,53 @@ export class NetworkManager {
 
   setupHostListeners() {
     this.peer.on('connection', (conn) => {
-      conn.on('open', () => {
-        const remotePeerId = conn.peer;
+      const remotePeerId = conn.peer;
+      const clientName = (conn.metadata && conn.metadata.name) || 'Survivor';
+      const clientId = (conn.metadata && conn.metadata.id) || `p_${remotePeerId.substring(0, 6)}`;
 
-        conn.on('data', (data) => {
-          this.handleHostReceivedData(conn, data);
-        });
+      const registerClient = () => {
+        const clientInfo = {
+          id: clientId,
+          peerId: remotePeerId,
+          name: clientName,
+          conn: conn,
+          isHost: false,
+          isReady: true
+        };
+        this.connections.set(clientId, clientInfo);
 
-        conn.on('close', () => {
-          this.handlePeerDisconnected(remotePeerId);
-        });
+        // Send accept immediately
+        try {
+          conn.send({
+            type: MSG_TYPES.JOIN_ACCEPTED,
+            localId: clientId,
+            roomCode: this.roomCode,
+            isGameRunning: this.isGameRunning
+          });
+        } catch (e) {}
+
+        this.broadcastLobbyUpdate();
+      };
+
+      // Listen for data IMMEDIATELY
+      conn.on('data', (data) => {
+        this.handleHostReceivedData(conn, data);
       });
+
+      conn.on('close', () => {
+        this.handlePeerDisconnected(remotePeerId);
+      });
+
+      conn.on('error', (err) => {
+        console.warn('[NetworkManager] Connection error with peer:', remotePeerId, err);
+        this.handlePeerDisconnected(remotePeerId);
+      });
+
+      if (conn.open) {
+        registerClient();
+      } else {
+        conn.on('open', registerClient);
+      }
     });
   }
 
@@ -202,25 +336,28 @@ export class NetworkManager {
 
     switch (data.type) {
       case MSG_TYPES.JOIN_REQUEST: {
+        const clientId = data.id || (conn.metadata && conn.metadata.id) || conn.peer;
+        const clientName = data.name || (conn.metadata && conn.metadata.name) || 'Survivor';
         const clientInfo = {
-          id: data.id || conn.peer,
+          id: clientId,
           peerId: conn.peer,
-          name: data.name || 'Survivor',
+          name: clientName,
           conn: conn,
           isHost: false,
           isReady: true
         };
-        this.connections.set(clientInfo.id, clientInfo);
+        this.connections.set(clientId, clientInfo);
 
         // Acknowledge join
-        conn.send({
-          type: MSG_TYPES.JOIN_ACCEPTED,
-          localId: clientInfo.id,
-          roomCode: this.roomCode,
-          isGameRunning: this.isGameRunning
-        });
+        try {
+          conn.send({
+            type: MSG_TYPES.JOIN_ACCEPTED,
+            localId: clientId,
+            roomCode: this.roomCode,
+            isGameRunning: this.isGameRunning
+          });
+        } catch (e) {}
 
-        // Broadcast updated lobby
         this.broadcastLobbyUpdate();
         break;
       }
@@ -238,7 +375,6 @@ export class NetworkManager {
       case MSG_TYPES.PLAYER_REVIVED:
       case MSG_TYPES.PLAYER_ESCAPED:
       case MSG_TYPES.PLAYER_OOFED: {
-        // Forward event to local host and broadcast to all peers
         if (this.onGameplayEvent) {
           this.onGameplayEvent(data);
         }
@@ -344,7 +480,6 @@ export class NetworkManager {
    * Host starts the match for all connected peers
    */
   startMatch() {
-    if (!this.isHost) return;
     this.isGameRunning = true;
 
     const payload = {
@@ -352,7 +487,9 @@ export class NetworkManager {
       timestamp: Date.now()
     };
 
-    this.broadcast(payload);
+    if (this.isHost) {
+      this.broadcast(payload);
+    }
     if (this.onGameStart) {
       this.onGameStart(payload);
     }
@@ -418,19 +555,33 @@ export class NetworkManager {
   broadcast(data, excludePeerId = null) {
     for (const player of this.connections.values()) {
       if (player.conn && player.conn.open && player.peerId !== excludePeerId) {
-        player.conn.send(data);
+        try {
+          player.conn.send(data);
+        } catch (e) {}
       }
     }
   }
 
   disconnect() {
     if (this.peer) {
-      this.peer.destroy();
+      try {
+        this.peer.destroy();
+      } catch (e) {}
       this.peer = null;
     }
+    for (const player of this.connections.values()) {
+      if (player.conn) {
+        try { player.conn.close(); } catch (e) {}
+      }
+    }
     this.connections.clear();
-    this.hostConn = null;
+    if (this.hostConn) {
+      try { this.hostConn.close(); } catch (e) {}
+      this.hostConn = null;
+    }
     this.isConnected = false;
     this.isGameRunning = false;
+    this.isHost = false;
   }
 }
+

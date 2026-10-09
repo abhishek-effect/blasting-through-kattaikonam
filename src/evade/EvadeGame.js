@@ -166,7 +166,10 @@ export class EvadeGame {
    */
   openLobby() {
     this.isActive = true;
-    this.lobby.show();
+    if (this.lobby) {
+      this.lobby.reset();
+      this.lobby.show();
+    }
   }
 
   /**
@@ -494,6 +497,7 @@ export class EvadeGame {
 
   stopAndExitToMenu() {
     this.stop();
+    this.gameState.hasActiveSession = false;
     this.gameState.setState(STATES.MENU);
   }
 
@@ -505,6 +509,17 @@ export class EvadeGame {
     this.nextbots.reset();
     if (this.progression) {
       this.progression.reset();
+    }
+
+    // Disconnect peerjs network connection
+    if (this.network) {
+      this.network.disconnect();
+    }
+
+    // Reset lobby modal
+    if (this.lobby) {
+      this.lobby.reset();
+      this.lobby.hide();
     }
 
     // Destroy remote players
@@ -520,6 +535,10 @@ export class EvadeGame {
 
     if (this.audio) {
       this.audio.stopBGM();
+    }
+
+    if (document.exitPointerLock) {
+      document.exitPointerLock();
     }
   }
 }

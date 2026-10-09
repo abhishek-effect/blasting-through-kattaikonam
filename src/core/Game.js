@@ -272,6 +272,7 @@ export class Game {
           this.evadeGame.stop();
         }
         document.body.classList.remove('evade-mode');
+        this.gameState.hasActiveSession = false;
       }
     });
   }

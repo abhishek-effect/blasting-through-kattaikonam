@@ -121,19 +121,9 @@ export class NextbotManager {
     });
 
     const mesh = new THREE.Mesh(planeGeo, planeMat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     group.add(mesh);
-
-    // Glowing menacing aura underneath
-    const shadowGeo = new THREE.RingGeometry(0.3, 1.2, 16);
-    shadowGeo.rotateX(-Math.PI / 2);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.55
-    });
-    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-    shadowMesh.position.y = -this.botHeight / 2 + 0.05;
-    group.add(shadowMesh);
 
     // Red menace light
     const pointLight = new THREE.PointLight(0xff2222, 1.5, 6);

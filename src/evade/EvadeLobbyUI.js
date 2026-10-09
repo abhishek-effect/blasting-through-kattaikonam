@@ -78,13 +78,16 @@ export class EvadeLobbyUI {
             </div>
 
             <div class="host-actions-row">
-              <button id="btn-start-match" class="lobby-action-btn start-btn disabled" disabled>
-                ▶ START MATCH (2+ PLAYERS)
+              <button id="btn-start-match" class="lobby-action-btn start-btn">
+                ▶ START GAME NOW
               </button>
               <button id="btn-start-solo" class="lobby-action-btn solo-btn" title="Play solo practice without waiting">
                 🕹️ SOLO PRACTICE RUN
               </button>
             </div>
+            <button id="btn-host-leave" class="lobby-action-btn secondary-btn" style="margin-top: 10px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
+              🚪 LEAVE ROOM / MAIN MENU
+            </button>
           </div>
         </div>
 
@@ -105,6 +108,9 @@ export class EvadeLobbyUI {
               <div class="list-title">LOBBY PLAYERS:</div>
               <div id="client-players-list" class="players-list"></div>
             </div>
+            <button id="btn-client-leave" class="lobby-action-btn secondary-btn" style="margin-top: 12px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
+              🚪 LEAVE ROOM / MAIN MENU
+            </button>
           </div>
         </div>
 
@@ -131,12 +137,14 @@ export class EvadeLobbyUI {
     this.hostPlayersList = document.getElementById('host-players-list');
     this.btnStartMatch = document.getElementById('btn-start-match');
     this.btnStartSolo = document.getElementById('btn-start-solo');
+    this.btnHostLeave = document.getElementById('btn-host-leave');
 
     this.joinCodeInput = document.getElementById('join-room-code-input');
     this.btnJoinRoom = document.getElementById('btn-join-room');
     this.clientWaitBox = document.getElementById('client-wait-box');
     this.clientWaitStatus = document.getElementById('client-wait-status');
     this.clientPlayersList = document.getElementById('client-players-list');
+    this.btnClientLeave = document.getElementById('btn-client-leave');
 
     this.btnBack = document.getElementById('btn-lobby-back');
   }
@@ -164,7 +172,7 @@ export class EvadeLobbyUI {
         this.displayRoomCode.textContent = res.roomCode;
         this.hostPreCreate.classList.add('hidden');
         this.hostRoomInfo.classList.remove('hidden');
-        this.updatePlayersList([{ id: this.networkManager.localId, name, isHost: true }], false);
+        this.updatePlayersList([{ id: this.networkManager.localId, name, isHost: true }], true);
       } catch (err) {
         alert('Failed to initialize Host room on PeerJS network: ' + (err.message || err));
         this.btnCreateRoom.disabled = false;
@@ -186,11 +194,10 @@ export class EvadeLobbyUI {
 
     // Host Start Match
     this.btnStartMatch.addEventListener('click', () => {
-      if (this.networkManager.connections.size >= 2) {
-        this.networkManager.startMatch();
-        this.hide();
-        if (this.onStartMatch) this.onStartMatch(false);
-      }
+      const isSolo = (this.networkManager.connections.size <= 1);
+      this.networkManager.startMatch();
+      this.hide();
+      if (this.onStartMatch) this.onStartMatch(isSolo);
     });
 
     // Solo Practice Run
@@ -222,12 +229,17 @@ export class EvadeLobbyUI {
       }
     });
 
-    // Return to main menu
-    this.btnBack.addEventListener('click', () => {
+    // Universal Leave To Main Menu handler
+    const leaveToMainMenu = () => {
       this.hide();
+      this.reset();
       this.networkManager.disconnect();
       if (this.onBackToMenu) this.onBackToMenu();
-    });
+    };
+
+    this.btnBack.addEventListener('click', leaveToMainMenu);
+    if (this.btnHostLeave) this.btnHostLeave.addEventListener('click', leaveToMainMenu);
+    if (this.btnClientLeave) this.btnClientLeave.addEventListener('click', leaveToMainMenu);
 
     // Hook NetworkManager events
     this.networkManager.onLobbyUpdate = (players, canStart) => {
@@ -257,18 +269,18 @@ export class EvadeLobbyUI {
   updatePlayersList(players = [], canStart = false) {
     const count = players.length;
     if (this.playersCounterText) {
-      this.playersCounterText.textContent = `Players in lobby: ${count} (Min 2 required)`;
+      this.playersCounterText.textContent = count > 1
+        ? `Players in lobby: ${count} (Ready for Multiplayer!)`
+        : `Players in lobby: ${count} (Waiting for friends or start now)`;
     }
 
     if (this.btnStartMatch) {
-      if (canStart || count >= 2) {
-        this.btnStartMatch.classList.remove('disabled');
-        this.btnStartMatch.disabled = false;
-        this.btnStartMatch.textContent = `▶ START MATCH (${count} PLAYERS READY!)`;
+      this.btnStartMatch.classList.remove('disabled');
+      this.btnStartMatch.disabled = false;
+      if (count > 1) {
+        this.btnStartMatch.textContent = `▶ START MULTIPLAYER MATCH (${count} PLAYERS)`;
       } else {
-        this.btnStartMatch.classList.add('disabled');
-        this.btnStartMatch.disabled = true;
-        this.btnStartMatch.textContent = '▶ START MATCH (2+ PLAYERS)';
+        this.btnStartMatch.textContent = `▶ START GAME NOW (${count} PLAYER)`;
       }
     }
 
@@ -291,6 +303,32 @@ export class EvadeLobbyUI {
     renderList(this.clientPlayersList);
   }
 
+  reset() {
+    if (this.hostPreCreate) this.hostPreCreate.classList.remove('hidden');
+    if (this.hostRoomInfo) this.hostRoomInfo.classList.add('hidden');
+    if (this.btnCreateRoom) {
+      this.btnCreateRoom.disabled = false;
+      this.btnCreateRoom.textContent = '★ CREATE ROOM';
+    }
+    if (this.displayRoomCode) this.displayRoomCode.textContent = '-----';
+    if (this.joinCodeInput) this.joinCodeInput.value = '';
+    if (this.btnJoinRoom) {
+      this.btnJoinRoom.disabled = false;
+      this.btnJoinRoom.textContent = '🔗 CONNECT TO HOST';
+    }
+    if (this.clientWaitBox) this.clientWaitBox.classList.add('hidden');
+    if (this.hostPlayersList) this.hostPlayersList.innerHTML = '';
+    if (this.clientPlayersList) this.clientPlayersList.innerHTML = '';
+    if (this.playersCounterText) {
+      this.playersCounterText.textContent = 'Players in lobby: 1';
+    }
+    if (this.btnStartMatch) {
+      this.btnStartMatch.disabled = false;
+      this.btnStartMatch.classList.remove('disabled');
+      this.btnStartMatch.textContent = '▶ START GAME NOW';
+    }
+  }
+
   show() {
     this.container.classList.remove('hidden');
   }
@@ -299,3 +337,4 @@ export class EvadeLobbyUI {
     this.container.classList.add('hidden');
   }
 }
+

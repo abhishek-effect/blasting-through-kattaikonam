@@ -76,14 +76,14 @@ export class RemotePlayer {
     const torsoGeo = new THREE.BoxGeometry(0.55, 0.75, 0.3);
     this.torso = new THREE.Mesh(torsoGeo, shirtMat);
     this.torso.position.y = 1.05;
-    this.torso.castShadow = true;
+    this.torso.castShadow = false;
     this.bodyGroup.add(this.torso);
 
     // 2. Head
     const headGeo = new THREE.BoxGeometry(0.38, 0.38, 0.38);
     this.head = new THREE.Mesh(headGeo, skinMat);
     this.head.position.y = 1.62;
-    this.head.castShadow = true;
+    this.head.castShadow = false;
     this.bodyGroup.add(this.head);
 
     // Visor / Face
@@ -97,24 +97,24 @@ export class RemotePlayer {
     const armGeo = new THREE.BoxGeometry(0.18, 0.65, 0.2);
     this.leftArm = new THREE.Mesh(armGeo, shirtMat);
     this.leftArm.position.set(-0.38, 1.05, 0);
-    this.leftArm.castShadow = true;
+    this.leftArm.castShadow = false;
     this.bodyGroup.add(this.leftArm);
 
     this.rightArm = new THREE.Mesh(armGeo, shirtMat);
     this.rightArm.position.set(0.38, 1.05, 0);
-    this.rightArm.castShadow = true;
+    this.rightArm.castShadow = false;
     this.bodyGroup.add(this.rightArm);
 
     // 4. Left & Right Legs
     const legGeo = new THREE.BoxGeometry(0.22, 0.7, 0.22);
     this.leftLeg = new THREE.Mesh(legGeo, pantsMat);
     this.leftLeg.position.set(-0.16, 0.35, 0);
-    this.leftLeg.castShadow = true;
+    this.leftLeg.castShadow = false;
     this.bodyGroup.add(this.leftLeg);
 
     this.rightLeg = new THREE.Mesh(legGeo, pantsMat);
     this.rightLeg.position.set(0.16, 0.35, 0);
-    this.rightLeg.castShadow = true;
+    this.rightLeg.castShadow = false;
     this.bodyGroup.add(this.rightLeg);
   }
 
@@ -258,3 +258,4 @@ export class RemotePlayer {
     if (this.nameTexture) this.nameTexture.dispose();
   }
 }
+

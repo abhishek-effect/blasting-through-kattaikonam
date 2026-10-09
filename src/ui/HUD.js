@@ -337,20 +337,7 @@ export class HUD {
         e.stopPropagation();
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
-
-        if (
-          this.gameState.hasActiveSession &&
-          this.gameState.currentMode === GAME_MODES.PLAY &&
-          !this.gameState.isGameOver() &&
-          !this.gameState.isVictory()
-        ) {
-          // Resume active Play mode session
-          this.gameState.setState(STATES.PLAYING);
-          this.input.requestPointerLock();
-        } else {
-          // Start fresh Play mode session
-          this.gameState.emit('startMode', { mode: GAME_MODES.PLAY });
-        }
+        this.gameState.emit('startMode', { mode: GAME_MODES.PLAY });
       });
     }
 
@@ -414,6 +401,7 @@ export class HUD {
     if (this.btnPauseMainMenu) {
       this.btnPauseMainMenu.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.gameState.hasActiveSession = false;
         this.gameState.setState(STATES.MENU);
       });
     }
@@ -431,6 +419,7 @@ export class HUD {
     if (this.btnGameoverMainMenu) {
       this.btnGameoverMainMenu.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.gameState.hasActiveSession = false;
         this.gameState.setState(STATES.MENU);
       });
     }

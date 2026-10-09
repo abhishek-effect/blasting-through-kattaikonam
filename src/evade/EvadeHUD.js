@@ -178,6 +178,9 @@ export class EvadeHUD {
   }
 
   showOofedScreen(onRetry, onMenu) {
+    if (document.exitPointerLock) {
+      document.exitPointerLock();
+    }
     if (this.oofedScreenEl) {
       this.oofedScreenEl.classList.remove('hidden');
     }
@@ -190,6 +193,9 @@ export class EvadeHUD {
   }
 
   showEscapedScreen(onReplay, onMenu) {
+    if (document.exitPointerLock) {
+      document.exitPointerLock();
+    }
     if (this.escapedScreenEl) {
       this.escapedScreenEl.classList.remove('hidden');
     }
@@ -201,3 +207,4 @@ export class EvadeHUD {
     }
   }
 }
+
