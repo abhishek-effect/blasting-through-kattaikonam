@@ -216,3 +216,4 @@ export class Door {
     this.scene.remove(this.group);
   }
 }
+
