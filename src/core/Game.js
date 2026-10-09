@@ -93,6 +93,11 @@ export class Game {
       this.hud.showNotification(msg);
     };
 
+    // Player Damage Callback for outer border flash & directional damage indicator
+    this.player.onDamageTaken = (amount, sourcePos) => {
+      this.hud.triggerDamageFlash(sourcePos, this.player);
+    };
+
     this.clock = new THREE.Clock();
 
     // 3. Setup Listeners
@@ -108,8 +113,20 @@ export class Game {
   async initPreloadAndIntro() {
     this.gameState.setState(STATES.INTRO);
 
-    // Step 1: Preload Audio
-    this.audio.loadSound('grenade', ASSET_PATHS.audio.grenade);
+    // Step 1: Preload All Audio Buffers
+    try {
+      await Promise.all([
+        this.audio.loadSound('grenade', ASSET_PATHS.audio.grenade),
+        this.audio.loadSound('reload', ASSET_PATHS.audio.reload),
+        this.audio.loadSound('kill-1', ASSET_PATHS.audio.kills[0]),
+        this.audio.loadSound('kill-2', ASSET_PATHS.audio.kills[1]),
+        this.audio.loadSound('kill-3', ASSET_PATHS.audio.kills[2]),
+        this.audio.loadSound('combo-1', ASSET_PATHS.audio.combos[0]),
+        this.audio.loadSound('combo-2', ASSET_PATHS.audio.combos[1]),
+      ]);
+    } catch (e) {
+      console.warn('[Game] Audio preload warning:', e);
+    }
 
     // Step 2: Preload All Textures & Precompute Metrics
     await preloadAllAssets((progress, msg) => {

@@ -9,6 +9,7 @@
  * - Proximity interaction box (e.g. Elevator Photocopy prompt)
  * - Temporary action banners and notifications
  */
+import * as THREE from 'three';
 import { STATES } from '../core/GameState.js';
 import {
   ASSET_PATHS,
@@ -32,7 +33,30 @@ export class HUD {
     this.reloadStatusEl = document.getElementById('hud-reload-status');
     this.notificationEl = document.getElementById('hud-notification');
     this.hitmarkerEl = document.getElementById('crosshair-hitmarker');
+
+    // Screen FX & Directional Damage Elements
     this.damageVignetteEl = document.getElementById('damage-vignette');
+    this.injuryVignetteEl = document.getElementById('injury-vignette');
+    this.damageBorderEl = document.getElementById('damage-border');
+    this.killFlashBorderEl = document.getElementById('kill-flash-border');
+    this.damageIndicatorItem = document.getElementById('damage-indicator-item');
+
+    // Crosshair Banners
+    this.crosshairComboBanner = document.getElementById('crosshair-combo-banner');
+    this.crosshairKillBanner = document.getElementById('crosshair-kill-banner');
+    this.btnToggleTaunts = document.getElementById('btn-toggle-taunts');
+
+    // Combo & Taunt State
+    this.comboTimer = 0;
+    this.comboCount = 0;
+    this.comboBannerTimer = 0;
+    this.killBannerTimer = 0;
+    this.killFlashTimer = 0;
+    this.damageFlashTimer = 0;
+    this.damageIndicatorTimer = 0;
+    this.injuryPulseTimer = 0;
+    this.killTauntsEnabled = localStorage.getItem('kattaikonam_kill_taunts') !== 'false';
+    this.tauntMessages = ["ELIMINATED!", "CRY.", "SENT TO PRINCIPAL", "GET OUT", "BYE"];
 
     // Slot Elements
     this.slotEls = [
@@ -121,6 +145,7 @@ export class HUD {
     this.updateControlsCardVisibility();
     this.loadCredits();
     this.updateAudioButtons();
+    this.initTauntToggle();
   }
 
   initPhotoUpload() {
@@ -285,6 +310,10 @@ export class HUD {
       this.onStateChange(newState);
     });
 
+    this.gameState.on('kill', () => {
+      this.triggerKillFeedback();
+    });
+
     // 1. Main Menu Buttons
     if (this.btnMenuContinue) {
       this.btnMenuContinue.addEventListener('click', (e) => {
@@ -437,6 +466,131 @@ export class HUD {
       this.btnToggleSfx.textContent = on ? '🔊 SOUND: ON' : '🔊 SOUND: OFF';
       this.btnToggleSfx.style.borderColor = on ? '#2ecc71' : '#7f8c8d';
       this.btnToggleSfx.style.color = on ? '#a3f7bf' : '#bdc3c7';
+    }
+  }
+
+  initTauntToggle() {
+    if (!this.btnToggleTaunts) return;
+    this.btnToggleTaunts.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.killTauntsEnabled = !this.killTauntsEnabled;
+      localStorage.setItem('kattaikonam_kill_taunts', String(this.killTauntsEnabled));
+      this.updateTauntButton();
+    });
+    this.updateTauntButton();
+  }
+
+  updateTauntButton() {
+    if (!this.btnToggleTaunts) return;
+    const on = this.killTauntsEnabled;
+    this.btnToggleTaunts.textContent = on ? '💀 KILL TAUNTS: ON' : '💀 KILL TAUNTS: OFF';
+    this.btnToggleTaunts.style.borderColor = on ? '#2ecc71' : '#7f8c8d';
+    this.btnToggleTaunts.style.color = on ? '#a3f7bf' : '#bdc3c7';
+  }
+
+  /**
+   * Triggers high-impact feedback when an enemy dies:
+   * 1. Electric blue/green screen border flash
+   * 2. Combo banner above crosshair (Double Kill, Triple Kill, 4?!, Multi-Kill (5), Unstoppable (6+))
+   * 3. Elimination taunt banner below crosshair ("ELIMINATED!", "CRY.", "SENT TO PRINCIPAL", "GET OUT", "BYE")
+   * 4. Alternating combo sounds every 2 kills
+   */
+  triggerKillFeedback() {
+    // 1. Flash outer border in electric blue/green
+    this.killFlashTimer = 0.35;
+    if (this.killFlashBorderEl) {
+      this.killFlashBorderEl.style.opacity = '0.9';
+    }
+
+    // 2. Combo logic (stacks when each kill takes place within 3 seconds)
+    if (this.comboTimer > 0) {
+      this.comboCount++;
+    } else {
+      this.comboCount = 1;
+    }
+    this.comboTimer = 3.0;
+
+    if (this.comboCount >= 2) {
+      let comboText = '';
+      if (this.comboCount === 2) comboText = 'DOUBLE KILL';
+      else if (this.comboCount === 3) comboText = 'TRIPLE KILL';
+      else if (this.comboCount === 4) comboText = '4?!';
+      else if (this.comboCount === 5) comboText = 'MULTI-KILL (5)';
+      else comboText = `UNSTOPPABLE (${this.comboCount}+)`;
+
+      if (this.crosshairComboBanner) {
+        this.crosshairComboBanner.textContent = comboText;
+        this.crosshairComboBanner.classList.remove('active');
+        void this.crosshairComboBanner.offsetWidth; // Reflow for animation restart
+        this.crosshairComboBanner.classList.add('active');
+      }
+      this.comboBannerTimer = 1.8;
+
+      // Play alternating combo audio every 2 kills (at 2, 4, 6, 8, etc.)
+      if (this.audio && this.audio.playComboSound) {
+        this.audio.playComboSound(this.comboCount);
+      }
+    }
+
+    // 3. Elimination message below crosshair
+    if (this.killTauntsEnabled) {
+      const taunt = this.tauntMessages[Math.floor(Math.random() * this.tauntMessages.length)];
+      if (this.crosshairKillBanner) {
+        this.crosshairKillBanner.textContent = taunt;
+        this.crosshairKillBanner.classList.remove('active');
+        void this.crosshairKillBanner.offsetWidth; // Reflow for animation restart
+        this.crosshairKillBanner.classList.add('active');
+      }
+      this.killBannerTimer = 1.5;
+    }
+  }
+
+  /**
+   * Triggers red outer border flash and rotates directional damage indicator towards attacker
+   */
+  triggerDamageFlash(sourcePos, player) {
+    // 1. Red flash on outer border & vignette
+    this.damageFlashTimer = 0.35;
+    if (this.damageBorderEl) {
+      this.damageBorderEl.style.opacity = '0.95';
+    }
+    if (this.damageVignetteEl) {
+      this.damageVignetteEl.style.opacity = '0.75';
+    }
+
+    // 2. Directional indicator showing where damage came from
+    if (sourcePos && player && player.camera) {
+      try {
+        const pPos = player.position;
+        const camDir = new THREE.Vector3();
+        player.camera.getWorldDirection(camDir);
+
+        let fx = camDir.x;
+        let fz = camDir.z;
+        const len = Math.hypot(fx, fz) || 1;
+        fx /= len;
+        fz /= len;
+
+        const rx = -fz;
+        const rz = fx;
+
+        const dx = sourcePos.x - pPos.x;
+        const dz = sourcePos.z - pPos.z;
+
+        const fwd = dx * fx + dz * fz;
+        const right = dx * rx + dz * rz;
+
+        const angleRad = Math.atan2(right, fwd);
+        const angleDeg = (angleRad * 180) / Math.PI;
+
+        if (this.damageIndicatorItem) {
+          this.damageIndicatorItem.style.transform = `rotate(${angleDeg.toFixed(1)}deg)`;
+          this.damageIndicatorItem.style.opacity = '1';
+          this.damageIndicatorTimer = 1.1;
+        }
+      } catch (err) {
+        console.debug('[HUD] Error calculating damage angle:', err);
+      }
     }
   }
 
@@ -630,6 +784,7 @@ Coded by Gemini 3.8 Flash`;
         }
       }
       this.updateAudioButtons();
+      this.updateTauntButton();
     } else if (state === STATES.CREDITS) {
       if (this.creditsView) this.creditsView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
@@ -756,12 +911,83 @@ Coded by Gemini 3.8 Flash`;
       }
     }
 
-    // 6. Damage Vignette Flash
-    if (this.damageVignetteEl && player) {
-      if (player.damageFlashTimer > 0) {
-        this.damageVignetteEl.style.opacity = (player.damageFlashTimer / 0.25) * 0.7;
-      } else {
+    // 6. Combo Timer (stacks within 3 seconds)
+    if (this.comboTimer > 0) {
+      this.comboTimer -= deltaTime;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+      }
+    }
+
+    // 7. Crosshair Banners Timers
+    if (this.comboBannerTimer > 0) {
+      this.comboBannerTimer -= deltaTime;
+      if (this.comboBannerTimer <= 0 && this.crosshairComboBanner) {
+        this.crosshairComboBanner.classList.remove('active');
+      }
+    }
+
+    if (this.killBannerTimer > 0) {
+      this.killBannerTimer -= deltaTime;
+      if (this.killBannerTimer <= 0 && this.crosshairKillBanner) {
+        this.crosshairKillBanner.classList.remove('active');
+      }
+    }
+
+    // 8. Kill Flash Outer Border (Green / Blue)
+    if (this.killFlashTimer > 0) {
+      this.killFlashTimer -= deltaTime;
+      if (this.killFlashBorderEl) {
+        this.killFlashBorderEl.style.opacity = Math.max(0, (this.killFlashTimer / 0.35) * 0.9).toFixed(2);
+      }
+    } else if (this.killFlashBorderEl) {
+      this.killFlashBorderEl.style.opacity = '0';
+    }
+
+    // 9. Damage Flash Outer Border & Vignette Flash
+    if (this.damageFlashTimer > 0) {
+      this.damageFlashTimer -= deltaTime;
+      const op = Math.max(0, (this.damageFlashTimer / 0.35) * 0.95).toFixed(2);
+      if (this.damageBorderEl) {
+        this.damageBorderEl.style.opacity = op;
+      }
+      if (this.damageVignetteEl) {
+        this.damageVignetteEl.style.opacity = (op * 0.75).toFixed(2);
+      }
+    } else {
+      if (this.damageBorderEl) {
+        this.damageBorderEl.style.opacity = '0';
+      }
+      if (this.damageVignetteEl) {
         this.damageVignetteEl.style.opacity = '0';
+      }
+    }
+
+    // 10. Directional Damage Indicator Fade
+    if (this.damageIndicatorTimer > 0) {
+      this.damageIndicatorTimer -= deltaTime;
+      const indOp = Math.max(0, Math.min(1.0, this.damageIndicatorTimer / 0.8)).toFixed(2);
+      if (this.damageIndicatorItem) {
+        this.damageIndicatorItem.style.opacity = indOp;
+      }
+    } else if (this.damageIndicatorItem) {
+      this.damageIndicatorItem.style.opacity = '0';
+    }
+
+    // 11. Persistent Injury Vignette:
+    // When player health reaches 55% or below, keep faint red color in the border like a vignette.
+    // When player health 30% or below make red color stronger.
+    if (this.injuryVignetteEl && player) {
+      this.injuryPulseTimer += deltaTime * 3.0;
+      const hp = Math.max(0, player.health);
+      if (hp <= 30) {
+        const pulse = 0.65 + Math.sin(this.injuryPulseTimer * 1.5) * 0.12;
+        this.injuryVignetteEl.style.opacity = pulse.toFixed(2);
+      } else if (hp <= 55) {
+        const pulse = 0.28 + Math.sin(this.injuryPulseTimer) * 0.06;
+        this.injuryVignetteEl.style.opacity = pulse.toFixed(2);
+      } else {
+        this.injuryVignetteEl.style.opacity = '0';
       }
     }
   }

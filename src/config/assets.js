@@ -35,6 +35,7 @@ export const ASSET_PATHS = {
     blastingTitle: assetUrl('/images/blasting.png'),
     favicon: assetUrl('/favicon.png'),
     credits: assetUrl('/credits.txt'),
+    damageIndicator: assetUrl('/images/damage-indicator.png'),
   },
   enemies: {
     types: {}
@@ -43,6 +44,16 @@ export const ASSET_PATHS = {
     metalBgm: assetUrl('/audio/metal-bgm.mp3'),
     grenade: assetUrl('/audio/grenade.mp3'),
     shoot: assetUrl('/audio/shoot.mp3'),
+    reload: assetUrl('/audio/gun-reload.mp3'),
+    kills: [
+      assetUrl('/audio/kill-1.wav'),
+      assetUrl('/audio/kill-2.wav'),
+      assetUrl('/audio/kill-3.wav'),
+    ],
+    combos: [
+      assetUrl('/audio/combo-1.mp3'),
+      assetUrl('/audio/combo-2.mp3'),
+    ],
   },
   models: {
     obj: assetUrl('/images/mappu.obj'),
@@ -398,9 +409,10 @@ export async function preloadAllAssets(onProgress = null) {
     urlsToPreload.add(ASSET_PATHS.items.grenade);
   }
 
-  // 3. UI images (blasting title display, favicon)
+  // 3. UI images (blasting title display, favicon, damage indicator)
   urlsToPreload.add(ASSET_PATHS.ui.blastingTitle);
   urlsToPreload.add(ASSET_PATHS.ui.favicon);
+  urlsToPreload.add(ASSET_PATHS.ui.damageIndicator);
 
   // 4. Enemy textures
   Object.values(ASSET_PATHS.enemies.types).forEach((e) => {

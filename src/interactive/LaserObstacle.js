@@ -156,7 +156,7 @@ export class LaserObstacle {
       if (feetY < (this.y + 0.06)) {
         // Player failed to jump over or touched the beam -> Zap!
         this.cooldownTimer = this.damageCooldown;
-        player.takeDamage(this.damage);
+        player.takeDamage(this.damage, new THREE.Vector3(closestX, this.y, closestZ));
         if (this.audio && this.audio.playLaserZap) {
           this.audio.playLaserZap();
         }

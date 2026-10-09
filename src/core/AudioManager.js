@@ -17,6 +17,14 @@ export class AudioManager {
     this.isMuted = false;
     this.bgmMuted = false;
     this.sfxMuted = false;
+
+    // Alternating kill sounds (kill-1.wav, kill-2.wav, kill-3.wav)
+    this.killSounds = ['kill-1', 'kill-2', 'kill-3'];
+    this.killSoundIndex = 0;
+
+    // Alternating combo sounds (combo-1.mp3, combo-2.mp3)
+    this.comboSounds = ['combo-1', 'combo-2'];
+    this.comboSoundIndex = 0;
   }
 
   init() {
@@ -342,6 +350,12 @@ export class AudioManager {
 
   playReloadSound() {
     if (this.isMuted || this.sfxMuted) return;
+
+    if (this.soundBuffers.has('reload')) {
+      this.playBuffer('reload', 0.95);
+      return;
+    }
+
     this.ensureContext();
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
@@ -492,6 +506,17 @@ export class AudioManager {
 
   playEnemyDeath() {
     if (this.isMuted || this.sfxMuted) return;
+
+    // 1. Alternate between provided kill sounds (kill-1.wav, kill-2.wav, kill-3.wav)
+    if (this.killSounds && this.killSounds.length > 0) {
+      const soundKey = this.killSounds[this.killSoundIndex % this.killSounds.length];
+      this.killSoundIndex++;
+      if (this.soundBuffers.has(soundKey)) {
+        this.playBuffer(soundKey, 0.90);
+        return;
+      }
+    }
+
     if (this.soundBuffers.has('grenade')) {
       this.playBuffer('grenade', 0.5);
       return;
@@ -516,6 +541,22 @@ export class AudioManager {
       osc.start(now);
       osc.stop(now + 0.35);
     } catch (e) {}
+  }
+
+  /**
+   * Plays alternating combo sound every 2 kills (at combo 2, 4, 6, 8, etc.)
+   */
+  playComboSound(comboCount) {
+    if (this.isMuted || this.sfxMuted) return;
+    if (!this.comboSounds || this.comboSounds.length === 0) return;
+
+    if (comboCount % 2 === 0) {
+      const soundKey = this.comboSounds[this.comboSoundIndex % this.comboSounds.length];
+      this.comboSoundIndex++;
+      if (this.soundBuffers.has(soundKey)) {
+        this.playBuffer(soundKey, 0.95);
+      }
+    }
   }
 
   playPlayerHurt() {

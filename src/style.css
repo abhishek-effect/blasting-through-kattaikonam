@@ -52,21 +52,151 @@ html, body {
   opacity: 0.6;
 }
 
-/* --- Damage Flash Vignette --- */
+/* --- Damage & Injury Overlays --- */
+#injury-vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, rgba(160, 0, 0, 0) 45%, rgba(200, 10, 10, 0.45) 85%, rgba(220, 0, 0, 0.85) 100%);
+  box-shadow: inset 0 0 45px rgba(220, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
 #damage-vignette {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 40%, rgba(220, 20, 20, 0.8) 100%);
+  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 35%, rgba(220, 20, 20, 0.85) 100%);
   pointer-events: none;
   z-index: 51;
   opacity: 0;
   transition: opacity 0.05s ease-out;
 }
 
-/* --- Crosshair & Hitmarker --- */
+#damage-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 8px solid rgba(255, 30, 30, 0.95);
+  box-shadow: inset 0 0 60px rgba(255, 0, 0, 0.75);
+  pointer-events: none;
+  z-index: 52;
+  opacity: 0;
+  transition: opacity 0.06s ease-out;
+}
+
+#kill-flash-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 8px solid #00f0ff;
+  box-shadow: inset 0 0 60px rgba(0, 240, 255, 0.75), 0 0 35px rgba(0, 255, 170, 0.65);
+  pointer-events: none;
+  z-index: 53;
+  opacity: 0;
+  transition: opacity 0.06s ease-out;
+}
+
+/* --- Directional Damage Indicator --- */
+#damage-indicator-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250px;
+  height: 250px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 54;
+}
+
+#damage-indicator-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  transform-origin: center center;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+#damage-indicator-item img {
+  width: 85px;
+  height: 85px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.9)) drop-shadow(0 0 4px #ff3333);
+}
+
+/* --- Crosshair Banners (Combo Above & Taunt Below) --- */
+.crosshair-banner {
+  position: absolute;
+  left: 50%;
+  pointer-events: none;
+  z-index: 58;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 900;
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+}
+
+.combo-banner {
+  top: calc(50% - 36px);
+  transform: translate(-50%, -100%) scale(1.0);
+  font-size: clamp(18px, 4.2vw, 26px);
+  color: #fffb50;
+  text-shadow: 0 0 12px #ff8800, 0 0 24px #ff2200, 2px 2px 0px #000;
+}
+
+.combo-banner.active {
+  opacity: 1;
+  animation: comboPopAnim 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes comboPopAnim {
+  0% { transform: translate(-50%, -100%) scale(0.6); opacity: 0; }
+  60% { transform: translate(-50%, -100%) scale(1.22); opacity: 1; }
+  100% { transform: translate(-50%, -100%) scale(1.0); opacity: 1; }
+}
+
+.kill-banner {
+  top: calc(50% + 36px);
+  transform: translate(-50%, 0) scale(1.0);
+  font-size: clamp(14px, 3.2vw, 19px);
+  color: #ff3838;
+  text-shadow: 0 0 10px rgba(255, 50, 50, 0.85), 2px 2px 0px #000;
+}
+
+.kill-banner.active {
+  opacity: 1;
+  animation: tauntPopAnim 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes tauntPopAnim {
+  0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; }
+  60% { transform: translate(-50%, 0) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, 0) scale(1.0); opacity: 1; }
+}
 #crosshair-container {
   position: absolute;
   top: 50%;

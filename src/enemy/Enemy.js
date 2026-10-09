@@ -420,7 +420,7 @@ export class Enemy {
   performMeleeAttack(onDamagePlayer) {
     this.sprite.scale.set(this.scaleWidth * 1.25, this.scaleHeight * 1.25, 1);
     if (onDamagePlayer) {
-      onDamagePlayer(this.meleeDamage);
+      onDamagePlayer(this.meleeDamage, this.position);
     }
   }
 
@@ -458,7 +458,7 @@ export class Enemy {
 
     // 5. Deal ranged damage to player
     if (onDamagePlayer) {
-      onDamagePlayer(this.rangedDamage);
+      onDamagePlayer(this.rangedDamage, this.position);
     }
   }
 

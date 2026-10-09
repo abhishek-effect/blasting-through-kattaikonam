@@ -127,12 +127,16 @@ export class Player {
     this.updateCameraTransform();
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, sourcePosition = null) {
     if (this.isDead || !this.gameState.isPlaying()) return;
 
     this.health = Math.max(0, this.health - amount);
-    this.damageFlashTimer = 0.25;
+    this.damageFlashTimer = 0.35;
     this.audio.playPlayerHurt();
+
+    if (this.onDamageTaken) {
+      this.onDamageTaken(amount, sourcePosition);
+    }
 
     if (this.health <= 0) {
       this.isDead = true;

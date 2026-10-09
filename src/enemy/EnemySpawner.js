@@ -133,8 +133,8 @@ export class EnemySpawner {
       const enemy = this.enemies[i];
       const wasDead = enemy.isDead;
 
-      enemy.update(deltaTime, player.position, (dmg) => {
-        player.takeDamage(dmg);
+      enemy.update(deltaTime, player.position, (dmg, sourcePos) => {
+        player.takeDamage(dmg, sourcePos);
       });
 
       // Check if enemy just died

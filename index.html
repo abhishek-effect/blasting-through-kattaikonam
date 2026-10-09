@@ -15,8 +15,21 @@
     <!-- Retro CRT Scanline Shader Effect -->
     <div class="scanlines"></div>
 
-    <!-- Damage Screen Vignette Flash -->
+    <!-- Damage & Health FX Screen Overlays -->
+    <div id="injury-vignette"></div>
     <div id="damage-vignette"></div>
+    <div id="damage-border"></div>
+    <div id="kill-flash-border"></div>
+
+    <!-- Directional Damage Indicator Container -->
+    <div id="damage-indicator-container">
+      <div id="damage-indicator-item">
+        <img src="./images/damage-indicator.png" alt="Damage Direction" />
+      </div>
+    </div>
+
+    <!-- Crosshair Combo Banner (ABOVE) -->
+    <div id="crosshair-combo-banner" class="crosshair-banner combo-banner"></div>
 
     <!-- Crosshair with dynamic hitmarker -->
     <div id="crosshair-container">
@@ -27,6 +40,9 @@
       <div class="crosshair-dot"></div>
       <div id="crosshair-hitmarker"></div>
     </div>
+
+    <!-- Crosshair Elimination Banner (BELOW) -->
+    <div id="crosshair-kill-banner" class="crosshair-banner kill-banner"></div>
 
     <!-- Proximity Interaction Prompt (Elevator / Locked Doors) -->
     <div id="interaction-prompt" class="hidden">
@@ -190,10 +206,11 @@
           <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
         </div>
 
-        <!-- Audio Settings -->
+        <!-- Audio & Gameplay Settings -->
         <div class="options-audio-row">
           <button id="btn-toggle-bgm" class="menu-sub-btn">🎵 MUSIC: ON</button>
           <button id="btn-toggle-sfx" class="menu-sub-btn">🔊 SOUND: ON</button>
+          <button id="btn-toggle-taunts" class="menu-sub-btn">💀 KILL TAUNTS: ON</button>
         </div>
 
         <!-- Controls Guide Grid -->
