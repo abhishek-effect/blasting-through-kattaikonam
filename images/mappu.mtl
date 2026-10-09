@@ -1,28 +1,14 @@
-# mappu.mtl - Floor Tile Texture, Corridor Light Pink, Room White
-newmtl white_tiles
-Ka 0.9 0.9 0.9
-Kd 0.95 0.95 0.95
-Ks 0.05 0.05 0.05
-map_Kd images/textures/floor-tile.png
+# mappu.mtl - Material Definitions
 
 newmtl black_solid
-Ka 0.05 0.05 0.05
-Kd 0.08 0.08 0.08
-Ks 0.0 0.0 0.0
+Kd 0.05 0.05 0.05
 
-newmtl corridor_wall_pink
-# Light Pink (#fae6e7)
-Ka 0.98 0.90 0.90
+newmtl white_tiles
+Kd 0.95 0.95 0.95
+
+newmtl boundary_wall
+# Color #fae6e7 converted to RGB 0-1 scale
 Kd 0.980 0.902 0.906
-Ks 0.05 0.05 0.05
-
-newmtl room_wall_white
-# Pure White (#ffffff)
-Ka 0.95 0.95 0.95
-Kd 1.0 1.0 1.0
-Ks 0.05 0.05 0.05
 
 newmtl ceiling
-Ka 0.95 0.95 0.95
 Kd 1.0 1.0 1.0
-Ks 0.0 0.0 0.0
