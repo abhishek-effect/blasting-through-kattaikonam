@@ -37,6 +37,14 @@ export const ASSET_PATHS = {
     credits: assetUrl('/credits.txt'),
     damageIndicator: assetUrl('/images/damage-indicator.png'),
   },
+  props: {
+    bioLabPoster: assetUrl('/images/props/bio-lab-poster.jpg'),
+    csPoster: assetUrl('/images/props/cs-poster.jpg'),
+    pythonDataTypes: assetUrl('/images/props/python-data-types.jpg'),
+    vernierCaliper: assetUrl('/images/props/vernier-caliper.jpg'),
+    tableObj: assetUrl('/images/props/table.obj'),
+    chairObj: assetUrl('/images/props/chair.obj'),
+  },
   enemies: {
     types: {}
   },
@@ -413,6 +421,14 @@ export async function preloadAllAssets(onProgress = null) {
   urlsToPreload.add(ASSET_PATHS.ui.blastingTitle);
   urlsToPreload.add(ASSET_PATHS.ui.favicon);
   urlsToPreload.add(ASSET_PATHS.ui.damageIndicator);
+
+  // 3b. Room props & posters
+  if (ASSET_PATHS.props) {
+    urlsToPreload.add(ASSET_PATHS.props.bioLabPoster);
+    urlsToPreload.add(ASSET_PATHS.props.csPoster);
+    urlsToPreload.add(ASSET_PATHS.props.pythonDataTypes);
+    urlsToPreload.add(ASSET_PATHS.props.vernierCaliper);
+  }
 
   // 4. Enemy textures
   Object.values(ASSET_PATHS.enemies.types).forEach((e) => {

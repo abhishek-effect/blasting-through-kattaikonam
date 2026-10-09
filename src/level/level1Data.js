@@ -43,7 +43,7 @@ export const level1Data = {
   // Doorways connecting rooms
   doorways: [
     { id: 'd_infirmary', x: 14, z: 22, w: 4.0, dir: 'z', label: 'INFIRMARY' },
-    { id: 'd_elevator', x: 14, z: 39, w: 4.0, dir: 'z', label: 'ELEVATOR LOBBY' },
+    // Elevator directly occupies West Wing doorway opening at x: 14, z: 39 (replaces door)
     { id: 'd_computer_lab', x: 14, z: 57, w: 4.0, dir: 'z', label: 'COMPUTER LAB' },
     { id: 'd_bio_lab', x: 14, z: 75, w: 4.0, dir: 'z', label: 'BIO LAB' },
     { id: 'd_unusable_stairs_sw', x: 20, z: 91, w: 4.0, dir: 'z', label: 'STAIRS' },
@@ -57,14 +57,15 @@ export const level1Data = {
     { id: 'd_seminar_gate', x: 55, z: 45.5, w: 5.0, dir: 'z', label: 'SEMINAR HALL (20 KILLS)', requiresKills: 20 },
   ],
 
-  // Main Campus Elevator located on the west wall inside Elevator Lobby (x: 6.0, z: 39.0)
+  // Main Campus Elevator replacing the door in Elevator Lobby (x: 14.0, z: 39.0)
   elevator: {
     id: 'floor1_elevator',
     name: 'Campus Elevator',
-    x: 6.0,
+    x: 14.0,
     z: 39.0,
-    w: 3.5,
+    w: 4.0,
     l: 3.0,
+    dir: 'z',
     interactionRadius: 3.5,
     currentFloor: 1,
     targetFloor: 2,

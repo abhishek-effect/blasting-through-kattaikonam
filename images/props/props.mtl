@@ -1,0 +1,16 @@
+# Props Material Definition
+newmtl table_material
+Ka 0.2 0.2 0.2
+Kd 0.3 0.35 0.4
+Ks 0.1 0.1 0.1
+Ns 20.0
+d 1.0
+illum 2
+
+newmtl chair_material
+Ka 0.2 0.2 0.2
+Kd 0.45 0.35 0.3
+Ks 0.1 0.1 0.1
+Ns 15.0
+d 1.0
+illum 2

@@ -114,6 +114,8 @@ export class LevelGenerator {
     this.lights = [];
     this.doors = [];
     this.pillars = [];
+    this.furniture = [];
+    this.posters = [];
     this.elevator = null;
     this.seminarGate = null;
     this.mapModel = null;
@@ -154,7 +156,7 @@ export class LevelGenerator {
     // 3. Build Functional Interactable Doors on every room with door-texture.jpg
     this.buildDoors();
 
-    // 4. Build Accessible Elevator inside West Wing Elevator Room (x: 6.0, z: 39.0)
+    // 4. Build Accessible Elevator replacing door at West Wing doorway (x: 14.0, z: 39.0)
     if (this.data.elevator) {
       this.elevator = new Elevator(this.scene, this.data.elevator);
       const elevColliders = this.elevator.getColliders();
@@ -163,6 +165,12 @@ export class LevelGenerator {
 
     // 5. Build Seminar Hall Security Gate (x: 55, z: 45.5, width: 5.0m, locked until 20 kills)
     this.buildSeminarGate(h);
+
+    // 6. Build 3D Collide-able Tables and Chairs in CS, Bio, and Physics Labs
+    this.buildFurniture();
+
+    // 7. Mount Educational Posters on Lab Walls
+    this.buildPosters();
   }
 
   buildWallColliders(h = 5.0) {
@@ -234,7 +242,7 @@ export class LevelGenerator {
     const doorConfigs = [
       // West Wing Doors
       { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      { id: 'door_elevator', name: 'ELEVATOR LOBBY', x: 14, z: 39, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+      // Elevator directly replaces the door at x: 14, z: 39 (no redundant door)
       { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
       { id: 'door_bio_lab', name: 'BIO LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
       { id: 'door_stairs_sw', name: 'STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
@@ -475,6 +483,298 @@ export class LevelGenerator {
     if (!this.colliders.includes(this.seminarGate.collider)) {
       this.colliders.push(this.seminarGate.collider);
     }
+  }
+
+  /**
+   * Builds 3D collide-able tables and chairs for CS, Bio, and Physics labs.
+   * Scaled realistically (human-scale, not too big) with accurate AABB colliders.
+   */
+  buildFurniture() {
+    this.furniture = [];
+
+    // Shared chair materials
+    const chairTex = loadTexture(ASSET_PATHS.textures.chairs, 1, 1, '#b2bec3', '#636e72');
+    chairTex.wrapS = THREE.ClampToEdgeWrapping;
+    chairTex.wrapT = THREE.ClampToEdgeWrapping;
+
+    const chairCushionMat = new THREE.MeshStandardMaterial({
+      map: chairTex,
+      roughness: 0.65,
+      metalness: 0.1,
+    });
+
+    const chairFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x2d3436,
+      roughness: 0.45,
+      metalness: 0.65,
+    });
+
+    // Room-specific tabletop materials
+    const csTableMat = new THREE.MeshStandardMaterial({
+      color: 0x2f3542, // Sleek dark workstation top
+      roughness: 0.35,
+      metalness: 0.15,
+    });
+
+    const bioTableMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f2f6, // Clean white laboratory laminate
+      roughness: 0.3,
+      metalness: 0.05,
+    });
+
+    const phyTableMat = new THREE.MeshStandardMaterial({
+      color: 0x6d4c41, // Solid hardwood lab bench
+      roughness: 0.55,
+      metalness: 0.1,
+    });
+
+    const tableFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x222f3e,
+      roughness: 0.4,
+      metalness: 0.7,
+    });
+
+    // Helper: Create a 3D Lab Table Group
+    const createTableMesh = (tableMat) => {
+      const group = new THREE.Group();
+      // Tabletop: 1.4m wide x 0.06m thick x 0.8m deep at y: 0.79m
+      const topGeo = new THREE.BoxGeometry(1.4, 0.06, 0.8);
+      const topMesh = new THREE.Mesh(topGeo, tableMat);
+      topMesh.position.set(0, 0.79, 0);
+      topMesh.castShadow = true;
+      topMesh.receiveShadow = true;
+      group.add(topMesh);
+
+      // Support apron frame
+      const apronGeo = new THREE.BoxGeometry(1.28, 0.04, 0.68);
+      const apronMesh = new THREE.Mesh(apronGeo, tableFrameMat);
+      apronMesh.position.set(0, 0.74, 0);
+      apronMesh.castShadow = true;
+      group.add(apronMesh);
+
+      // 4 Legs
+      const legGeo = new THREE.BoxGeometry(0.06, 0.76, 0.06);
+      const legOffsets = [
+        [-0.61, -0.31],
+        [0.61, -0.31],
+        [-0.61, 0.31],
+        [0.61, 0.31],
+      ];
+      legOffsets.forEach(([ox, oz]) => {
+        const leg = new THREE.Mesh(legGeo, tableFrameMat);
+        leg.position.set(ox, 0.38, oz);
+        leg.castShadow = true;
+        leg.receiveShadow = true;
+        group.add(leg);
+      });
+
+      return group;
+    };
+
+    // Helper: Create a 3D Lab Chair Group
+    const createChairMesh = () => {
+      const group = new THREE.Group();
+      // Seat cushion: 0.46m x 0.05m x 0.46m at y: 0.45m
+      const seatGeo = new THREE.BoxGeometry(0.46, 0.05, 0.46);
+      const seatMesh = new THREE.Mesh(seatGeo, chairCushionMat);
+      seatMesh.position.set(0, 0.45, 0);
+      seatMesh.castShadow = true;
+      seatMesh.receiveShadow = true;
+      group.add(seatMesh);
+
+      // Backrest: 0.44m x 0.32m x 0.04m at y: 0.68m, z: -0.20m
+      const backGeo = new THREE.BoxGeometry(0.44, 0.32, 0.04);
+      const backMesh = new THREE.Mesh(backGeo, chairCushionMat);
+      backMesh.position.set(0, 0.68, -0.20);
+      backMesh.castShadow = true;
+      backMesh.receiveShadow = true;
+      group.add(backMesh);
+
+      // 2 Vertical Backrest Struts
+      const strutGeo = new THREE.BoxGeometry(0.03, 0.24, 0.03);
+      [-0.16, 0.16].forEach((sx) => {
+        const strut = new THREE.Mesh(strutGeo, chairFrameMat);
+        strut.position.set(sx, 0.54, -0.20);
+        group.add(strut);
+      });
+
+      // 4 Chair Legs
+      const chairLegGeo = new THREE.BoxGeometry(0.04, 0.42, 0.04);
+      const chairLegOffsets = [
+        [-0.18, -0.18],
+        [0.18, -0.18],
+        [-0.18, 0.18],
+        [0.18, 0.18],
+      ];
+      chairLegOffsets.forEach(([cx, cz]) => {
+        const cl = new THREE.Mesh(chairLegGeo, chairFrameMat);
+        cl.position.set(cx, 0.21, cz);
+        cl.castShadow = true;
+        cl.receiveShadow = true;
+        group.add(cl);
+      });
+
+      return group;
+    };
+
+    // Placements: 4 tables and 4 chairs in each lab (CS, Bio, Phy)
+    const furnitureSets = [
+      // 1. Computer Lab (X: 0..14, Z: 50..64) - doorways clear at Z: 55..59
+      { type: 'table', mat: csTableMat, x: 4.5, z: 53.0, rotY: 0 },
+      { type: 'chair', x: 4.5, z: 53.8, rotY: 0 },
+      { type: 'table', mat: csTableMat, x: 9.5, z: 53.0, rotY: 0 },
+      { type: 'chair', x: 9.5, z: 53.8, rotY: 0 },
+      { type: 'table', mat: csTableMat, x: 4.5, z: 61.0, rotY: 0 },
+      { type: 'chair', x: 4.5, z: 60.2, rotY: Math.PI },
+      { type: 'table', mat: csTableMat, x: 9.5, z: 61.0, rotY: 0 },
+      { type: 'chair', x: 9.5, z: 60.2, rotY: Math.PI },
+
+      // 2. Bio Lab (X: 0..14, Z: 68..82) - doorways clear at Z: 73..77
+      { type: 'table', mat: bioTableMat, x: 4.5, z: 71.0, rotY: 0 },
+      { type: 'chair', x: 4.5, z: 71.8, rotY: 0 },
+      { type: 'table', mat: bioTableMat, x: 9.5, z: 71.0, rotY: 0 },
+      { type: 'chair', x: 9.5, z: 71.8, rotY: 0 },
+      { type: 'table', mat: bioTableMat, x: 4.5, z: 79.0, rotY: 0 },
+      { type: 'chair', x: 4.5, z: 78.2, rotY: Math.PI },
+      { type: 'table', mat: bioTableMat, x: 9.5, z: 79.0, rotY: 0 },
+      { type: 'chair', x: 9.5, z: 78.2, rotY: Math.PI },
+
+      // 3. Physics Lab (X: 35..62, Z: 0..14) - doorways clear at X: 46..50
+      { type: 'table', mat: phyTableMat, x: 41.0, z: 5.0, rotY: 0 },
+      { type: 'chair', x: 41.0, z: 5.8, rotY: 0 },
+      { type: 'table', mat: phyTableMat, x: 41.0, z: 9.5, rotY: 0 },
+      { type: 'chair', x: 41.0, z: 8.7, rotY: Math.PI },
+      { type: 'table', mat: phyTableMat, x: 56.0, z: 5.0, rotY: 0 },
+      { type: 'chair', x: 56.0, z: 5.8, rotY: 0 },
+      { type: 'table', mat: phyTableMat, x: 56.0, z: 9.5, rotY: 0 },
+      { type: 'chair', x: 56.0, z: 8.7, rotY: Math.PI },
+    ];
+
+    furnitureSets.forEach((item) => {
+      let mesh;
+      const box = new THREE.Box3();
+
+      if (item.type === 'table') {
+        mesh = createTableMesh(item.mat);
+        mesh.position.set(item.x, 0, item.z);
+        mesh.rotation.y = item.rotY || 0;
+        this.scene.add(mesh);
+        this.furniture.push(mesh);
+
+        // Precise AABB Collider for table
+        box.min.set(item.x - 0.70, 0, item.z - 0.40);
+        box.max.set(item.x + 0.70, 0.85, item.z + 0.40);
+        this.colliders.push(box);
+      } else if (item.type === 'chair') {
+        mesh = createChairMesh();
+        mesh.position.set(item.x, 0, item.z);
+        mesh.rotation.y = item.rotY || 0;
+        this.scene.add(mesh);
+        this.furniture.push(mesh);
+
+        // Precise AABB Collider for chair
+        box.min.set(item.x - 0.24, 0, item.z - 0.24);
+        box.max.set(item.x + 0.24, 0.88, item.z + 0.24);
+        this.colliders.push(box);
+      }
+    });
+  }
+
+  /**
+   * Mounts educational posters in CS, Bio, and Physics labs.
+   * Frame and image plane sized properly and placed at eye height.
+   */
+  buildPosters() {
+    this.posters = [];
+
+    const posterConfigs = [
+      // 1. CS Lab Poster in Computer Lab (North wall at Z: 50.05, facing South +Z)
+      {
+        id: 'poster_cs',
+        name: 'CS Lab Poster',
+        url: ASSET_PATHS.props.csPoster,
+        x: 7.0,
+        y: 2.3,
+        z: 50.05,
+        width: 1.8,
+        height: 1.01,
+        rotY: 0,
+      },
+      // 2. Python Data Types Poster in Computer Lab (South wall at Z: 63.95, facing North -Z)
+      {
+        id: 'poster_python',
+        name: 'Python Data Types',
+        url: ASSET_PATHS.props.pythonDataTypes,
+        x: 7.0,
+        y: 2.3,
+        z: 63.95,
+        width: 1.45,
+        height: 1.25,
+        rotY: Math.PI,
+      },
+      // 3. Bio Lab Poster in Bio Lab (West wall at X: 0.05, facing East +X)
+      {
+        id: 'poster_bio',
+        name: 'Bio Lab Diagram',
+        url: ASSET_PATHS.props.bioLabPoster,
+        x: 0.05,
+        y: 2.3,
+        z: 75.0,
+        width: 1.4,
+        height: 1.4,
+        rotY: Math.PI / 2,
+      },
+      // 4. Vernier Caliper Poster in Physics Lab (North wall at Z: 0.05, facing South +Z)
+      {
+        id: 'poster_vernier',
+        name: 'Vernier Caliper Poster',
+        url: ASSET_PATHS.props.vernierCaliper,
+        x: 48.0,
+        y: 2.3,
+        z: 0.05,
+        width: 1.7,
+        height: 1.15,
+        rotY: 0,
+      },
+    ];
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x1e272e,
+      roughness: 0.6,
+      metalness: 0.4,
+    });
+
+    posterConfigs.forEach((cfg) => {
+      const group = new THREE.Group();
+      group.position.set(cfg.x, cfg.y, cfg.z);
+      group.rotation.y = cfg.rotY;
+
+      // Picture frame bezel
+      const frameGeo = new THREE.BoxGeometry(cfg.width + 0.06, cfg.height + 0.06, 0.02);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.castShadow = true;
+      group.add(frameMesh);
+
+      // Picture plane
+      const picGeo = new THREE.PlaneGeometry(cfg.width, cfg.height);
+      const picTex = loadTexture(cfg.url, 1, 1, '#ffffff', '#cccccc');
+      picTex.wrapS = THREE.ClampToEdgeWrapping;
+      picTex.wrapT = THREE.ClampToEdgeWrapping;
+
+      const picMat = new THREE.MeshStandardMaterial({
+        map: picTex,
+        roughness: 0.4,
+        metalness: 0.05,
+        side: THREE.FrontSide,
+      });
+
+      const picMesh = new THREE.Mesh(picGeo, picMat);
+      picMesh.position.set(0, 0, 0.015);
+      group.add(picMesh);
+
+      this.scene.add(group);
+      this.posters.push(group);
+    });
   }
 
   getFloorHeightAt(position) {
