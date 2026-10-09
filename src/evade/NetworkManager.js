@@ -27,12 +27,31 @@ export const MSG_TYPES = {
 };
 
 const ICE_SERVERS = [
+  // Google Public STUN
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.cloudflare.com:3478' }
+  // Cloudflare STUN
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  // Open Relay Project (Metered.ca free tier STUN + TURN for Symmetric NAT & cellular traversal)
+  { urls: 'stun:openrelay.metered.ca:80' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  }
 ];
 
 export class NetworkManager {
@@ -74,12 +93,11 @@ export class NetworkManager {
    * Initializes Peer as Host
    */
   async createRoom(customCode = null) {
+    // Clean up existing peer if any FIRST
+    this.disconnect();
     this.isHost = true;
     this.roomCode = (customCode || this.generateRoomCode()).toUpperCase();
     const fullPeerId = `btk-evade-${this.roomCode.toLowerCase()}`;
-
-    // Clean up existing peer if any
-    this.disconnect();
 
     return new Promise((resolve, reject) => {
       let isResolved = false;
@@ -95,7 +113,10 @@ export class NetworkManager {
       try {
         this.peer = new Peer(fullPeerId, {
           debug: 1,
-          config: { iceServers: ICE_SERVERS }
+          config: {
+            iceServers: ICE_SERVERS,
+            iceCandidatePoolSize: 10
+          }
         });
 
         this.peer.on('open', (id) => {
@@ -156,23 +177,29 @@ export class NetworkManager {
   /**
    * Initializes Peer and connects to an existing Host room
    */
-  async joinRoom(roomCode, playerName = 'Survivor') {
+  async joinRoom(roomCode, playerName = 'Survivor', onStatusUpdate = null) {
+    // Clean up existing peer if any FIRST
+    this.disconnect();
     this.isHost = false;
     this.roomCode = roomCode.trim().toUpperCase();
     this.localPlayerName = playerName;
     const targetPeerId = `btk-evade-${this.roomCode.toLowerCase()}`;
 
-    // Clean up existing peer if any
-    this.disconnect();
-
     return new Promise((resolve, reject) => {
       let isResolved = false;
       let handshakeInterval = null;
+      let attemptTimer = null;
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
 
       const cleanup = () => {
         if (handshakeInterval) {
           clearInterval(handshakeInterval);
           handshakeInterval = null;
+        }
+        if (attemptTimer) {
+          clearTimeout(attemptTimer);
+          attemptTimer = null;
         }
       };
 
@@ -181,21 +208,34 @@ export class NetworkManager {
         if (!isResolved) {
           isResolved = true;
           this.disconnect();
-          reject(new Error(`Connection timed out after 15s. Ensure Host created room [${this.roomCode}].`));
+          reject(new Error(`Connection timed out after 25s. Ensure Host created room [${this.roomCode}] and is waiting in the lobby.`));
         }
-      }, 15000);
+      }, 25000);
 
       try {
         this.peer = new Peer(null, {
           debug: 1,
-          config: { iceServers: ICE_SERVERS }
+          config: {
+            iceServers: ICE_SERVERS,
+            iceCandidatePoolSize: 10
+          }
         });
 
-        this.peer.on('open', (myId) => {
-          this.peerId = myId;
+        const tryConnect = () => {
+          if (isResolved || !this.peer || this.peer.destroyed) return;
+
+          if (onStatusUpdate) {
+            onStatusUpdate(`Negotiating WebRTC connection to [${this.roomCode}]... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          }
+
+          if (this.hostConn) {
+            try { this.hostConn.close(); } catch (e) {}
+            this.hostConn = null;
+          }
 
           const conn = this.peer.connect(targetPeerId, {
             reliable: true,
+            serialization: 'json',
             metadata: {
               name: this.localPlayerName,
               id: this.localId
@@ -220,6 +260,7 @@ export class NetworkManager {
           };
 
           const onConnOpen = () => {
+            cleanup();
             this.isConnected = true;
             sendJoin();
 
@@ -248,25 +289,48 @@ export class NetworkManager {
           }
 
           conn.on('error', (err) => {
-            console.error('[NetworkManager] DataConnection error:', err);
-            cleanup();
-            if (!isResolved) {
-              isResolved = true;
-              clearTimeout(timeoutId);
-              reject(new Error(`Failed to connect to room [${this.roomCode}]. Check the room code.`));
-            }
+            console.warn('[NetworkManager] DataConnection attempt error:', err);
           });
+
+          // If connection doesn't open within 5.5s, retry
+          attemptTimer = setTimeout(() => {
+            if (!isResolved && retryCount < MAX_RETRIES - 1) {
+              retryCount++;
+              console.log(`[NetworkManager] Retrying connection to ${targetPeerId} (attempt ${retryCount + 1})...`);
+              tryConnect();
+            }
+          }, 5500);
+        };
+
+        this.peer.on('open', (myId) => {
+          this.peerId = myId;
+          tryConnect();
         });
 
         this.peer.on('error', (err) => {
           console.error('[NetworkManager] Client Peer error:', err);
-          cleanup();
-          if (!isResolved) {
-            isResolved = true;
-            clearTimeout(timeoutId);
-            if (err.type === 'peer-unavailable') {
+          if (err.type === 'peer-unavailable') {
+            if (retryCount < MAX_RETRIES - 1) {
+              retryCount++;
+              if (onStatusUpdate) {
+                onStatusUpdate(`Room [${this.roomCode}] initializing on network, retrying in 2s...`);
+              }
+              setTimeout(() => {
+                if (!isResolved) tryConnect();
+              }, 2000);
+              return;
+            }
+            cleanup();
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
               reject(new Error(`Room [${this.roomCode}] not found. Ensure Host has created the room.`));
-            } else {
+            }
+          } else {
+            cleanup();
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutId);
               reject(new Error(err.message || 'Peer network connection error.'));
             }
           }

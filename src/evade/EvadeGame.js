@@ -201,8 +201,10 @@ export class EvadeGame {
     // Initialize key progression (locks all doors, spawns Key 1)
     this.progression.initProgression();
 
-    // Spawn initial Nextbot
-    this.nextbots.spawnInitialBot();
+    // Spawn initial Nextbot (Host or Solo match spawns bot; multiplayer clients sync from host)
+    if (this.network.isHost || isSolo) {
+      this.nextbots.spawnInitialBot();
+    }
 
     // Set playing state and lock pointer
     this.gameState.setState(STATES.PLAYING);

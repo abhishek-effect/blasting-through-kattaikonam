@@ -160,7 +160,13 @@ export class Game {
     // Step 4: Finish Intro Loading
     this.hud.updateIntroLoading(1.0, 'SYSTEMS ONLINE');
     this.hud.finishIntroLoading(() => {
-      this.gameState.setState(STATES.MENU);
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam) {
+        this.launchMode(GAME_MODES.PLAY);
+      } else {
+        this.gameState.setState(STATES.MENU);
+      }
     });
   }
 

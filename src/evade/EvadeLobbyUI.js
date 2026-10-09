@@ -216,16 +216,21 @@ export class EvadeLobbyUI {
       }
 
       this.btnJoinRoom.disabled = true;
+      this.btnJoinRoom.textContent = '⏳ CONNECTING...';
       this.clientWaitBox.classList.remove('hidden');
       this.clientWaitStatus.textContent = `Connecting to Room [${code}]...`;
 
       try {
         const name = this.nameInput.value.trim() || 'Survivor';
-        await this.networkManager.joinRoom(code, name);
+        await this.networkManager.joinRoom(code, name, (statusMsg) => {
+          this.clientWaitStatus.textContent = statusMsg;
+        });
         this.clientWaitStatus.textContent = 'Connected! Waiting for Host to start match...';
+        this.btnJoinRoom.textContent = '✅ CONNECTED';
       } catch (err) {
         this.clientWaitStatus.textContent = '❌ Connection failed: ' + (err.message || 'Room not found.');
         this.btnJoinRoom.disabled = false;
+        this.btnJoinRoom.textContent = '🔄 RETRY CONNECTION';
       }
     });
 
