@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Blasting Through Kattaikonam - Retro FPS</title>
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-BjhFPIpg.js"></script>
+  <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-C4Y2yk9c.js">
+  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-CikqI0ci.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- 3D Rendering Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Retro CRT Scanline Shader Effect -->
+    <div class="scanlines"></div>
+
+    <!-- Damage & Health FX Screen Overlays -->
+    <div id="injury-vignette"></div>
+    <div id="damage-vignette"></div>
+    <div id="damage-border"></div>
+    <div id="kill-flash-border"></div>
+
+    <!-- Directional Damage Indicator Container -->
+    <div id="damage-indicator-container">
+      <div id="damage-indicator-item">
+        <img src="data:image/png;base64,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" alt="Damage Direction" />
+      </div>
+    </div>
+
+    <!-- Crosshair Combo Banner (ABOVE) -->
+    <div id="crosshair-combo-banner" class="crosshair-banner combo-banner"></div>
+
+    <!-- Crosshair with dynamic hitmarker -->
+    <div id="crosshair-container">
+      <div class="crosshair-line top"></div>
+      <div class="crosshair-line bottom"></div>
+      <div class="crosshair-line left"></div>
+      <div class="crosshair-line right"></div>
+      <div class="crosshair-dot"></div>
+      <div id="crosshair-hitmarker"></div>
+    </div>
+
+    <!-- Crosshair Elimination Banner (BELOW) -->
+    <div id="crosshair-kill-banner" class="crosshair-banner kill-banner"></div>
+
+    <!-- Proximity Interaction Prompt (Elevator / Locked Doors) -->
+    <div id="interaction-prompt" class="hidden">
+      <div id="interaction-title">WHERE IS YOUR PHOTOCOPY?</div>
+      <div id="interaction-subtitle">You need a photocopy to enter the elevator.</div>
+    </div>
+
+    <!-- Temporary notification banner -->
+    <div id="hud-notification"></div>
+
+    <!-- Heads-Up Display (HUD) -->
+    <div id="hud">
+      <!-- 1. Health Panel -->
+      <div class="hud-panel health-panel">
+        <div class="hud-label">HEALTH</div>
+        <div id="hud-health-val" class="hud-value">100%</div>
+        <div class="health-bar-container">
+          <div id="hud-health-bar"></div>
+        </div>
+      </div>
+
+      <!-- 2. Three Selectable Inventory Slots -->
+      <div id="hud-inventory">
+        <!-- Slot 1: Rifle -->
+        <div id="hud-slot-1" class="inventory-slot active">
+          <div class="slot-key">1</div>
+          <img src="/blasting-through-kattaikonam/assets/ak47-B_u-66YJ.png" alt="Rifle" class="slot-icon" />
+          <div class="slot-info">
+            <span class="slot-name">RIFLE</span>
+            <span id="slot-1-ammo" class="slot-ammo">30/90</span>
+          </div>
+        </div>
+
+        <!-- Slot 2: Pistol -->
+        <div id="hud-slot-2" class="inventory-slot">
+          <div class="slot-key">2</div>
+          <img src="/blasting-through-kattaikonam/assets/pistol-BTiwO1zO.png" alt="Pistol" class="slot-icon" />
+          <div class="slot-info">
+            <span class="slot-name">PISTOL</span>
+            <span id="slot-2-ammo" class="slot-ammo">12/48</span>
+          </div>
+        </div>
+
+        <!-- Slot 3: Medkit -->
+        <div id="hud-slot-3" class="inventory-slot">
+          <div class="slot-key">3</div>
+          <img src="/blasting-through-kattaikonam/assets/medkit-CuLaXUgP.png" alt="Medkit" class="slot-icon" />
+          <div class="slot-info">
+            <span class="slot-name">MEDKIT</span>
+            <span id="slot-3-ammo" class="slot-ammo">x2 (READY)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Center Status Alert -->
+      <div id="hud-center">
+        <div id="hud-reload-status">RELOADING...</div>
+      </div>
+
+      <!-- 4. Grenades & Equipment Panel -->
+      <div class="hud-panel equipment-panel">
+        <div class="hud-label">GRENADES [G]</div>
+        <div class="hud-value" style="font-size: 20px;">
+          💣 <span id="hud-grenade-val">2 / 5</span>
+        </div>
+        <div class="hud-subnote">DROPS EVERY 3 KILLS</div>
+      </div>
+    </div>
+
+    <!-- Mobile Virtual Controls (Touch devices) -->
+    <div id="mobile-controls" class="hidden">
+      <!-- Mobile Pause Button -->
+      <button id="btn-mobile-pause" class="mobile-pause-btn" aria-label="Pause Game">⏸️</button>
+
+      <!-- Movement Thumbstick -->
+      <div id="joystick-zone">
+        <div id="joystick-thumb"></div>
+      </div>
+
+      <!-- Camera Drag Zone (Right Screen) -->
+      <div id="touch-look-zone"></div>
+
+      <!-- Action Buttons -->
+      <div class="mobile-action-buttons">
+        <div class="mobile-btn-row">
+          <button id="btn-mobile-sprint" class="mobile-btn">RUN</button>
+          <button id="btn-mobile-crouch" class="mobile-btn" style="background: rgba(142, 68, 173, 0.85); border-color: #9b59b6;">CROUCH</button>
+          <button id="btn-mobile-jump" class="mobile-btn" style="background: rgba(39, 174, 96, 0.85); border-color: #2ecc71; font-size: 18px;" title="Jump">⬆️</button>
+          <button id="btn-mobile-reload" class="mobile-btn" style="font-size: 18px;" title="Reload">🔄️</button>
+          <button id="btn-mobile-interact" class="mobile-btn" style="background: rgba(41, 128, 185, 0.85);">USE [E]</button>
+        </div>
+        <div class="mobile-btn-row">
+          <button id="btn-mobile-grenade" class="mobile-btn" style="background: rgba(211, 84, 0, 0.85);">💣 G</button>
+          <button id="btn-mobile-fire" class="mobile-btn">💥 FIRE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Intro & Loading Screen Presentation -->
+    <div id="intro-screen">
+      <div class="intro-box">
+        <div class="intro-badge">RETRO ARCADE CLASSIC</div>
+        <h1 class="intro-presenter">IIT CHANTHAVILA COMPUTER ENTERTAINMENT PRESENTS</h1>
+        
+        <div class="intro-loading-wrapper">
+          <div class="intro-loading-bar-track">
+            <div id="intro-loading-fill"></div>
+          </div>
+          <div id="intro-loading-status">INITIALIZING CAMPUS ASSETS...</div>
+        </div>
+
+        <button id="btn-intro-continue" class="intro-continue-btn hidden">PRESS ANY KEY OR CLICK TO ENTER</button>
+      </div>
+    </div>
+
+    <!-- Screen Overlay (Main Menu, Pause, Options, Credits, Game Over, Victory) -->
+    <div id="game-overlay" class="hidden">
+      <!-- Title Header: blasting.png logo display (NOT favicon) -->
+      <div class="menu-header">
+        <img id="menu-title-img" src="/blasting-through-kattaikonam/assets/blasting-DxHQrS3N.png" alt="Blasting Through Kattaikonam" class="menu-title-display" />
+        <h1 id="overlay-title" class="hidden">BLASTING THROUGH KATTAIKONAM</h1>
+        <p id="overlay-subtitle">FLOOR 1 - RETRO SCHOOL FPS</p>
+      </div>
+
+      <!-- 1. Main Menu Buttons View -->
+      <div id="main-menu-view" class="menu-view">
+        <div class="menu-buttons-list">
+          <button id="btn-menu-continue" class="menu-btn continue-btn disabled">▶ CONTINUE</button>
+          <button id="btn-menu-newgame" class="menu-btn primary-btn">★ NEW GAME</button>
+          <button id="btn-menu-options" class="menu-btn">⚙ OPTIONS</button>
+          <button id="btn-menu-credits" class="menu-btn">📜 CREDITS</button>
+        </div>
+      </div>
+
+      <!-- 2. Pause Menu View -->
+      <div id="pause-menu-view" class="menu-view hidden">
+        <div class="menu-buttons-list">
+          <button id="btn-pause-resume" class="menu-btn primary-btn">▶ RESUME GAME</button>
+          <button id="btn-pause-options" class="menu-btn">⚙ OPTIONS</button>
+          <button id="btn-pause-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
+        </div>
+      </div>
+
+      <!-- 3. Game Over / Victory View -->
+      <div id="gameover-menu-view" class="menu-view hidden">
+        <div class="menu-buttons-list">
+          <button id="btn-gameover-restart" class="menu-btn primary-btn">🔄 TRY AGAIN</button>
+          <button id="btn-gameover-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
+        </div>
+      </div>
+
+      <!-- 4. Options & Settings View -->
+      <div id="options-view" class="menu-view hidden">
+        <h2 class="view-title">GAME OPTIONS</h2>
+
+        <!-- Turn Sensitivity Slider -->
+        <div class="settings-panel">
+          <label for="slider-sensitivity" class="settings-label">
+            TURN SENSITIVITY: <span id="sens-val-display">1.0x</span>
+          </label>
+          <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
+        </div>
+
+        <!-- Audio & Gameplay Settings -->
+        <div class="options-audio-row">
+          <button id="btn-toggle-bgm" class="menu-sub-btn">🎵 MUSIC: ON</button>
+          <button id="btn-toggle-sfx" class="menu-sub-btn">🔊 SOUND: ON</button>
+          <button id="btn-toggle-taunts" class="menu-sub-btn">💀 KILL TAUNTS: ON</button>
+        </div>
+
+        <!-- Controls Guide Grid -->
+        <div class="instructions-grid">
+          <div id="card-pc-controls" class="instruction-card">
+            <h3>PC Controls</h3>
+            <ul>
+              <li><b>WASD</b>: Move | <b>Space</b>: Jump</li>
+              <li><b>Mouse</b>: Look around (Pointer Lock)</li>
+              <li><b>Left Click</b>: Fire weapon / Use medkit</li>
+              <li><b>1, 2, 3</b>: Switch (Rifle, Pistol, Medkit)</li>
+              <li><b>G</b>: Throw Grenade (Drops every 3 kills)</li>
+              <li><b>E</b>: Interact / Elevator</li>
+              <li><b>Shift</b>: Sprint | <b>C</b>: Crouch | <b>Ctrl</b>: Slide</li>
+              <li><b>R</b>: Reload | <b>P / Esc</b>: Pause</li>
+            </ul>
+          </div>
+          <div id="card-mobile-controls" class="instruction-card">
+            <h3>Mobile Controls</h3>
+            <ul>
+              <li><b>Left Thumbstick</b>: Move</li>
+              <li><b>Right Half Drag</b>: Aim & Look</li>
+              <li><b>⬆️ Button</b>: Leap over laser traps</li>
+              <li><b>Tap Gun / Picture</b>: Switch weapons</li>
+              <li><b>💥 FIRE Button</b>: Shoot / Use item</li>
+              <li><b>🔄️ Button</b>: Reload weapon</li>
+              <li><b>💣 G Button</b>: Throw Grenade</li>
+              <li><b>USE [E]</b>: Elevator interaction</li>
+              <li><b>RUN Button</b>: Toggle sprint</li>
+              <li><b>CROUCH Button</b>: Crouch / Slide</li>
+              <li><b>⏸️ Button</b>: Pause menu</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Dynamic Enemy Photo Uploader -->
+        <div id="photo-upload-section" class="photo-upload-container">
+          <label for="enemy-photo-input" class="btn-upload-photo" id="lbl-upload-photo">
+            📸 UPLOAD CUSTOM ENEMY PHOTO (PNG / JPG)
+          </label>
+          <input type="file" id="enemy-photo-input" accept="image/*" multiple style="display: none;" />
+          <span id="upload-status" class="upload-status-text"></span>
+          <div id="roster-preview" class="roster-preview-row"></div>
+        </div>
+
+        <button id="btn-options-back" class="menu-btn back-btn">← BACK</button>
+      </div>
+
+      <!-- 5. Credits View (reads from credits.txt) -->
+      <div id="credits-view" class="menu-view hidden">
+        <h2 class="view-title">CREDITS</h2>
+        <div class="credits-box">
+          <pre id="credits-text-content" class="credits-pre">LOADING CREDITS...</pre>
+        </div>
+        <button id="btn-credits-back" class="menu-btn back-btn">← BACK TO MENU</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

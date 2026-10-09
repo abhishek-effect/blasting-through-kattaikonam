@@ -1,0 +1,14 @@
+# map.mtl - Material Definitions
+
+newmtl black_solid
+Kd 0.0 0.0 0.0
+
+newmtl white_tiles
+Kd 0.95 0.95 0.95
+
+newmtl boundary_wall
+# Color #fae6e7 converted to RGB 0-1 scale
+Kd 0.980 0.902 0.906
+
+newmtl ceiling
+Kd 1.0 1.0 1.0
