@@ -220,3 +220,4 @@ Ks 0.0 0.0 0.0
 });
 
 console.log('Successfully generated dual-sided mappu.obj and mappu.mtl!');
+

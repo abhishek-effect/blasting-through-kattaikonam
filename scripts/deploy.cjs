@@ -44,3 +44,4 @@ console.log('Updated refs/heads/gh-pages to', commitSha);
 console.log('Pushing gh-pages to origin...');
 execSync('git push origin gh-pages', { cwd: rootDir, stdio: 'inherit' });
 console.log('Successfully deployed to GitHub Pages!');
+

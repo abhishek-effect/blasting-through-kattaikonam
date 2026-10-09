@@ -329,42 +329,22 @@ export class LevelGenerator {
     obj.scale.set(1.0, 1.0, 1.0);
     obj.position.set(0, 0, 0);
 
-    // Floor texture: repeating rectangle tiles with black borders
-    const floorTex = loadTexture(ASSET_PATHS.textures.floor, 35, 35, '#f5f6fa', '#2f3542');
-    floorTex.wrapS = THREE.RepeatWrapping;
-    floorTex.wrapT = THREE.RepeatWrapping;
-
-    // Apply materials: floor tiles, corridor light pink (#fae6e7) outside rooms, pure white (#ffffff) inside rooms
+    // Apply double-sided rendering, shadows, and light pink (#fae6e7) wall coloring
     obj.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
 
         const formatMaterial = (mat) => {
-          mat.roughness = 0.65;
+          mat.side = THREE.DoubleSide;
+          mat.roughness = 0.7;
           mat.metalness = 0.05;
-
-          if (mat.name === 'white_tiles') {
-            mat.map = floorTex;
-            mat.side = THREE.DoubleSide;
-            mat.color.setHex(0xffffff);
-          } else if (mat.name === 'black_solid') {
-            mat.color.setHex(0x111111);
-            mat.side = THREE.DoubleSide;
-          } else if (mat.name === 'ceiling') {
-            mat.color.setHex(0xffffff);
-            mat.side = THREE.DoubleSide;
-          } else if (mat.name === 'room_wall_white') {
-            // Inside the rooms: pure white
-            mat.color.setHex(0xffffff);
-            mat.side = THREE.DoubleSide;
-          } else if (mat.name === 'corridor_wall_pink' || mat.name === 'boundary_wall') {
-            // Outside the rooms: light pink
+          // Apply light pink color #fae6e7 to all walls
+          if (
+            mat.name === 'boundary_wall' ||
+            (!mat.name.includes('black') && !mat.name.includes('white') && !mat.name.includes('ceiling'))
+          ) {
             mat.color.setHex(0xfae6e7);
-            mat.side = THREE.DoubleSide;
-          } else {
-            mat.color.setHex(0xfae6e7);
-            mat.side = THREE.DoubleSide;
           }
         };
 
