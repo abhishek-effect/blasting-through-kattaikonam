@@ -26,10 +26,15 @@ if (fs.existsSync(tempIndex)) {
 // Get parent commit on gh-pages if exists
 let parentCommit = '';
 try {
-  parentCommit = execSync('git rev-parse gh-pages', { cwd: rootDir }).toString().trim();
-  console.log('Current gh-pages parent commit:', parentCommit);
+  parentCommit = execSync('git rev-parse refs/remotes/origin/gh-pages', { cwd: rootDir }).toString().trim();
+  console.log('Current origin/gh-pages parent commit:', parentCommit);
 } catch (e) {
-  console.log('No existing gh-pages commit found.');
+  try {
+    parentCommit = execSync('git rev-parse refs/heads/gh-pages', { cwd: rootDir }).toString().trim();
+    console.log('Current local gh-pages parent commit:', parentCommit);
+  } catch (err) {
+    console.log('No existing gh-pages commit found.');
+  }
 }
 
 const commitMsg = 'Deploy: 3D multiplayer player visibility, Evil Santhomites dynamic targeting & corridor spawns, slide cooldown, library & phy lab props, and single-click start';
@@ -42,6 +47,6 @@ execSync(`git update-ref refs/heads/gh-pages ${commitSha}`, { cwd: rootDir, stdi
 console.log('Updated refs/heads/gh-pages to', commitSha);
 
 console.log('Pushing gh-pages to origin...');
-execSync('git push origin gh-pages', { cwd: rootDir, stdio: 'inherit' });
+execSync('git push origin gh-pages --force', { cwd: rootDir, stdio: 'inherit' });
 console.log('Successfully deployed to GitHub Pages!');
 
