@@ -50,7 +50,8 @@ export class Game {
       powerPreference: 'high-performance'
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const maxDpr = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 1.25 : 1.5;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // 2. Instantiate Systems
@@ -133,13 +134,72 @@ export class Game {
   async initPreloadAndIntro() {
     this.gameState.setState(STATES.INTRO);
 
-    // Step 1: Preload All Audio Buffers
+    const devSplash = document.getElementById('dev-splash-screen');
+    const introScreen = document.getElementById('intro-screen');
+
+    if (devSplash) {
+      devSplash.classList.remove('hidden');
+      devSplash.style.opacity = '1';
+    }
+    if (introScreen) {
+      introScreen.classList.add('hidden');
+    }
+
+    // Resume AudioContext on first user interaction in case autoplay policy requires gesture
+    const handleGesture = () => {
+      if (this.audio) this.audio.ensureContext();
+    };
+    window.addEventListener('pointerdown', handleGesture, { once: true });
+    window.addEventListener('keydown', handleGesture, { once: true });
+
+    // Step 1: Preload crucial splash audio buffers first
+    try {
+      await Promise.all([
+        this.audio.loadSound('reload', ASSET_PATHS.audio.reload),
+        this.audio.loadSound('kill-2', ASSET_PATHS.audio.kills[1]),
+      ]);
+    } catch (e) {
+      console.warn('[Game] Splash audio load error:', e);
+    }
+
+    // Play reload audio buffer while displaying dev-logo
+    if (this.audio) {
+      this.audio.ensureContext();
+      this.audio.playBuffer('reload', 1.0);
+    }
+
+    // Wait ~1.25s for reload audio
+    await new Promise((resolve) => setTimeout(resolve, 1250));
+
+    // Play kill-2 audio buffer
+    if (this.audio) {
+      this.audio.playBuffer('kill-2', 1.0);
+    }
+
+    // Trigger screen shake transition effect
+    const container = document.getElementById('game-container') || document.body;
+    if (container) {
+      container.classList.remove('screen-shake');
+      void container.offsetWidth;
+      container.classList.add('screen-shake');
+      setTimeout(() => container.classList.remove('screen-shake'), 600);
+    }
+
+    // Fade out dev splash and transition to loading screen
+    if (devSplash) {
+      devSplash.style.opacity = '0';
+      await new Promise((resolve) => setTimeout(resolve, 380));
+      devSplash.classList.add('hidden');
+    }
+    if (introScreen) {
+      introScreen.classList.remove('hidden');
+    }
+
+    // Step 2: Preload remaining audio buffers in background
     try {
       await Promise.all([
         this.audio.loadSound('grenade', ASSET_PATHS.audio.grenade),
-        this.audio.loadSound('reload', ASSET_PATHS.audio.reload),
         this.audio.loadSound('kill-1', ASSET_PATHS.audio.kills[0]),
-        this.audio.loadSound('kill-2', ASSET_PATHS.audio.kills[1]),
         this.audio.loadSound('kill-3', ASSET_PATHS.audio.kills[2]),
         this.audio.loadSound('combo-1', ASSET_PATHS.audio.combos[0]),
         this.audio.loadSound('combo-2', ASSET_PATHS.audio.combos[1]),
@@ -148,16 +208,16 @@ export class Game {
       console.warn('[Game] Audio preload warning:', e);
     }
 
-    // Step 2: Preload All Textures & Precompute Metrics
+    // Step 3: Preload All Textures & Precompute Metrics
     await preloadAllAssets((progress, msg) => {
       this.hud.updateIntroLoading(progress * 0.85, msg);
     });
 
-    // Step 3: Warm Up WebGL Shaders (Viewmodels & Explosion pool)
+    // Step 4: Warm Up WebGL Shaders (Viewmodels & Explosion pool)
     this.hud.updateIntroLoading(0.92, 'WARMING UP GRAPHICS ENGINE...');
     this.warmupShaders();
 
-    // Step 4: Finish Intro Loading
+    // Step 5: Finish Intro Loading
     this.hud.updateIntroLoading(1.0, 'SYSTEMS ONLINE');
     this.hud.finishIntroLoading(() => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -212,6 +272,8 @@ export class Game {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
+      const maxDpr = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 1.25 : 1.5;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
     });
 
     let wasPointerLocked = false;
@@ -288,7 +350,7 @@ export class Game {
     this.gameState.currentMode = mode;
 
     if (mode === GAME_MODES.PLAY) {
-      // --- PLAY (ROBLOX EVADE MULTIPLAYER MODE) ---
+      // --- PLAY (EVADE MULTIPLAYER MODE) ---
       if (this.evadeGame) {
         this.evadeGame.stop();
       }
@@ -485,6 +547,11 @@ export class Game {
           this.level.update(deltaTime, this.player.position);
         }
         this.interactionSystem.update(this.player, this.input);
+      }
+    } else if (this.gameState.current === STATES.PAUSED && this.gameState.currentMode === GAME_MODES.PLAY) {
+      // In online Play mode, when Menu is open, keep network simulation and peers alive
+      if (this.evadeGame && this.evadeGame.isActive && this.evadeGame.isMatchRunning) {
+        this.evadeGame.update(deltaTime);
       }
     }
 

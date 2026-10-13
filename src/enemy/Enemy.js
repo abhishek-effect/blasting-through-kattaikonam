@@ -51,6 +51,17 @@ const sharedTracerMat = new THREE.LineBasicMaterial({
   opacity: 0.85,
 });
 
+const _enemyPushDir = new THREE.Vector3();
+const _enemyHeadPos = new THREE.Vector3();
+const _losFrom = new THREE.Vector3();
+const _losTo = new THREE.Vector3();
+const _losDir = new THREE.Vector3();
+const _losRay = new THREE.Ray();
+const _losHitPt = new THREE.Vector3();
+const _enemyMoveDir = new THREE.Vector3();
+const _tracerStart = new THREE.Vector3();
+const _tracerEnd = new THREE.Vector3();
+
 export class Enemy {
   constructor(scene, world, audio, config = {}, instanceId = 'enemy_001') {
     this.scene = scene;
@@ -227,9 +238,9 @@ export class Enemy {
 
     // Knockback
     if (hitPoint) {
-      const pushDir = new THREE.Vector3().subVectors(this.position, hitPoint).normalize();
-      this.position.x += pushDir.x * 0.25;
-      this.position.z += pushDir.z * 0.25;
+      _enemyPushDir.subVectors(this.position, hitPoint).normalize();
+      this.position.x += _enemyPushDir.x * 0.25;
+      this.position.z += _enemyPushDir.z * 0.25;
       this.world.resolveSphereCollision(this.position, this.radius);
     }
 
@@ -252,14 +263,16 @@ export class Enemy {
   }
 
   /**
-   * Returns world position of enemy's head for floating damage numbers
+   * Returns world position of enemy's head for floating damage numbers (zero allocation)
    */
-  getHeadPosition() {
-    return new THREE.Vector3(
+  getHeadPosition(targetVec = null) {
+    const out = targetVec || _enemyHeadPos;
+    out.set(
       this.position.x,
       this.position.y + (this.scaleHeight * 0.45),
       this.position.z
     );
+    return out;
   }
 
   die() {
@@ -293,20 +306,24 @@ export class Enemy {
       return true;
     }
 
-    const from = new THREE.Vector3(this.position.x, 1.2, this.position.z);
-    const to = new THREE.Vector3(targetPos.x, 1.2, targetPos.z);
-    const dir = new THREE.Vector3().subVectors(to, from);
-    const dist = dir.length();
+    _losFrom.set(this.position.x, 1.2, this.position.z);
+    _losTo.set(targetPos.x, 1.2, targetPos.z);
+    _losDir.subVectors(_losTo, _losFrom);
+    const dist = _losDir.length();
     if (dist < 0.1) return true;
-    dir.normalize();
+    _losDir.normalize();
 
-    const ray = new THREE.Ray(from, dir);
-    const hitPt = new THREE.Vector3();
+    _losRay.origin.copy(_losFrom);
+    _losRay.direction.copy(_losDir);
 
-    for (let i = 0; i < this.world.colliders.length; i++) {
-      const box = this.world.colliders[i];
-      if (ray.intersectBox(box, hitPt)) {
-        if (from.distanceTo(hitPt) < dist - 0.25) {
+    const colliders = this.world.getCollidersNear
+      ? this.world.getCollidersNear(this.position, dist)
+      : this.world.colliders;
+
+    for (let i = 0; i < colliders.length; i++) {
+      const box = colliders[i];
+      if (_losRay.intersectBox(box, _losHitPt)) {
+        if (_losFrom.distanceTo(_losHitPt) < dist - 0.25) {
           // Wall blocks line of sight
           return false;
         }
@@ -358,7 +375,13 @@ export class Enemy {
           this.state = ENEMY_STATES.CHASE;
         }
       } else if (this.state === ENEMY_STATES.CHASE || this.state === ENEMY_STATES.ATTACK) {
-        const canSeePlayer = this.hasLineOfSight(playerPosition);
+        // Stagger & cache line-of-sight check to eliminate frame raycast spikes
+        this.losTimer = (this.losTimer || (Math.random() * 0.12)) - deltaTime;
+        if (this.losTimer <= 0) {
+          this.losTimer = 0.12;
+          this.cachedCanSeePlayer = this.hasLineOfSight(playerPosition);
+        }
+        const canSeePlayer = this.cachedCanSeePlayer !== undefined ? this.cachedCanSeePlayer : true;
 
         if (!canSeePlayer || distToPlayer > this.rangedMaxDistance) {
           // Cannot see player or too far: move towards player to regain line of sight
@@ -428,23 +451,23 @@ export class Enemy {
   }
 
   moveTowards(targetPos, deltaTime) {
-    const dir = new THREE.Vector3().subVectors(targetPos, this.position);
-    dir.y = 0;
-    dir.normalize();
+    _enemyMoveDir.subVectors(targetPos, this.position);
+    _enemyMoveDir.y = 0;
+    _enemyMoveDir.normalize();
 
-    this.position.x += dir.x * this.speed * deltaTime;
-    this.position.z += dir.z * this.speed * deltaTime;
+    this.position.x += _enemyMoveDir.x * this.speed * deltaTime;
+    this.position.z += _enemyMoveDir.z * this.speed * deltaTime;
 
     this.world.resolveSphereCollision(this.position, this.radius);
   }
 
   moveAwayFrom(targetPos, deltaTime) {
-    const dir = new THREE.Vector3().subVectors(this.position, targetPos);
-    dir.y = 0;
-    dir.normalize();
+    _enemyMoveDir.subVectors(this.position, targetPos);
+    _enemyMoveDir.y = 0;
+    _enemyMoveDir.normalize();
 
-    this.position.x += dir.x * (this.speed * 0.65) * deltaTime;
-    this.position.z += dir.z * (this.speed * 0.65) * deltaTime;
+    this.position.x += _enemyMoveDir.x * (this.speed * 0.65) * deltaTime;
+    this.position.z += _enemyMoveDir.z * (this.speed * 0.65) * deltaTime;
 
     this.world.resolveSphereCollision(this.position, this.radius);
   }
@@ -471,19 +494,22 @@ export class Enemy {
       this.muzzleTimer = 0.08;
     }
 
-    // 4. Bullet tracer line from enemy gun towards player chest
+    // 4. Bullet tracer line from enemy gun towards player chest (zero allocation buffer update)
     if (this.tracerLine) {
-      const startPt = new THREE.Vector3(
+      _tracerStart.set(
         this.position.x + 0.25,
         this.position.y + 0.15,
         this.position.z
       );
-      const endPt = new THREE.Vector3(
+      _tracerEnd.set(
         playerPosition.x + (Math.random() - 0.5) * 0.2,
         playerPosition.y - 0.25 + (Math.random() - 0.5) * 0.2,
         playerPosition.z + (Math.random() - 0.5) * 0.2
       );
-      this.tracerLine.geometry.setFromPoints([startPt, endPt]);
+      const posAttr = this.tracerLine.geometry.attributes.position;
+      posAttr.setXYZ(0, _tracerStart.x, _tracerStart.y, _tracerStart.z);
+      posAttr.setXYZ(1, _tracerEnd.x, _tracerEnd.y, _tracerEnd.z);
+      posAttr.needsUpdate = true;
       this.tracerLine.visible = true;
       this.tracerTimer = 0.08;
     }

@@ -32,7 +32,7 @@ try {
   console.log('No existing gh-pages commit found.');
 }
 
-const commitMsg = 'Deploy Roblox Evade multiplayer mode under PLAY button: PeerJS P2P networking, Nextbots with uncropped photos, locked doors key hunt, revive mechanic, seminar hall escape, preserving Shoot Shoot Shoot';
+const commitMsg = 'Deploy: 3D multiplayer player visibility, Evil Santhomites dynamic targeting & corridor spawns, slide cooldown, library & phy lab props, and single-click start';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

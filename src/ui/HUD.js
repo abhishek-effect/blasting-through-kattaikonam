@@ -19,6 +19,13 @@ import {
   removeCustomEnemy
 } from '../config/assets.js';
 
+// Pre-allocated vectors for HUD calculations & floating damage number projections (0 GC overhead)
+const _dnTempVec = new THREE.Vector3();
+const _dnCamDir = new THREE.Vector3();
+const _dnToPos = new THREE.Vector3();
+const _dnProj = new THREE.Vector3();
+const _dmgCamDir = new THREE.Vector3();
+
 export class HUD {
   constructor(gameState, input, audio = null) {
     this.gameState = gameState;
@@ -57,6 +64,20 @@ export class HUD {
     this.injuryPulseTimer = 0;
     this.killTauntsEnabled = localStorage.getItem('kattaikonam_kill_taunts') !== 'false';
     this.tauntMessages = ["ELIMINATED!", "CRY.", "SENT TO PRINCIPAL", "GET OUT", "BYE"];
+
+    // DOM Dirty-Checking State Cache (Prevents continuous 60Hz DOM thrashing)
+    this._lastHp = -1;
+    this._lastHpColor = '';
+    this._lastGrenades = -1;
+    this._lastMaxGrenades = -1;
+    this._lastActiveSlot = -1;
+    this._lastSlotAmmo = ['', '', ''];
+    this._lastReloadMsg = '';
+    this._lastReloadDisplay = 'none';
+    this._isKillFlashActive = false;
+    this._isDamageFlashActive = false;
+    this._isDamageIndicatorActive = false;
+    this._lastInjuryOpacity = -1;
 
     // Floating Damage Numbers
     this.damageNumbersLayer = document.getElementById('damage-numbers-layer');
@@ -244,11 +265,35 @@ export class HUD {
       if (this.btnMobilePause) {
         this.btnMobilePause.style.display = 'flex';
       }
+      this.updateMobilePauseLabel();
     } else {
       if (this.btnMobilePause) {
         this.btnMobilePause.style.display = 'none';
       }
     }
+  }
+
+  updateMobilePauseLabel() {
+    if (!this.btnMobilePause) return;
+    if (this.gameState && this.gameState.currentMode === GAME_MODES.PLAY) {
+      this.btnMobilePause.textContent = 'MENU';
+      this.btnMobilePause.style.fontSize = '12px';
+      this.btnMobilePause.setAttribute('aria-label', 'Open Menu');
+    } else {
+      this.btnMobilePause.textContent = '⏸️';
+      this.btnMobilePause.style.fontSize = '18px';
+      this.btnMobilePause.setAttribute('aria-label', 'Pause Game');
+    }
+  }
+
+  triggerScreenShake(durationMs = 500) {
+    const container = document.getElementById('game-container') || document.body;
+    container.classList.remove('screen-shake');
+    void container.offsetWidth;
+    container.classList.add('screen-shake');
+    setTimeout(() => {
+      container.classList.remove('screen-shake');
+    }, durationMs);
   }
 
   initSettings() {
@@ -333,19 +378,27 @@ export class HUD {
 
     // 1. Main Menu Buttons (PLAY & SHOOT SHOOT SHOOT)
     if (this.btnMenuPlay) {
-      this.btnMenuPlay.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.requestFullscreen();
+      const handlePlay = (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
         if (this.audio) this.audio.ensureContext();
         this.gameState.emit('startMode', { mode: GAME_MODES.PLAY });
-      });
+      };
+      this.btnMenuPlay.addEventListener('click', handlePlay);
     }
 
     if (this.btnMenuShoot) {
-      this.btnMenuShoot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.requestFullscreen();
+      const handleShoot = (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
         if (this.audio) this.audio.ensureContext();
+
+        // Lock pointer directly in user gesture
+        this.input.requestPointerLock();
 
         if (
           this.gameState.hasActiveSession &&
@@ -355,12 +408,12 @@ export class HUD {
         ) {
           // Resume active Shoot Shoot Shoot session
           this.gameState.setState(STATES.PLAYING);
-          this.input.requestPointerLock();
         } else {
           // Launch Shoot Shoot Shoot gameplay mode
           this.gameState.emit('startMode', { mode: GAME_MODES.SHOOT_SHOOT_SHOOT });
         }
-      });
+      };
+      this.btnMenuShoot.addEventListener('click', handleShoot);
     }
 
     if (this.btnMenuOptions) {
@@ -528,6 +581,7 @@ export class HUD {
   triggerKillFeedback() {
     // 1. Flash outer border in electric blue/green
     this.killFlashTimer = 0.35;
+    this._isKillFlashActive = true;
     if (this.killFlashBorderEl) {
       this.killFlashBorderEl.style.opacity = '0.9';
     }
@@ -581,6 +635,7 @@ export class HUD {
   triggerDamageFlash(sourcePos, player) {
     // 1. Red flash on outer border & vignette
     this.damageFlashTimer = 0.35;
+    this._isDamageFlashActive = true;
     if (this.damageBorderEl) {
       this.damageBorderEl.style.opacity = '0.95';
     }
@@ -592,11 +647,10 @@ export class HUD {
     if (sourcePos && player && player.camera) {
       try {
         const pPos = player.position;
-        const camDir = new THREE.Vector3();
-        player.camera.getWorldDirection(camDir);
+        player.camera.getWorldDirection(_dmgCamDir);
 
-        let fx = camDir.x;
-        let fz = camDir.z;
+        let fx = _dmgCamDir.x;
+        let fz = _dmgCamDir.z;
         const len = Math.hypot(fx, fz) || 1;
         fx /= len;
         fz /= len;
@@ -617,6 +671,7 @@ export class HUD {
           this.damageIndicatorItem.style.transform = `rotate(${angleDeg.toFixed(1)}deg)`;
           this.damageIndicatorItem.style.opacity = '1';
           this.damageIndicatorTimer = 1.1;
+          this._isDamageIndicatorActive = true;
         }
       } catch (err) {
         console.debug('[HUD] Error calculating damage angle:', err);
@@ -664,10 +719,7 @@ Coded by Gemini 3.8 Flash`;
       this.introLoadingFill.style.width = '100%';
     }
     if (this.introLoadingStatus) {
-      this.introLoadingStatus.textContent = 'CAMPUS SYSTEMS READY. CLICK OR PRESS ANY KEY';
-    }
-    if (this.btnIntroContinue) {
-      this.btnIntroContinue.classList.remove('hidden');
+      this.introLoadingStatus.textContent = 'CAMPUS SYSTEMS READY';
     }
 
     let transitioned = false;
@@ -678,7 +730,6 @@ Coded by Gemini 3.8 Flash`;
         e.preventDefault();
         e.stopPropagation();
       }
-      this.requestFullscreen();
       if (this.audio) this.audio.ensureContext();
 
       if (this.introScreen) {
@@ -687,7 +738,7 @@ Coded by Gemini 3.8 Flash`;
           this.introScreen.classList.add('hidden');
           this.introScreen.classList.remove('fade-out');
           if (onComplete) onComplete();
-        }, 350);
+        }, 200);
       } else {
         if (onComplete) onComplete();
       }
@@ -711,6 +762,11 @@ Coded by Gemini 3.8 Flash`;
       this.introScreen.addEventListener('click', proceed);
     }
     window.addEventListener('keydown', keyProceed);
+
+    // Auto-advance directly into menu after brief 250ms ready display so the user never has to click twice
+    setTimeout(() => {
+      proceed();
+    }, 250);
   }
 
   hideAllViews() {
@@ -788,21 +844,27 @@ Coded by Gemini 3.8 Flash`;
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {
         this.overlayTitle.classList.remove('hidden');
-        this.overlayTitle.textContent = 'GAME PAUSED';
+        if (this.gameState.currentMode === GAME_MODES.PLAY) {
+          this.overlayTitle.textContent = 'MENU';
+        } else {
+          this.overlayTitle.textContent = 'GAME PAUSED';
+        }
       }
       if (this.overlaySubtitle) {
         const modeName = this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ? 'SHOOT SHOOT SHOOT' : 'PLAY';
         this.overlaySubtitle.textContent = `MODE: ${modeName} - Adjust sensitivity & controls`;
       }
+      this.updateMobilePauseLabel();
     } else if (state === STATES.GAME_OVER) {
+      this.triggerScreenShake(500);
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {
         this.overlayTitle.classList.remove('hidden');
-        this.overlayTitle.textContent = 'DETENTION! YOU FAILED!';
+        this.overlayTitle.textContent = 'Not so vibrant, are you?';
       }
       if (this.overlaySubtitle) {
-        this.overlaySubtitle.textContent = 'Expelled by the campus patrol.';
+        this.overlaySubtitle.textContent = 'LMAO';
       }
       if (this.btnGameoverRestart) {
         this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
@@ -882,7 +944,7 @@ Coded by Gemini 3.8 Flash`;
 
       // Update position tracking
       if (entry.isCritical && enemy && enemy.getHeadPosition) {
-        entry.worldPos.copy(enemy.getHeadPosition());
+        entry.worldPos.copy(enemy.getHeadPosition(_dnTempVec));
       } else if (hitPoint) {
         entry.worldPos.copy(hitPoint);
       } else if (enemy && enemy.position) {
@@ -914,7 +976,7 @@ Coded by Gemini 3.8 Flash`;
 
       const pos = new THREE.Vector3();
       if (isCritical && enemy && enemy.getHeadPosition) {
-        pos.copy(enemy.getHeadPosition());
+        pos.copy(enemy.getHeadPosition(_dnTempVec));
       } else if (hitPoint) {
         pos.copy(hitPoint);
       } else if (enemy && enemy.position) {
@@ -963,71 +1025,97 @@ Coded by Gemini 3.8 Flash`;
   }
 
   update(deltaTime, player, grenadeManager, camera = null) {
-    // 1. Health
+    // 1. Health (dirty-checked)
     if (this.healthEl && player) {
       const hp = Math.max(0, Math.round(player.health));
-      this.healthEl.textContent = `${hp}%`;
-      if (this.healthBarEl) {
-        this.healthBarEl.style.width = `${hp}%`;
-        if (hp > 50) {
-          this.healthBarEl.style.backgroundColor = '#2ecc71';
-        } else if (hp > 25) {
-          this.healthBarEl.style.backgroundColor = '#f39c12';
-        } else {
-          this.healthBarEl.style.backgroundColor = '#e74c3c';
+      if (hp !== this._lastHp) {
+        this._lastHp = hp;
+        this.healthEl.textContent = `${hp}%`;
+        if (this.healthBarEl) {
+          this.healthBarEl.style.width = `${hp}%`;
+          const color = hp > 50 ? '#2ecc71' : (hp > 25 ? '#f39c12' : '#e74c3c');
+          if (color !== this._lastHpColor) {
+            this._lastHpColor = color;
+            this.healthBarEl.style.backgroundColor = color;
+          }
         }
       }
     }
 
-    // 2. Grenade count
+    // 2. Grenade count (dirty-checked)
     if (this.grenadeEl && grenadeManager) {
-      this.grenadeEl.textContent = `${grenadeManager.grenades} / ${grenadeManager.maxGrenades}`;
+      if (grenadeManager.grenades !== this._lastGrenades || grenadeManager.maxGrenades !== this._lastMaxGrenades) {
+        this._lastGrenades = grenadeManager.grenades;
+        this._lastMaxGrenades = grenadeManager.maxGrenades;
+        this.grenadeEl.textContent = `${grenadeManager.grenades} / ${grenadeManager.maxGrenades}`;
+      }
     }
 
-    // 3. Inventory Slots & Current Item
+    // 3. Inventory Slots & Current Item (dirty-checked)
     if (player && player.slots) {
       const activeIdx = player.activeSlotIndex;
-
-      this.slotEls.forEach((slotEl, idx) => {
-        if (!slotEl) return;
-        if (idx === activeIdx) {
-          slotEl.classList.add('active');
-        } else {
-          slotEl.classList.remove('active');
-        }
-      });
+      if (activeIdx !== this._lastActiveSlot) {
+        this._lastActiveSlot = activeIdx;
+        this.slotEls.forEach((slotEl, idx) => {
+          if (!slotEl) return;
+          if (idx === activeIdx) {
+            slotEl.classList.add('active');
+          } else {
+            slotEl.classList.remove('active');
+          }
+        });
+      }
 
       // Update slot 1 ammo (Rifle)
       if (player.slots[0] && this.slotAmmoEls[0]) {
-        this.slotAmmoEls[0].textContent = `${player.slots[0].ammoInMag}/${player.slots[0].reserveAmmo}`;
+        const a1 = `${player.slots[0].ammoInMag}/${player.slots[0].reserveAmmo}`;
+        if (a1 !== this._lastSlotAmmo[0]) {
+          this._lastSlotAmmo[0] = a1;
+          this.slotAmmoEls[0].textContent = a1;
+        }
       }
 
       // Update slot 2 ammo (Pistol)
       if (player.slots[1] && this.slotAmmoEls[1]) {
-        this.slotAmmoEls[1].textContent = `${player.slots[1].ammoInMag}/${player.slots[1].reserveAmmo}`;
+        const a2 = `${player.slots[1].ammoInMag}/${player.slots[1].reserveAmmo}`;
+        if (a2 !== this._lastSlotAmmo[1]) {
+          this._lastSlotAmmo[1] = a2;
+          this.slotAmmoEls[1].textContent = a2;
+        }
       }
 
       // Update slot 3 count & cooldown (Medkit)
       if (player.slots[2] && this.slotAmmoEls[2]) {
         const medkit = player.slots[2];
         const status = medkit.isUsing ? 'USING...' : medkit.getCooldownText();
-        this.slotAmmoEls[2].textContent = `x${medkit.count} (${status})`;
+        const a3 = `x${medkit.count} (${status})`;
+        if (a3 !== this._lastSlotAmmo[2]) {
+          this._lastSlotAmmo[2] = a3;
+          this.slotAmmoEls[2].textContent = a3;
+        }
       }
 
       // Center alerts for active item
-      const activeItem = player.getActiveItem();
       if (this.reloadStatusEl) {
+        const activeItem = player.getActiveItem();
+        let msg = '';
+        let disp = 'none';
         if (activeItem && activeItem.isReloading) {
-          this.reloadStatusEl.textContent = 'RELOADING...';
-          this.reloadStatusEl.style.display = 'block';
+          msg = 'RELOADING...';
+          disp = 'block';
         } else if (activeItem && activeItem.ammoInMag === 0 && activeItem.type !== 'medkit') {
-          this.reloadStatusEl.textContent = 'EMPTY - PRESS R / RELOAD';
-          this.reloadStatusEl.style.display = 'block';
+          msg = 'EMPTY - PRESS R / RELOAD';
+          disp = 'block';
         } else if (activeItem && activeItem.type === 'medkit' && activeItem.isUsing) {
-          this.reloadStatusEl.textContent = 'APPLYING FIRST AID...';
-          this.reloadStatusEl.style.display = 'block';
-        } else {
-          this.reloadStatusEl.style.display = 'none';
+          msg = 'APPLYING FIRST AID...';
+          disp = 'block';
+        }
+
+        if (msg !== this._lastReloadMsg || disp !== this._lastReloadDisplay) {
+          this._lastReloadMsg = msg;
+          this._lastReloadDisplay = disp;
+          this.reloadStatusEl.textContent = msg;
+          this.reloadStatusEl.style.display = disp;
         }
       }
     }
@@ -1077,8 +1165,11 @@ Coded by Gemini 3.8 Flash`;
       if (this.killFlashBorderEl) {
         this.killFlashBorderEl.style.opacity = Math.max(0, (this.killFlashTimer / 0.35) * 0.9).toFixed(2);
       }
-    } else if (this.killFlashBorderEl) {
-      this.killFlashBorderEl.style.opacity = '0';
+    } else if (this._isKillFlashActive) {
+      this._isKillFlashActive = false;
+      if (this.killFlashBorderEl) {
+        this.killFlashBorderEl.style.opacity = '0';
+      }
     }
 
     // 9. Damage Flash Outer Border & Vignette Flash
@@ -1091,7 +1182,8 @@ Coded by Gemini 3.8 Flash`;
       if (this.damageVignetteEl) {
         this.damageVignetteEl.style.opacity = (op * 0.75).toFixed(2);
       }
-    } else {
+    } else if (this._isDamageFlashActive) {
+      this._isDamageFlashActive = false;
       if (this.damageBorderEl) {
         this.damageBorderEl.style.opacity = '0';
       }
@@ -1107,35 +1199,44 @@ Coded by Gemini 3.8 Flash`;
       if (this.damageIndicatorItem) {
         this.damageIndicatorItem.style.opacity = indOp;
       }
-    } else if (this.damageIndicatorItem) {
-      this.damageIndicatorItem.style.opacity = '0';
+    } else if (this._isDamageIndicatorActive) {
+      this._isDamageIndicatorActive = false;
+      if (this.damageIndicatorItem) {
+        this.damageIndicatorItem.style.opacity = '0';
+      }
     }
 
     // 11. Persistent Injury Vignette:
     // When player health reaches 55% or below, keep faint red color in the border like a vignette.
     // When player health 30% or below make red color stronger.
     if (this.injuryVignetteEl && player) {
-      this.injuryPulseTimer += deltaTime * 3.0;
       const hp = Math.max(0, player.health);
-      if (hp <= 30) {
-        const pulse = 0.65 + Math.sin(this.injuryPulseTimer * 1.5) * 0.12;
-        this.injuryVignetteEl.style.opacity = pulse.toFixed(2);
-      } else if (hp <= 55) {
-        const pulse = 0.28 + Math.sin(this.injuryPulseTimer) * 0.06;
-        this.injuryVignetteEl.style.opacity = pulse.toFixed(2);
-      } else {
+      if (hp <= 55) {
+        this.injuryPulseTimer += deltaTime * 3.0;
+        let pulse;
+        if (hp <= 30) {
+          pulse = 0.65 + Math.sin(this.injuryPulseTimer * 1.5) * 0.12;
+        } else {
+          pulse = 0.28 + Math.sin(this.injuryPulseTimer) * 0.06;
+        }
+        const roundedPulse = pulse.toFixed(2);
+        if (roundedPulse !== this._lastInjuryOpacity) {
+          this._lastInjuryOpacity = roundedPulse;
+          this.injuryVignetteEl.style.opacity = roundedPulse;
+        }
+      } else if (this._lastInjuryOpacity !== 0) {
+        this._lastInjuryOpacity = 0;
         this.injuryVignetteEl.style.opacity = '0';
       }
     }
 
-    // 12. Floating Damage Numbers update & screen projection
+    // 12. Floating Damage Numbers update & screen projection (0 object allocations)
     const activeCam = camera || this.camera;
     if (this.damageNumbersLayer && activeCam && this.damageNumbers.length > 0) {
-      const widthHalf = window.innerWidth / 2;
-      const heightHalf = window.innerHeight / 2;
-      const tempVec = new THREE.Vector3();
-      const camDir = new THREE.Vector3();
-      activeCam.getWorldDirection(camDir);
+      const widthHalf = window.innerWidth * 0.5;
+      const heightHalf = window.innerHeight * 0.5;
+      activeCam.getWorldDirection(_dnCamDir);
+      const camPos = activeCam.position;
 
       for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
         const dn = this.damageNumbers[i];
@@ -1162,25 +1263,25 @@ Coded by Gemini 3.8 Flash`;
           dn.element.style.opacity = '1';
         }
 
-        tempVec.copy(dn.worldPos);
-        tempVec.y += dn.floatOffset;
+        _dnTempVec.copy(dn.worldPos);
+        _dnTempVec.y += dn.floatOffset;
 
         // Check if point is in front of camera
-        const toPos = new THREE.Vector3().subVectors(tempVec, activeCam.position);
-        if (toPos.dot(camDir) <= 0.1) {
+        _dnToPos.subVectors(_dnTempVec, camPos);
+        if (_dnToPos.dot(_dnCamDir) <= 0.1) {
           dn.element.style.display = 'none';
           continue;
         }
 
-        const proj = tempVec.clone().project(activeCam);
-        if (proj.z > 1 || proj.z < -1) {
+        _dnProj.copy(_dnTempVec).project(activeCam);
+        if (_dnProj.z > 1 || _dnProj.z < -1) {
           dn.element.style.display = 'none';
           continue;
         }
 
         dn.element.style.display = 'flex';
-        const screenX = (proj.x * widthHalf) + widthHalf;
-        const screenY = -(proj.y * heightHalf) + heightHalf;
+        const screenX = (_dnProj.x * widthHalf) + widthHalf;
+        const screenY = -(_dnProj.y * heightHalf) + heightHalf;
         dn.element.style.left = `${screenX.toFixed(1)}px`;
         dn.element.style.top = `${screenY.toFixed(1)}px`;
       }

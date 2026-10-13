@@ -8,6 +8,10 @@
 import * as THREE from 'three';
 import { loadTexture } from '../config/assets.js';
 
+const _defaultSparkNormal = new THREE.Vector3(0, 1, 0);
+const _tempSpread = new THREE.Vector2();
+const _tempHitPoint = new THREE.Vector3();
+
 export class WeaponBase {
   constructor(camera, scene, audio, config = {}) {
     this.camera = camera;
@@ -148,7 +152,7 @@ export class WeaponBase {
     }
   }
 
-  spawnImpactSparks(point, normal = new THREE.Vector3(0, 1, 0), color = 0xffaa00) {
+  spawnImpactSparks(point, normal = _defaultSparkNormal, color = 0xffaa00) {
     let spawned = 0;
     for (let p of this.impactParticles) {
       if (!p.mesh.visible && spawned < 6) {
@@ -215,32 +219,34 @@ export class WeaponBase {
     // Raycast from Camera Center
     const spreadX = (Math.random() - 0.5) * 0.015;
     const spreadY = (Math.random() - 0.5) * 0.015;
-    this.raycaster.setFromCamera(new THREE.Vector2(spreadX, spreadY), this.camera);
+    _tempSpread.set(spreadX, spreadY);
+    this.raycaster.setFromCamera(_tempSpread, this.camera);
     this.raycaster.far = this.range;
 
     // Check hit against active enemies
     let hitResult = null;
     let closestDistance = Infinity;
 
-    enemies.forEach((enemy) => {
-      if (enemy.isDead) return;
+    for (let i = 0; i < enemies.length; i++) {
+      const enemy = enemies[i];
+      if (enemy.isDead) continue;
       const hit = enemy.checkRaycastHit(this.raycaster);
       if (hit && hit.distance < closestDistance) {
         closestDistance = hit.distance;
         hitResult = { type: 'enemy', enemy, point: hit.point };
       }
-    });
+    }
 
-    // Check hit against world colliders
+    // Check hit against world colliders (zero allocation loop)
     if (colliders.length > 0) {
       const ray = this.raycaster.ray;
-      for (let box of colliders) {
-        const hitPoint = new THREE.Vector3();
-        if (ray.intersectBox(box, hitPoint)) {
-          const dist = ray.origin.distanceTo(hitPoint);
+      for (let i = 0; i < colliders.length; i++) {
+        const box = colliders[i];
+        if (ray.intersectBox(box, _tempHitPoint)) {
+          const dist = ray.origin.distanceTo(_tempHitPoint);
           if (dist < closestDistance) {
             closestDistance = dist;
-            hitResult = { type: 'wall', point: hitPoint };
+            hitResult = { type: 'wall', point: _tempHitPoint.clone() };
           }
         }
       }

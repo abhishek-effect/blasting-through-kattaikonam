@@ -1,12 +1,12 @@
 /**
  * EvadeHUD Module
- * Renders the Roblox Evade style HUD:
+ * Renders the Evade mode HUD:
  * - Top Objective tracker (Key clues & Escape prompt)
- * - Nextbot Threat Level & Speed escalation banner
+ * - Evil Santhomite Threat Level & Speed escalation banner
  * - Teammates Roster (HP, Downed / Escaped status)
  * - Revive hold progress bar
  * - Fullscreen 'YOU ESCAPED' victory display
- * - Fullscreen 'You oofed' defeat display
+ * - Fullscreen 'Not so vibrant, are you?' defeat display
  */
 export class EvadeHUD {
   constructor() {
@@ -17,11 +17,19 @@ export class EvadeHUD {
 
     this.buildMarkup();
     this.reviveProgress = 0;
+
+    // Dirty-check caching (Eliminates 60Hz innerHTML thrashing)
+    this._lastObjective = '';
+    this._lastThreatText = '';
+    this._lastRosterSig = '';
+    this._lastBleedoutPct = -1;
+    this._lastReviveName = '';
+    this._lastRevivePct = -1;
   }
 
   buildMarkup() {
     this.container.innerHTML = `
-      <!-- Top Objective & Nextbot Threat Bar -->
+      <!-- Top Objective & Evil Santhomite Threat Bar -->
       <div class="evade-top-bar">
         <div id="evade-objective-badge" class="evade-objective-card">
           <span class="obj-icon">🔑</span>
@@ -29,7 +37,7 @@ export class EvadeHUD {
         </div>
         <div id="evade-threat-badge" class="evade-threat-card">
           <span class="threat-icon">⚠️</span>
-          <span id="evade-threat-text">NEXTBOTS: 1 ACTIVE | SPEED: 100%</span>
+          <span id="evade-threat-text">EVIL SANTHOMITES: 1 ACTIVE | SPEED: 100%</span>
         </div>
       </div>
 
@@ -57,11 +65,11 @@ export class EvadeHUD {
         </div>
       </div>
 
-      <!-- Fullscreen Game Over: You oofed -->
+      <!-- Fullscreen Game Over: Not so vibrant, are you? -->
       <div id="evade-oofed-screen" class="evade-end-screen oofed-screen hidden">
         <div class="oofed-box">
-          <h1 class="oofed-title">You oofed</h1>
-          <p class="oofed-desc">Caught by the campus Nextbots.</p>
+          <h1 class="oofed-title">Not so vibrant, are you?</h1>
+          <p class="oofed-desc">LMAO</p>
           <div class="oofed-buttons">
             <button id="btn-evade-retry" class="evade-btn retry-btn">🔄 TRY AGAIN</button>
             <button id="btn-evade-menu" class="evade-btn menu-btn">🏠 MAIN MENU</button>
@@ -74,7 +82,7 @@ export class EvadeHUD {
         <div class="escaped-box">
           <div class="escaped-badge">★ MISSION COMPLETE ★</div>
           <h1 class="escaped-title">YOU ESCAPED</h1>
-          <p class="escaped-desc">You unlocked the Seminar Hall and outran the Nextbots!</p>
+          <p class="escaped-desc">You unlocked the Seminar Hall and outran the Evil Santhomites!</p>
           <div class="escaped-buttons">
             <button id="btn-evade-victory-replay" class="evade-btn victory-btn">★ PLAY AGAIN</button>
             <button id="btn-evade-victory-menu" class="evade-btn menu-btn">🏠 MAIN MENU</button>
@@ -119,7 +127,8 @@ export class EvadeHUD {
   }
 
   setObjective(text) {
-    if (this.objectiveTextEl) {
+    if (this.objectiveTextEl && text !== this._lastObjective) {
+      this._lastObjective = text;
       this.objectiveTextEl.textContent = text;
     }
   }
@@ -127,12 +136,26 @@ export class EvadeHUD {
   setThreatLevel(botCount, speedMultiplier) {
     if (this.threatTextEl) {
       const pct = Math.round(speedMultiplier * 100);
-      this.threatTextEl.textContent = `NEXTBOTS: ${botCount} ACTIVE | SPEED: ${pct}%`;
+      const msg = `EVIL SANTHOMITES: ${botCount} ACTIVE | SPEED: ${pct}%`;
+      if (msg !== this._lastThreatText) {
+        this._lastThreatText = msg;
+        this.threatTextEl.textContent = msg;
+      }
     }
   }
 
   updateRoster(playersList = []) {
     if (!this.rosterListEl) return;
+
+    // Compute signature to skip DOM recreation when roster state is unchanged
+    let sig = '';
+    for (let i = 0; i < playersList.length; i++) {
+      const p = playersList[i];
+      sig += `${p.name || ''}:${Math.round(p.health || 0)}:${p.isDowned ? 1 : 0}:${p.isEscaped ? 1 : 0}|`;
+    }
+    if (sig === this._lastRosterSig) return;
+    this._lastRosterSig = sig;
+
     this.rosterListEl.innerHTML = '';
 
     playersList.forEach((p) => {
@@ -155,29 +178,50 @@ export class EvadeHUD {
     if (isDowned) {
       this.downedAlertEl.classList.remove('hidden');
       if (this.bleedoutFillEl) {
-        this.bleedoutFillEl.style.width = `${Math.max(0, Math.min(100, bleedoutPct * 100))}%`;
+        const rounded = Math.round(Math.max(0, Math.min(100, bleedoutPct * 100)));
+        if (rounded !== this._lastBleedoutPct) {
+          this._lastBleedoutPct = rounded;
+          this.bleedoutFillEl.style.width = `${rounded}%`;
+        }
       }
     } else {
       this.downedAlertEl.classList.add('hidden');
+      this._lastBleedoutPct = -1;
     }
   }
 
   showRevivePrompt(targetName, progress = 0) {
     if (!this.revivePromptEl) return;
     this.revivePromptEl.classList.remove('hidden');
-    if (this.reviveTargetEl) this.reviveTargetEl.textContent = targetName;
+    if (this.reviveTargetEl && targetName !== this._lastReviveName) {
+      this._lastReviveName = targetName;
+      this.reviveTargetEl.textContent = targetName;
+    }
     if (this.reviveFillEl) {
-      this.reviveFillEl.style.width = `${Math.min(100, Math.round(progress * 100))}%`;
+      const rounded = Math.round(Math.min(100, progress * 100));
+      if (rounded !== this._lastRevivePct) {
+        this._lastRevivePct = rounded;
+        this.reviveFillEl.style.width = `${rounded}%`;
+      }
     }
   }
 
   hideRevivePrompt() {
     if (this.revivePromptEl) {
       this.revivePromptEl.classList.add('hidden');
+      this._lastReviveName = '';
+      this._lastRevivePct = -1;
     }
   }
 
   showOofedScreen(onRetry, onMenu) {
+    const container = document.getElementById('game-container') || document.body;
+    if (container) {
+      container.classList.remove('screen-shake');
+      void container.offsetWidth;
+      container.classList.add('screen-shake');
+      setTimeout(() => container.classList.remove('screen-shake'), 500);
+    }
     if (document.exitPointerLock) {
       document.exitPointerLock();
     }

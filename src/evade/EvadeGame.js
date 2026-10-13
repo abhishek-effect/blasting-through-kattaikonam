@@ -1,16 +1,16 @@
 /**
  * EvadeGame Module
- * Master controller for Roblox Evade multiplayer gameplay mode.
+ * Master controller for Evade multiplayer gameplay mode.
  * Features:
  * - PeerJS multiplayer P2P synchronization.
  * - Exact same campus map with locked doors and progressive key hunts.
- * - Nextbots 50% taller than player using uncropped JPGs (abhishek, adesh, aswin, dipu).
+ * - Evil Santhomites 50% taller than player using uncropped JPGs (abhishek, adesh, aswin, dipu).
  * - Player 100% faster than bots at start, with slide/bhop momentum.
- * - Escalating Nextbot count and speed as rooms are unlocked.
- * - Simple 3D models for other connected players with floating nametags.
+ * - Escalating Evil Santhomite count and speed as rooms are unlocked.
+ * - Stylized 3D models for other connected players with floating nametags.
  * - Touch melee damage with cooldowns (no guns).
  * - Proximity teammate revive mechanic.
- * - Seminar Hall escape zone with 'YOU ESCAPED' victory and 'You oofed' defeat screens.
+ * - Seminar Hall escape zone with 'YOU ESCAPED' victory and 'Not so vibrant, are you?' defeat screens.
  */
 import * as THREE from 'three';
 import { NetworkManager, MSG_TYPES } from './NetworkManager.js';
@@ -21,6 +21,10 @@ import { EvadeHUD } from './EvadeHUD.js';
 import { EvadeLobbyUI } from './EvadeLobbyUI.js';
 import { STATES } from '../core/GameState.js';
 import { ASSET_PATHS } from '../config/assets.js';
+
+// Pre-allocated static vectors (zero GC allocations)
+const _egCamDir = new THREE.Vector3();
+const _egKbVec = new THREE.Vector3();
 
 export class EvadeGame {
   constructor(scene, camera, level, player, input, audio, gameState) {
@@ -40,7 +44,7 @@ export class EvadeGame {
 
     // Submodules
     this.network = new NetworkManager();
-    this.nextbots = new NextbotManager(this.scene, this.level.colliders, this.audio);
+    this.nextbots = new NextbotManager(this.scene, this.level.colliders, this.audio, this.level);
     this.progression = new KeyProgression(this.scene, this.level, this.nextbots, this.audio);
     this.hud = new EvadeHUD();
     this.lobby = new EvadeLobbyUI(this.network);
@@ -129,6 +133,9 @@ export class EvadeGame {
       if (data.isSeminarUnlocked && !this.progression.isSeminarUnlocked) {
         this.progression.unlockDoor('door_seminar_gate', 'SEMINAR HALL');
       }
+      if (data.objective && this.hud) {
+        this.hud.setObjective(data.objective);
+      }
     };
 
     // Network gameplay events
@@ -136,12 +143,13 @@ export class EvadeGame {
       if (!this.isActive) return;
 
       if (event.type === MSG_TYPES.KEY_PICKUP) {
-        if (!this.network.isHost) {
-          this.progression.unlockDoor(event.doorId, event.doorName);
-          this.progression.spawnKeyForStep(event.step);
-          if (this.hud) {
-            this.hud.setObjective(this.progression.getCurrentObjectiveText());
-          }
+        this.progression.unlockDoor(event.doorId, event.doorName);
+        this.progression.spawnKeyForStep(event.step);
+        if (this.hud) {
+          this.hud.setObjective(this.progression.getCurrentObjectiveText());
+        }
+        if (this.network.isHost) {
+          this.syncNetworkState();
         }
       } else if (event.type === MSG_TYPES.PLAYER_REVIVED) {
         if (event.targetId === this.network.localId) {
@@ -195,15 +203,23 @@ export class EvadeGame {
 
     // Enable Evade HUD
     this.hud.show();
-    this.hud.setObjective('🔑 OBJECTIVE: SEARCH SOUTH HALL FOR INFIRMARY KEY');
-    this.hud.setThreatLevel(1, 1.0);
+    this.hud.setObjective(this.progression.getCurrentObjectiveText());
+    this.hud.setThreatLevel(2, 1.0);
 
     // Initialize key progression (locks all doors, spawns Key 1)
     this.progression.initProgression();
 
-    // Spawn initial Nextbot (Host or Solo match spawns bot; multiplayer clients sync from host)
+    // Set network authority on bots
+    this.nextbots.isHost = this.network.isHost;
+    this.nextbots.isMultiplayer = !isSolo;
+
+    // Spawn initial 2 Evil Santhomites (Host or Solo match spawns bots; multiplayer clients sync from host)
     if (this.network.isHost || isSolo) {
-      this.nextbots.spawnInitialBot();
+      this.nextbots.spawnInitialBots();
+    }
+
+    if (this.network.isHost) {
+      this.syncNetworkState();
     }
 
     // Set playing state and lock pointer
@@ -222,10 +238,9 @@ export class EvadeGame {
   update(deltaTime) {
     if (!this.isActive || !this.isMatchRunning) return;
 
-    // 1. Update Flashlight orientation
-    const camDir = new THREE.Vector3();
-    this.camera.getWorldDirection(camDir);
-    this.flashlightTarget.position.copy(this.camera.position).addScaledVector(camDir, 8.0);
+    // 1. Update Flashlight orientation (0 allocations)
+    this.camera.getWorldDirection(_egCamDir);
+    this.flashlightTarget.position.copy(this.camera.position).addScaledVector(_egCamDir, 8.0);
 
     // 2. Downed / Bleedout State handling
     if (this.isLocalDowned) {
@@ -275,24 +290,29 @@ export class EvadeGame {
     // 6. Proximity Revive Check
     this.updateReviveMechanic(deltaTime);
 
-    // 7. Update Evade Roster HUD
-    const rosterData = [
-      {
-        isLocal: true,
-        name: this.network.localPlayerName,
-        health: this.player.health,
-        isDowned: this.isLocalDowned,
-        isEscaped: this.isLocalEscaped
-      },
-      ...remoteArray.map((rp) => ({
-        isLocal: false,
-        name: rp.name,
-        health: rp.health,
-        isDowned: rp.isDowned,
-        isEscaped: rp.isEscaped
-      }))
-    ];
-    this.hud.updateRoster(rosterData);
+    // 7. Update Evade Roster HUD (reuses allocated list objects to prevent GC churn)
+    if (!this._rosterDataList) this._rosterDataList = [];
+    let rIdx = 0;
+    if (!this._rosterDataList[rIdx]) this._rosterDataList[rIdx] = {};
+    this._rosterDataList[rIdx].isLocal = true;
+    this._rosterDataList[rIdx].name = this.network.localPlayerName;
+    this._rosterDataList[rIdx].health = this.player.health;
+    this._rosterDataList[rIdx].isDowned = this.isLocalDowned;
+    this._rosterDataList[rIdx].isEscaped = this.isLocalEscaped;
+    rIdx++;
+
+    for (let i = 0; i < remoteArray.length; i++) {
+      const rp = remoteArray[i];
+      if (!this._rosterDataList[rIdx]) this._rosterDataList[rIdx] = {};
+      this._rosterDataList[rIdx].isLocal = false;
+      this._rosterDataList[rIdx].name = rp.name;
+      this._rosterDataList[rIdx].health = rp.health;
+      this._rosterDataList[rIdx].isDowned = rp.isDowned;
+      this._rosterDataList[rIdx].isEscaped = rp.isEscaped;
+      rIdx++;
+    }
+    this._rosterDataList.length = rIdx;
+    this.hud.updateRoster(this._rosterDataList);
 
     // 8. Network Synchronization (20 Hz)
     this.netBroadcastTimer += deltaTime;
@@ -317,20 +337,30 @@ export class EvadeGame {
       this.player.onDamageTaken(damage, botPos);
     }
 
-    // Knockback slightly away from bot
+    // Knockback slightly away from bot (reusing _egKbVec, no allocations)
     if (botPos) {
-      const kb = new THREE.Vector3().subVectors(this.player.position, botPos).normalize();
-      this.player.velocity.x += kb.x * 6;
-      this.player.velocity.z += kb.z * 6;
+      _egKbVec.subVectors(this.player.position, botPos);
+      _egKbVec.y = 0;
+      const kbLen = Math.hypot(_egKbVec.x, _egKbVec.z) || 1;
+      this.player.velocity.x += (_egKbVec.x / kbLen) * 6;
+      this.player.velocity.z += (_egKbVec.z / kbLen) * 6;
     }
 
     if (this.player.health <= 0) {
+      const container = document.getElementById('game-container') || document.body;
+      if (container) {
+        container.classList.remove('screen-shake');
+        void container.offsetWidth;
+        container.classList.add('screen-shake');
+        setTimeout(() => container.classList.remove('screen-shake'), 500);
+      }
+
       // Check if other teammates are alive to revive
       const livingTeammates = Array.from(this.remotePlayers.values()).filter((rp) => !rp.isDowned && !rp.isEscaped);
       if (livingTeammates.length > 0) {
         this.downLocalPlayer();
       } else {
-        // Solo or all teammates down -> instant oof
+        // Solo or all teammates down -> defeat
         this.oofLocalPlayer();
       }
     }
@@ -487,6 +517,7 @@ export class EvadeGame {
       this.network.broadcastWorldState({
         bots: this.nextbots.getNetworkState(),
         step: this.progression.currentStep,
+        objective: this.progression.getCurrentObjectiveText(),
         isSeminarUnlocked: this.progression.isSeminarUnlocked
       });
     }

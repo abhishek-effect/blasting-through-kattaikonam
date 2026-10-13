@@ -159,6 +159,10 @@ export class Door {
       }
     }
 
+    if (this.onCollidersChanged) {
+      this.onCollidersChanged();
+    }
+
     if (this.audio && this.audio.playDoorSound) {
       this.audio.playDoorSound(this.isOpen);
     }
@@ -177,10 +181,12 @@ export class Door {
       this.rightPivot.rotation.y = -this.currentAngle;
     }
 
-    // 2. Check distance to player
+    // 2. Check distance to player using squared distance
     if (playerPosition) {
-      const dist = Math.hypot(playerPosition.x - this.x, playerPosition.z - this.z);
-      this.isPlayerNear = dist <= this.interactionRadius;
+      const dx = playerPosition.x - this.x;
+      const dz = playerPosition.z - this.z;
+      const r = this.interactionRadius;
+      this.isPlayerNear = (dx * dx + dz * dz) <= (r * r);
     }
   }
 
@@ -264,7 +270,8 @@ export class Door {
 
     this.signMesh = new THREE.Mesh(signGeo, signMat);
     this.signMesh.position.set(this.x, this.height + 0.38, this.z);
-    this.signMesh.castShadow = true;
+    this.signMesh.matrixAutoUpdate = false;
+    this.signMesh.updateMatrix();
     this.scene.add(this.signMesh);
   }
 

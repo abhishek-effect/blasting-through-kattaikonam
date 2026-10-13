@@ -14,7 +14,10 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { ASSET_PATHS, loadTexture } from '../config/assets.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { ASSET_PATHS, loadTexture, assetUrl } from '../config/assets.js';
 import { Elevator } from '../interactive/Elevator.js';
 import { Door } from '../interactive/Door.js';
 
@@ -166,11 +169,17 @@ export class LevelGenerator {
     // 5. Build Seminar Hall Security Gate (x: 55, z: 45.5, width: 5.0m, locked until 20 kills)
     this.buildSeminarGate(h);
 
-    // 6. Build 3D Collide-able Tables and Chairs in CS, Bio, and Physics Labs
+    // 6. Build 3D Collide-able Tables and Chairs in CS, Bio, Physics Labs, and Library
     this.buildFurniture();
 
-    // 7. Mount Educational Posters on Lab Walls
+    // 7. Build 3D Props (Bookshelves, Wardrobes, Whiteboard) from models folder
+    this.buildPropsFromModels();
+
+    // 8. Mount Educational Posters on Lab Walls
     this.buildPosters();
+
+    // 9. Initialize 2D Spatial Hash Grid for high-performance O(1) collision queries
+    this.initSpatialGrid();
   }
 
   buildWallColliders(h = 5.0) {
@@ -221,8 +230,8 @@ export class LevelGenerator {
     pillarCoords.forEach((p) => {
       const mesh = new THREE.Mesh(pillarGeo, pillarMat);
       mesh.position.set(p.x, h / 2, p.z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
       this.scene.add(mesh);
       this.pillars.push(mesh);
 
@@ -261,6 +270,7 @@ export class LevelGenerator {
 
     doorConfigs.forEach((cfg) => {
       const door = new Door(this.scene, this.colliders, this.audio, cfg);
+      door.onCollidersChanged = () => this.rebuildSpatialGrid();
       this.doors.push(door);
     });
   }
@@ -332,8 +342,8 @@ export class LevelGenerator {
     // Apply double-sided rendering, shadows, and light pink (#fae6e7) wall coloring
     obj.traverse((child) => {
       if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+        child.matrixAutoUpdate = false;
+        child.updateMatrix();
 
         const formatMaterial = (mat) => {
           mat.side = THREE.DoubleSide;
@@ -373,19 +383,10 @@ export class LevelGenerator {
     this.scene.add(hemi);
     this.lights.push(hemi);
 
-    // 2. High-Altitude Sun Light (casts shadows)
+    // 2. High-Altitude Sun Light
     const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
     sun.position.set(50, 45, 50);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 120;
-    const d = 55;
-    sun.shadow.camera.left = -d;
-    sun.shadow.camera.right = d;
-    sun.shadow.camera.top = d;
-    sun.shadow.camera.bottom = -d;
+    sun.castShadow = false;
     this.scene.add(sun);
     this.lights.push(sun);
 
@@ -421,6 +422,8 @@ export class LevelGenerator {
       const fixtureGeo = new THREE.BoxGeometry(0.5, 0.1, 2.2);
       const fixtureMesh = new THREE.Mesh(fixtureGeo, this.materials.lightFixture);
       fixtureMesh.position.set(lp.x, lp.y, lp.z);
+      fixtureMesh.matrixAutoUpdate = false;
+      fixtureMesh.updateMatrix();
       this.scene.add(fixtureMesh);
 
       // Bright point light
@@ -472,6 +475,7 @@ export class LevelGenerator {
     if (idx !== -1) {
       this.colliders.splice(idx, 1);
     }
+    this.rebuildSpatialGrid();
   }
 
   resetSeminarGate() {
@@ -483,6 +487,7 @@ export class LevelGenerator {
     if (!this.colliders.includes(this.seminarGate.collider)) {
       this.colliders.push(this.seminarGate.collider);
     }
+    this.rebuildSpatialGrid();
   }
 
   /**
@@ -494,34 +499,40 @@ export class LevelGenerator {
 
     // Pure white chair materials
     const chairCushionMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, // Pure white colored chair cushions
+      color: 0xffffff,
       roughness: 0.35,
       metalness: 0.05,
     });
 
     const chairFrameMat = new THREE.MeshStandardMaterial({
-      color: 0xdedede, // Clean light-silver/white metallic frame
+      color: 0xdedede,
       roughness: 0.3,
       metalness: 0.6,
     });
 
     // Room-specific tabletop materials
     const csTableMat = new THREE.MeshStandardMaterial({
-      color: 0x2f3542, // Sleek dark workstation top
+      color: 0x2f3542,
       roughness: 0.35,
       metalness: 0.15,
     });
 
     const bioTableMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f2f6, // Clean white laboratory laminate
+      color: 0xf1f2f6,
       roughness: 0.3,
       metalness: 0.05,
     });
 
     const phyTableMat = new THREE.MeshStandardMaterial({
-      color: 0x6d4c41, // Solid hardwood lab bench
+      color: 0x6d4c41,
       roughness: 0.55,
       metalness: 0.1,
+    });
+
+    const libTableMat = new THREE.MeshStandardMaterial({
+      color: 0xf8f9fa, // Clean study desk tops matching reference ("black outline white fill")
+      roughness: 0.25,
+      metalness: 0.05,
     });
 
     const tableFrameMat = new THREE.MeshStandardMaterial({
@@ -530,143 +541,142 @@ export class LevelGenerator {
       metalness: 0.7,
     });
 
-    // Helper: Create a 3D Lab Table Group
-    const createTableMesh = (tableMat) => {
-      const group = new THREE.Group();
-      // Tabletop: 1.4m wide x 0.06m thick x 0.8m deep at y: 0.79m
-      const topGeo = new THREE.BoxGeometry(1.4, 0.06, 0.8);
-      const topMesh = new THREE.Mesh(topGeo, tableMat);
-      topMesh.position.set(0, 0.79, 0);
-      topMesh.castShadow = true;
-      topMesh.receiveShadow = true;
-      group.add(topMesh);
+    // Merged Table Frame Geometry (apron + 4 legs)
+    const apronGeo = new THREE.BoxGeometry(1.28, 0.04, 0.68).translate(0, 0.74, 0);
+    const legGeos = [
+      [-0.61, -0.31],
+      [0.61, -0.31],
+      [-0.61, 0.31],
+      [0.61, 0.31],
+    ].map(([ox, oz]) => new THREE.BoxGeometry(0.06, 0.76, 0.06).translate(ox, 0.38, oz));
+    const tableFrameGeo = mergeGeometries([apronGeo, ...legGeos]);
+    const tableTopGeo = new THREE.BoxGeometry(1.4, 0.06, 0.8).translate(0, 0.79, 0);
 
-      // Support apron frame
-      const apronGeo = new THREE.BoxGeometry(1.28, 0.04, 0.68);
-      const apronMesh = new THREE.Mesh(apronGeo, tableFrameMat);
-      apronMesh.position.set(0, 0.74, 0);
-      apronMesh.castShadow = true;
-      group.add(apronMesh);
+    // Merged Chair Geometry (cushions + frame)
+    const seatGeo = new THREE.BoxGeometry(0.46, 0.05, 0.46).translate(0, 0.45, 0);
+    const backGeo = new THREE.BoxGeometry(0.44, 0.32, 0.04).translate(0, 0.68, -0.20);
+    const chairCushionGeo = mergeGeometries([seatGeo, backGeo]);
 
-      // 4 Legs
-      const legGeo = new THREE.BoxGeometry(0.06, 0.76, 0.06);
-      const legOffsets = [
-        [-0.61, -0.31],
-        [0.61, -0.31],
-        [-0.61, 0.31],
-        [0.61, 0.31],
-      ];
-      legOffsets.forEach(([ox, oz]) => {
-        const leg = new THREE.Mesh(legGeo, tableFrameMat);
-        leg.position.set(ox, 0.38, oz);
-        leg.castShadow = true;
-        leg.receiveShadow = true;
-        group.add(leg);
-      });
+    const strutGeos = [-0.16, 0.16].map((sx) => new THREE.BoxGeometry(0.03, 0.24, 0.03).translate(sx, 0.54, -0.20));
+    const chairLegGeos = [
+      [-0.18, -0.18],
+      [0.18, -0.18],
+      [-0.18, 0.18],
+      [0.18, 0.18],
+    ].map(([cx, cz]) => new THREE.BoxGeometry(0.04, 0.42, 0.04).translate(cx, 0.21, cz));
+    const chairFrameGeo = mergeGeometries([...strutGeos, ...chairLegGeos]);
 
-      return group;
-    };
+    const tableFrameInstanced = new THREE.InstancedMesh(tableFrameGeo, tableFrameMat, 30);
+    const csTableTopInstanced = new THREE.InstancedMesh(tableTopGeo, csTableMat, 6);
+    const bioTableTopInstanced = new THREE.InstancedMesh(tableTopGeo, bioTableMat, 6);
+    const phyTableTopInstanced = new THREE.InstancedMesh(tableTopGeo, phyTableMat, 10);
+    const libTableTopInstanced = new THREE.InstancedMesh(tableTopGeo, libTableMat, 10);
 
-    // Helper: Create a 3D Lab Chair Group
-    const createChairMesh = () => {
-      const group = new THREE.Group();
-      // Seat cushion: 0.46m x 0.05m x 0.46m at y: 0.45m
-      const seatGeo = new THREE.BoxGeometry(0.46, 0.05, 0.46);
-      const seatMesh = new THREE.Mesh(seatGeo, chairCushionMat);
-      seatMesh.position.set(0, 0.45, 0);
-      seatMesh.castShadow = true;
-      seatMesh.receiveShadow = true;
-      group.add(seatMesh);
+    const chairCushionInstanced = new THREE.InstancedMesh(chairCushionGeo, chairCushionMat, 36);
+    const chairFrameInstanced = new THREE.InstancedMesh(chairFrameGeo, chairFrameMat, 36);
 
-      // Backrest: 0.44m x 0.32m x 0.04m at y: 0.68m, z: -0.20m
-      const backGeo = new THREE.BoxGeometry(0.44, 0.32, 0.04);
-      const backMesh = new THREE.Mesh(backGeo, chairCushionMat);
-      backMesh.position.set(0, 0.68, -0.20);
-      backMesh.castShadow = true;
-      backMesh.receiveShadow = true;
-      group.add(backMesh);
+    const dummy = new THREE.Object3D();
+    let chairIdx = 0;
+    let csIdx = 0;
+    let bioIdx = 0;
+    let phyIdx = 0;
+    let libIdx = 0;
+    let tableFrameIdx = 0;
 
-      // 2 Vertical Backrest Struts
-      const strutGeo = new THREE.BoxGeometry(0.03, 0.24, 0.03);
-      [-0.16, 0.16].forEach((sx) => {
-        const strut = new THREE.Mesh(strutGeo, chairFrameMat);
-        strut.position.set(sx, 0.54, -0.20);
-        group.add(strut);
-      });
-
-      // 4 Chair Legs
-      const chairLegGeo = new THREE.BoxGeometry(0.04, 0.42, 0.04);
-      const chairLegOffsets = [
-        [-0.18, -0.18],
-        [0.18, -0.18],
-        [-0.18, 0.18],
-        [0.18, 0.18],
-      ];
-      chairLegOffsets.forEach(([cx, cz]) => {
-        const cl = new THREE.Mesh(chairLegGeo, chairFrameMat);
-        cl.position.set(cx, 0.21, cz);
-        cl.castShadow = true;
-        cl.receiveShadow = true;
-        group.add(cl);
-      });
-
-      return group;
-    };
-
-    // Placements: 4 tables and 4 chairs in each lab (CS, Bio, Phy)
     const furnitureSets = [
-      // 1. Computer Lab (X: 0..14, Z: 50..64) - doorways clear at Z: 55..59
-      { type: 'table', mat: csTableMat, x: 4.5, z: 53.0, rotY: 0 },
+      // 1. Computer Lab (X: 0..14, Z: 50..64)
+      { type: 'table', room: 'cs', x: 4.5, z: 53.0, rotY: 0 },
       { type: 'chair', x: 4.5, z: 53.8, rotY: 0 },
-      { type: 'table', mat: csTableMat, x: 9.5, z: 53.0, rotY: 0 },
+      { type: 'table', room: 'cs', x: 9.5, z: 53.0, rotY: 0 },
       { type: 'chair', x: 9.5, z: 53.8, rotY: 0 },
-      { type: 'table', mat: csTableMat, x: 4.5, z: 61.0, rotY: 0 },
+      { type: 'table', room: 'cs', x: 4.5, z: 61.0, rotY: 0 },
       { type: 'chair', x: 4.5, z: 60.2, rotY: Math.PI },
-      { type: 'table', mat: csTableMat, x: 9.5, z: 61.0, rotY: 0 },
+      { type: 'table', room: 'cs', x: 9.5, z: 61.0, rotY: 0 },
       { type: 'chair', x: 9.5, z: 60.2, rotY: Math.PI },
 
-      // 2. Bio Lab (X: 0..14, Z: 68..82) - doorways clear at Z: 73..77
-      { type: 'table', mat: bioTableMat, x: 4.5, z: 71.0, rotY: 0 },
+      // 2. Bio Lab (X: 0..14, Z: 68..82)
+      { type: 'table', room: 'bio', x: 4.5, z: 71.0, rotY: 0 },
       { type: 'chair', x: 4.5, z: 71.8, rotY: 0 },
-      { type: 'table', mat: bioTableMat, x: 9.5, z: 71.0, rotY: 0 },
+      { type: 'table', room: 'bio', x: 9.5, z: 71.0, rotY: 0 },
       { type: 'chair', x: 9.5, z: 71.8, rotY: 0 },
-      { type: 'table', mat: bioTableMat, x: 4.5, z: 79.0, rotY: 0 },
+      { type: 'table', room: 'bio', x: 4.5, z: 79.0, rotY: 0 },
       { type: 'chair', x: 4.5, z: 78.2, rotY: Math.PI },
-      { type: 'table', mat: bioTableMat, x: 9.5, z: 79.0, rotY: 0 },
+      { type: 'table', room: 'bio', x: 9.5, z: 79.0, rotY: 0 },
       { type: 'chair', x: 9.5, z: 78.2, rotY: Math.PI },
 
-      // 3. Physics Lab (X: 35..62, Z: 0..14) - doorways clear at X: 46..50
-      { type: 'table', mat: phyTableMat, x: 41.0, z: 5.0, rotY: 0 },
-      { type: 'chair', x: 41.0, z: 5.8, rotY: 0 },
-      { type: 'table', mat: phyTableMat, x: 41.0, z: 9.5, rotY: 0 },
-      { type: 'chair', x: 41.0, z: 8.7, rotY: Math.PI },
-      { type: 'table', mat: phyTableMat, x: 56.0, z: 5.0, rotY: 0 },
-      { type: 'chair', x: 56.0, z: 5.8, rotY: 0 },
-      { type: 'table', mat: phyTableMat, x: 56.0, z: 9.5, rotY: 0 },
-      { type: 'chair', x: 56.0, z: 8.7, rotY: Math.PI },
+      // 3. Physics Lab (X: 35..62, Z: 0..14) - Calibrated to images/phy-lab-reference.png
+      // Teacher's table on middle-left near whiteboard
+      { type: 'table', room: 'phy', x: 38.5, z: 7.0, rotY: Math.PI / 2 },
+      { type: 'chair', x: 39.25, z: 7.0, rotY: Math.PI / 2 },
+      // Upper-left vertical table
+      { type: 'table', room: 'phy', x: 43.0, z: 4.5, rotY: Math.PI / 2 },
+      { type: 'chair', x: 42.25, z: 4.5, rotY: -Math.PI / 2 },
+      // Upper-center horizontal table
+      { type: 'table', room: 'phy', x: 50.0, z: 3.5, rotY: 0 },
+      { type: 'chair', x: 50.0, z: 4.25, rotY: 0 },
+      // Upper-right vertical table
+      { type: 'table', room: 'phy', x: 58.0, z: 4.5, rotY: Math.PI / 2 },
+      { type: 'chair', x: 58.75, z: 4.5, rotY: Math.PI / 2 },
+      // Middle-right horizontal table
+      { type: 'table', room: 'phy', x: 52.5, z: 7.5, rotY: 0 },
+      { type: 'chair', x: 52.5, z: 8.25, rotY: 0 },
+      // Lower-right horizontal table
+      { type: 'table', room: 'phy', x: 57.5, z: 11.2, rotY: 0 },
+      { type: 'chair', x: 57.5, z: 10.45, rotY: Math.PI },
+
+      // 4. Campus Library (X: 66..100, Z: 83..100) - Calibrated to images/library-reference.png
+      // Top-left horizontal table
+      { type: 'table', room: 'lib', x: 76.0, z: 88.0, rotY: 0 },
+      { type: 'chair', x: 76.0, z: 88.75, rotY: 0 },
+      { type: 'chair', x: 76.0, z: 87.25, rotY: Math.PI },
+      // Top-right horizontal table
+      { type: 'table', room: 'lib', x: 88.0, z: 88.0, rotY: 0 },
+      { type: 'chair', x: 88.0, z: 88.75, rotY: 0 },
+      { type: 'chair', x: 88.0, z: 87.25, rotY: Math.PI },
+      // Bottom-left vertical table
+      { type: 'table', room: 'lib', x: 73.0, z: 95.0, rotY: Math.PI / 2 },
+      { type: 'chair', x: 72.25, z: 95.0, rotY: -Math.PI / 2 },
+      { type: 'chair', x: 73.75, z: 95.0, rotY: Math.PI / 2 },
+      // Bottom-center horizontal table
+      { type: 'table', room: 'lib', x: 83.0, z: 96.0, rotY: 0 },
+      { type: 'chair', x: 83.0, z: 96.75, rotY: 0 },
+      { type: 'chair', x: 83.0, z: 95.25, rotY: Math.PI },
+      // Bottom-right vertical table
+      { type: 'table', room: 'lib', x: 92.5, z: 95.0, rotY: Math.PI / 2 },
+      { type: 'chair', x: 91.75, z: 95.0, rotY: -Math.PI / 2 },
+      { type: 'chair', x: 93.25, z: 95.0, rotY: Math.PI / 2 },
     ];
 
     furnitureSets.forEach((item) => {
-      let mesh;
+      dummy.position.set(item.x, 0, item.z);
+      dummy.rotation.set(0, item.rotY || 0, 0);
+      dummy.updateMatrix();
+
       const box = new THREE.Box3();
 
       if (item.type === 'table') {
-        mesh = createTableMesh(item.mat);
-        mesh.position.set(item.x, 0, item.z);
-        mesh.rotation.y = item.rotY || 0;
-        this.scene.add(mesh);
-        this.furniture.push(mesh);
+        tableFrameInstanced.setMatrixAt(tableFrameIdx++, dummy.matrix);
+        if (item.room === 'cs') {
+          csTableTopInstanced.setMatrixAt(csIdx++, dummy.matrix);
+        } else if (item.room === 'bio') {
+          bioTableTopInstanced.setMatrixAt(bioIdx++, dummy.matrix);
+        } else if (item.room === 'phy') {
+          phyTableTopInstanced.setMatrixAt(phyIdx++, dummy.matrix);
+        } else if (item.room === 'lib') {
+          libTableTopInstanced.setMatrixAt(libIdx++, dummy.matrix);
+        }
 
-        // Precise AABB Collider for table
-        box.min.set(item.x - 0.70, 0, item.z - 0.40);
-        box.max.set(item.x + 0.70, 0.85, item.z + 0.40);
+        // Precise AABB Collider for table (accounting for orientation)
+        const isRotated = Math.abs(Math.sin(item.rotY || 0)) > 0.5;
+        const halfX = isRotated ? 0.40 : 0.70;
+        const halfZ = isRotated ? 0.70 : 0.40;
+        box.min.set(item.x - halfX, 0, item.z - halfZ);
+        box.max.set(item.x + halfX, 0.85, item.z + halfZ);
         this.colliders.push(box);
       } else if (item.type === 'chair') {
-        mesh = createChairMesh();
-        mesh.position.set(item.x, 0, item.z);
-        mesh.rotation.y = item.rotY || 0;
-        this.scene.add(mesh);
-        this.furniture.push(mesh);
+        chairCushionInstanced.setMatrixAt(chairIdx, dummy.matrix);
+        chairFrameInstanced.setMatrixAt(chairIdx, dummy.matrix);
+        chairIdx++;
 
         // Precise AABB Collider for chair
         box.min.set(item.x - 0.24, 0, item.z - 0.24);
@@ -674,6 +684,352 @@ export class LevelGenerator {
         this.colliders.push(box);
       }
     });
+
+    const instancedMeshes = [
+      tableFrameInstanced,
+      csTableTopInstanced,
+      bioTableTopInstanced,
+      phyTableTopInstanced,
+      libTableTopInstanced,
+      chairCushionInstanced,
+      chairFrameInstanced
+    ];
+
+    instancedMeshes.forEach((im) => {
+      im.instanceMatrix.needsUpdate = true;
+      im.matrixAutoUpdate = false;
+      im.updateMatrix();
+      this.scene.add(im);
+      this.furniture.push(im);
+    });
+  }
+
+  /**
+   * Builds 3D Props (Bookshelves, Wardrobes, Whiteboard) from models folder
+   * Strictly calibrated to images/library-reference.png and images/phy-lab-reference.png
+   */
+  buildPropsFromModels() {
+    this.propsList = [];
+
+    // Wood materials
+    const darkWoodMat = new THREE.MeshStandardMaterial({
+      color: 0x4a2e18,
+      roughness: 0.65,
+      metalness: 0.08
+    });
+    const teakWoodMat = new THREE.MeshStandardMaterial({
+      color: 0x6e4726,
+      roughness: 0.6,
+      metalness: 0.05
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.3,
+      metalness: 0.8
+    });
+
+    // 1. LIBRARY BOOKSHELVES (5 Bookshelves matching library-reference.png)
+    const bookshelfConfigs = [
+      // Top bookshelf to the right of the library door
+      { id: 'lib_shelf_door_right', x: 88.0, z: 83.6, rotY: 0, w: 2.4, d: 0.6, h: 2.3 },
+      // Left wall (West wall) - top and bottom
+      { id: 'lib_shelf_west_top', x: 66.8, z: 87.0, rotY: Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
+      { id: 'lib_shelf_west_bot', x: 66.8, z: 96.0, rotY: Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
+      // Right wall (East wall) - top and bottom
+      { id: 'lib_shelf_east_top', x: 99.2, z: 87.0, rotY: -Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
+      { id: 'lib_shelf_east_bot', x: 99.2, z: 96.0, rotY: -Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 }
+    ];
+
+    // Colors for procedural books
+    const bookColors = [0x992d22, 0x2980b9, 0x27ae60, 0xd35400, 0x8e44ad, 0x16a085, 0xb7950b];
+
+    bookshelfConfigs.forEach((cfg) => {
+      const shelfGroup = new THREE.Group();
+      shelfGroup.position.set(cfg.x, 0, cfg.z);
+      shelfGroup.rotation.y = cfg.rotY;
+
+      // Outer wood casing
+      const sideThick = 0.06;
+      const shelfThick = 0.05;
+      const outerGeo = new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d);
+      outerGeo.translate(0, cfg.h / 2, 0);
+
+      // Back panel
+      const backGeo = new THREE.BoxGeometry(cfg.w, cfg.h, 0.04);
+      backGeo.translate(0, cfg.h / 2, -cfg.d / 2 + 0.02);
+      const backMesh = new THREE.Mesh(backGeo, darkWoodMat);
+      shelfGroup.add(backMesh);
+
+      // Side pillars
+      const leftPillar = new THREE.BoxGeometry(sideThick, cfg.h, cfg.d);
+      leftPillar.translate(-cfg.w / 2 + sideThick / 2, cfg.h / 2, 0);
+      shelfGroup.add(new THREE.Mesh(leftPillar, darkWoodMat));
+
+      const rightPillar = new THREE.BoxGeometry(sideThick, cfg.h, cfg.d);
+      rightPillar.translate(cfg.w / 2 - sideThick / 2, cfg.h / 2, 0);
+      shelfGroup.add(new THREE.Mesh(rightPillar, darkWoodMat));
+
+      // Top & Bottom plinth
+      const topCap = new THREE.BoxGeometry(cfg.w, sideThick, cfg.d);
+      topCap.translate(0, cfg.h - sideThick / 2, 0);
+      shelfGroup.add(new THREE.Mesh(topCap, darkWoodMat));
+
+      const botPlinth = new THREE.BoxGeometry(cfg.w, sideThick * 1.5, cfg.d);
+      botPlinth.translate(0, sideThick * 0.75, 0);
+      shelfGroup.add(new THREE.Mesh(botPlinth, darkWoodMat));
+
+      // 4 Internal horizontal shelves with colorful books
+      const numShelves = 4;
+      const shelfSpacing = (cfg.h - 0.25) / numShelves;
+      for (let s = 1; s <= numShelves; s++) {
+        const sy = s * shelfSpacing;
+        const sGeo = new THREE.BoxGeometry(cfg.w - sideThick * 2, shelfThick, cfg.d - 0.04);
+        sGeo.translate(0, sy, 0);
+        shelfGroup.add(new THREE.Mesh(sGeo, darkWoodMat));
+
+        // Place rows of books on shelves
+        const bookCount = 10;
+        const bookRowWidth = cfg.w - sideThick * 3;
+        const bStep = bookRowWidth / bookCount;
+        for (let b = 0; b < bookCount; b++) {
+          const bx = -bookRowWidth / 2 + (b + 0.5) * bStep;
+          const bh = 0.22 + (b % 4) * 0.04;
+          const bw = 0.045 + (b % 3) * 0.015;
+          const bd = cfg.d * 0.65;
+          const bGeo = new THREE.BoxGeometry(bw, bh, bd);
+          bGeo.translate(bx, sy + bh / 2 + shelfThick / 2, 0.04);
+          const bMat = new THREE.MeshStandardMaterial({
+            color: bookColors[(b + s) % bookColors.length],
+            roughness: 0.55
+          });
+          shelfGroup.add(new THREE.Mesh(bGeo, bMat));
+        }
+      }
+
+      this.scene.add(shelfGroup);
+      this.propsList.push(shelfGroup);
+      cfg._procMesh = shelfGroup;
+
+      // AABB Collider for Bookshelf
+      const isRotated = Math.abs(Math.sin(cfg.rotY)) > 0.5;
+      const halfX = isRotated ? (cfg.d / 2) : (cfg.w / 2);
+      const halfZ = isRotated ? (cfg.w / 2) : (cfg.d / 2);
+      const box = new THREE.Box3();
+      box.min.set(cfg.x - halfX, 0, cfg.z - halfZ);
+      box.max.set(cfg.x + halfX, cfg.h, cfg.z + halfZ);
+      this.colliders.push(box);
+    });
+
+    // Asynchronously load 3D Bookshelf.glb from models folder
+    try {
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        assetUrl('/models/Bookshelf.glb'),
+        (gltf) => {
+          const template = gltf.scene;
+          const tBox = new THREE.Box3().setFromObject(template);
+          const tSize = tBox.getSize(new THREE.Vector3());
+          const tCenter = tBox.getCenter(new THREE.Vector3());
+          const targetH = 2.3;
+          const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 1.0;
+
+          bookshelfConfigs.forEach((cfg) => {
+            const shelfClone = template.clone(true);
+            shelfClone.scale.setScalar(scale);
+            shelfClone.position.set(-tCenter.x * scale, -tBox.min.y * scale, -tCenter.z * scale);
+
+            const rig = new THREE.Group();
+            rig.position.set(cfg.x, 0, cfg.z);
+            rig.rotation.y = cfg.rotY;
+            rig.add(shelfClone);
+
+            if (cfg._procMesh) {
+              cfg._procMesh.visible = false;
+            }
+            this.scene.add(rig);
+            this.propsList.push(rig);
+          });
+        },
+        undefined,
+        (err) => {
+          console.warn('[LevelGenerator] Bookshelf.glb load skipped, procedural active:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[LevelGenerator] GLTFLoader error:', e);
+    }
+
+    // 2. PHYSICS LAB WARDROBES (2 Wardrobes matching phy-lab-reference.png)
+    const wardrobeConfigs = [
+      // Top-left wardrobe
+      { id: 'phy_wardrobe_top', x: 35.8, z: 2.8, rotY: Math.PI / 2, w: 1.8, d: 0.8, h: 2.3 },
+      // Bottom-left wardrobe
+      { id: 'phy_wardrobe_bot', x: 35.8, z: 11.2, rotY: Math.PI / 2, w: 1.8, d: 0.8, h: 2.3 }
+    ];
+
+    wardrobeConfigs.forEach((cfg) => {
+      const wardGroup = new THREE.Group();
+      wardGroup.position.set(cfg.x, 0, cfg.z);
+      wardGroup.rotation.y = cfg.rotY;
+
+      // Main wardrobe cabinet
+      const mainGeo = new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d);
+      mainGeo.translate(0, cfg.h / 2, 0);
+      wardGroup.add(new THREE.Mesh(mainGeo, teakWoodMat));
+
+      // Door seam divider
+      const seamGeo = new THREE.BoxGeometry(0.02, cfg.h - 0.2, 0.02);
+      seamGeo.translate(0, cfg.h / 2, cfg.d / 2 + 0.01);
+      const darkSeamMat = new THREE.MeshBasicMaterial({ color: 0x221308 });
+      wardGroup.add(new THREE.Mesh(seamGeo, darkSeamMat));
+
+      // Brass door handles
+      const handleGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.16, 8);
+      const leftHandle = new THREE.Mesh(handleGeo, brassMat);
+      leftHandle.position.set(-0.08, cfg.h * 0.52, cfg.d / 2 + 0.04);
+      wardGroup.add(leftHandle);
+
+      const rightHandle = new THREE.Mesh(handleGeo, brassMat);
+      rightHandle.position.set(0.08, cfg.h * 0.52, cfg.d / 2 + 0.04);
+      wardGroup.add(rightHandle);
+
+      this.scene.add(wardGroup);
+      this.propsList.push(wardGroup);
+      cfg._procMesh = wardGroup;
+
+      // AABB Collider for wardrobe
+      const isRotated = Math.abs(Math.sin(cfg.rotY)) > 0.5;
+      const halfX = isRotated ? (cfg.d / 2) : (cfg.w / 2);
+      const halfZ = isRotated ? (cfg.w / 2) : (cfg.d / 2);
+      const box = new THREE.Box3();
+      box.min.set(cfg.x - halfX, 0, cfg.z - halfZ);
+      box.max.set(cfg.x + halfX, cfg.h, cfg.z + halfZ);
+      this.colliders.push(box);
+    });
+
+    // Asynchronously load 3D wardrobe.fbx from models folder
+    try {
+      const fbxLoader = new FBXLoader();
+      fbxLoader.load(
+        assetUrl('/models/wardrobe.fbx'),
+        (fbx) => {
+          const tBox = new THREE.Box3().setFromObject(fbx);
+          const tSize = tBox.getSize(new THREE.Vector3());
+          const tCenter = tBox.getCenter(new THREE.Vector3());
+          const targetH = 2.3;
+          const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 0.01;
+
+          wardrobeConfigs.forEach((cfg) => {
+            const wardClone = fbx.clone(true);
+            wardClone.scale.setScalar(scale);
+            wardClone.position.set(-tCenter.x * scale, -tBox.min.y * scale, -tCenter.z * scale);
+
+            const rig = new THREE.Group();
+            rig.position.set(cfg.x, 0, cfg.z);
+            rig.rotation.y = cfg.rotY;
+            rig.add(wardClone);
+
+            if (cfg._procMesh) {
+              cfg._procMesh.visible = false;
+            }
+            this.scene.add(rig);
+            this.propsList.push(rig);
+          });
+        },
+        undefined,
+        (err) => {
+          console.warn('[LevelGenerator] wardrobe.fbx load skipped, procedural active:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[LevelGenerator] FBXLoader error:', e);
+    }
+
+    // 3. PHYSICS LAB WHITEBOARD (West wall near teacher's table, matching phy-lab-reference.png)
+    const wbConfig = {
+      x: 35.08, z: 7.0, rotY: Math.PI / 2, w: 2.8, h: 1.5, d: 0.12
+    };
+
+    const wbGroup = new THREE.Group();
+    wbGroup.position.set(wbConfig.x, 0, wbConfig.z);
+    wbGroup.rotation.y = wbConfig.rotY;
+
+    // Aluminum frame
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0xb0bec5,
+      roughness: 0.35,
+      metalness: 0.8
+    });
+    const frameGeo = new THREE.BoxGeometry(wbConfig.w, wbConfig.h, 0.06);
+    frameGeo.translate(0, 1.85, 0);
+    wbGroup.add(new THREE.Mesh(frameGeo, frameMat));
+
+    // Glossy white board face
+    const boardMat = new THREE.MeshStandardMaterial({
+      color: 0xfdfdfd,
+      roughness: 0.12,
+      metalness: 0.05
+    });
+    const boardGeo = new THREE.BoxGeometry(wbConfig.w - 0.12, wbConfig.h - 0.12, 0.04);
+    boardGeo.translate(0, 1.85, 0.02);
+    wbGroup.add(new THREE.Mesh(boardGeo, boardMat));
+
+    // Marker ledge tray with markers
+    const trayGeo = new THREE.BoxGeometry(wbConfig.w - 0.2, 0.04, 0.14);
+    trayGeo.translate(0, 1.85 - wbConfig.h / 2 + 0.02, 0.07);
+    wbGroup.add(new THREE.Mesh(trayGeo, frameMat));
+
+    // Colored dry-erase markers
+    const markerColors = [0x111111, 0xc0392b, 0x2980b9];
+    markerColors.forEach((mColor, idx) => {
+      const mGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.14, 8);
+      mGeo.rotateZ(Math.PI / 2);
+      const mMesh = new THREE.Mesh(mGeo, new THREE.MeshStandardMaterial({ color: mColor, roughness: 0.4 }));
+      mMesh.position.set(-0.25 + idx * 0.25, 1.85 - wbConfig.h / 2 + 0.05, 0.07);
+      wbGroup.add(mMesh);
+    });
+
+    this.scene.add(wbGroup);
+    this.propsList.push(wbGroup);
+
+    // AABB Collider for Whiteboard frame
+    const wbBox = new THREE.Box3();
+    wbBox.min.set(wbConfig.x - 0.15, 0, wbConfig.z - 1.4);
+    wbBox.max.set(wbConfig.x + 0.15, 2.7, wbConfig.z + 1.4);
+    this.colliders.push(wbBox);
+
+    // Asynchronously load 3D whiteboard.obj
+    try {
+      const objLoader = new OBJLoader();
+      objLoader.load(
+        assetUrl('/models/whiteboard.obj'),
+        (obj) => {
+          const tBox = new THREE.Box3().setFromObject(obj);
+          const tSize = tBox.getSize(new THREE.Vector3());
+          const tCenter = tBox.getCenter(new THREE.Vector3());
+          const targetH = 1.6;
+          const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 0.01;
+
+          obj.scale.setScalar(scale);
+          obj.position.set(-tCenter.x * scale, -tBox.min.y * scale + 1.1, -tCenter.z * scale);
+
+          const rig = new THREE.Group();
+          rig.position.set(wbConfig.x, 0, wbConfig.z);
+          rig.rotation.y = wbConfig.rotY;
+          rig.add(obj);
+
+          wbGroup.visible = false;
+          this.scene.add(rig);
+          this.propsList.push(rig);
+        },
+        undefined,
+        (err) => {
+          console.warn('[LevelGenerator] whiteboard.obj load skipped, procedural active:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[LevelGenerator] OBJLoader whiteboard error:', e);
+    }
   }
 
   /**
@@ -768,6 +1124,8 @@ export class LevelGenerator {
       picMesh.position.set(0, 0, 0.015);
       group.add(picMesh);
 
+      group.matrixAutoUpdate = false;
+      group.updateMatrix();
       this.scene.add(group);
       this.posters.push(group);
     });
@@ -777,42 +1135,146 @@ export class LevelGenerator {
     return 0.0;
   }
 
+  initSpatialGrid() {
+    this.gridCellSize = 10.0;
+    this.gridCols = 10;
+    this.gridRows = 10;
+    this.spatialGrid = new Array(this.gridCols * this.gridRows);
+    for (let i = 0; i < this.spatialGrid.length; i++) {
+      this.spatialGrid[i] = [];
+    }
+    this.rebuildSpatialGrid();
+  }
+
+  rebuildSpatialGrid() {
+    if (!this.spatialGrid) return;
+    for (let i = 0; i < this.spatialGrid.length; i++) {
+      this.spatialGrid[i].length = 0;
+    }
+
+    const cs = this.gridCellSize;
+    const cols = this.gridCols;
+    const rows = this.gridRows;
+
+    for (let i = 0; i < this.colliders.length; i++) {
+      const box = this.colliders[i];
+      const minCol = Math.max(0, Math.min(cols - 1, Math.floor(box.min.x / cs)));
+      const maxCol = Math.max(0, Math.min(cols - 1, Math.floor(box.max.x / cs)));
+      const minRow = Math.max(0, Math.min(rows - 1, Math.floor(box.min.z / cs)));
+      const maxRow = Math.max(0, Math.min(rows - 1, Math.floor(box.max.z / cs)));
+
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          this.spatialGrid[r * cols + c].push(box);
+        }
+      }
+    }
+  }
+
+  getCollidersNear(position, radius = 5.0) {
+    if (!this.spatialGrid) return this.colliders;
+    const cs = this.gridCellSize;
+    const cols = this.gridCols;
+    const rows = this.gridRows;
+
+    const minCol = Math.max(0, Math.min(cols - 1, Math.floor((position.x - radius) / cs)));
+    const maxCol = Math.max(0, Math.min(cols - 1, Math.floor((position.x + radius) / cs)));
+    const minRow = Math.max(0, Math.min(rows - 1, Math.floor((position.z - radius) / cs)));
+    const maxRow = Math.max(0, Math.min(rows - 1, Math.floor((position.z + radius) / cs)));
+
+    if (minCol === maxCol && minRow === maxRow) {
+      return this.spatialGrid[minRow * cols + minCol];
+    }
+
+    this._spatialQueryId = (this._spatialQueryId || 0) + 1;
+    const qId = this._spatialQueryId;
+    const results = [];
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = this.spatialGrid[r * cols + c];
+        for (let i = 0; i < cell.length; i++) {
+          const box = cell[i];
+          if (box._lastQueryId === qId) continue;
+          box._lastQueryId = qId;
+          results.push(box);
+        }
+      }
+    }
+    return results;
+  }
+
+  _testBoxCollision(wallBox, position, radius, axis, entMinX, entMaxX, entMinZ, entMaxZ, playerFeet, playerHead) {
+    if (wallBox.min.y >= playerHead || wallBox.max.y <= playerFeet) return;
+
+    if (wallBox.max.x >= entMinX && wallBox.min.x <= entMaxX &&
+        wallBox.max.z >= entMinZ && wallBox.min.z <= entMaxZ) {
+      if (axis === 'x') {
+        const distToMin = Math.abs(position.x - wallBox.min.x);
+        const distToMax = Math.abs(position.x - wallBox.max.x);
+        if (distToMin < distToMax) {
+          position.x = wallBox.min.x - radius - 0.005;
+        } else {
+          position.x = wallBox.max.x + radius + 0.005;
+        }
+      } else if (axis === 'z') {
+        const distToMin = Math.abs(position.z - wallBox.min.z);
+        const distToMax = Math.abs(position.z - wallBox.max.z);
+        if (distToMin < distToMax) {
+          position.z = wallBox.min.z - radius - 0.005;
+        } else {
+          position.z = wallBox.max.z + radius + 0.005;
+        }
+      }
+    }
+  }
+
   /**
-   * Robust Axis-Separated AABB Collision Resolution
+   * Fast, zero-allocation spatial grid AABB collision resolution
    */
   resolveAxisCollision(position, radius, axis) {
     const playerFeet = Math.max(0, position.y - 1.6);
     const playerHead = position.y + 0.2;
+    const entMinX = position.x - radius;
+    const entMaxX = position.x + radius;
+    const entMinZ = position.z - radius;
+    const entMaxZ = position.z + radius;
 
-    const entityBox = new THREE.Box3();
-    entityBox.min.set(position.x - radius, playerFeet, position.z - radius);
-    entityBox.max.set(position.x + radius, playerHead, position.z + radius);
-
-    for (let i = 0; i < this.colliders.length; i++) {
-      const wallBox = this.colliders[i];
-
-      // Ignore overhead geometry or floor geometry
-      if (wallBox.min.y >= playerHead || wallBox.max.y <= playerFeet) {
-        continue;
+    if (!this.spatialGrid) {
+      for (let i = 0; i < this.colliders.length; i++) {
+        this._testBoxCollision(this.colliders[i], position, radius, axis, entMinX, entMaxX, entMinZ, entMaxZ, playerFeet, playerHead);
       }
+      return;
+    }
 
-      if (entityBox.intersectsBox(wallBox)) {
-        if (axis === 'x') {
-          const distToMin = Math.abs(position.x - wallBox.min.x);
-          const distToMax = Math.abs(position.x - wallBox.max.x);
-          if (distToMin < distToMax) {
-            position.x = wallBox.min.x - radius - 0.005;
-          } else {
-            position.x = wallBox.max.x + radius + 0.005;
-          }
-        } else if (axis === 'z') {
-          const distToMin = Math.abs(position.z - wallBox.min.z);
-          const distToMax = Math.abs(position.z - wallBox.max.z);
-          if (distToMin < distToMax) {
-            position.z = wallBox.min.z - radius - 0.005;
-          } else {
-            position.z = wallBox.max.z + radius + 0.005;
-          }
+    const cs = this.gridCellSize;
+    const cols = this.gridCols;
+    const rows = this.gridRows;
+
+    const minCol = Math.max(0, Math.min(cols - 1, Math.floor(entMinX / cs)));
+    const maxCol = Math.max(0, Math.min(cols - 1, Math.floor(entMaxX / cs)));
+    const minRow = Math.max(0, Math.min(rows - 1, Math.floor(entMinZ / cs)));
+    const maxRow = Math.max(0, Math.min(rows - 1, Math.floor(entMaxZ / cs)));
+
+    if (minCol === maxCol && minRow === maxRow) {
+      const cell = this.spatialGrid[minRow * cols + minCol];
+      for (let i = 0; i < cell.length; i++) {
+        this._testBoxCollision(cell[i], position, radius, axis, entMinX, entMaxX, entMinZ, entMaxZ, playerFeet, playerHead);
+      }
+      return;
+    }
+
+    this._spatialTestId = (this._spatialTestId || 0) + 1;
+    const testId = this._spatialTestId;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = this.spatialGrid[r * cols + c];
+        for (let i = 0; i < cell.length; i++) {
+          const box = cell[i];
+          if (box._lastTestId === testId) continue;
+          box._lastTestId = testId;
+          this._testBoxCollision(box, position, radius, axis, entMinX, entMaxX, entMinZ, entMaxZ, playerFeet, playerHead);
         }
       }
     }

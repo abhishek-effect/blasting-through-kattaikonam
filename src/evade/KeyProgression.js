@@ -1,13 +1,13 @@
 /**
  * KeyProgression Module
- * Implements the Roblox Evade key hunt and room unlocking progression.
+ * Implements the Evade mode key hunt and room unlocking progression.
  * Features:
  * - Locks all room doors at match start.
  * - Spawns 3D rotating golden keys with glowing halos in sequence.
  * - Unlocks rooms sequentially: Infirmary -> Computer Lab -> Bio Lab -> Phy Lab -> Library -> Seminar Hall.
- * - Escalates Nextbot threat and speed upon every room unlock.
+ * - Escalates Evil Santhomite threat and speed upon every room unlock.
  * - Activates the Seminar Hall escape zone.
- * - Handles 'YOU ESCAPED' victory and 'You oofed' defeat triggers.
+ * - Handles 'YOU ESCAPED' victory and 'Not so vibrant, are you?' defeat triggers.
  */
 import * as THREE from 'three';
 

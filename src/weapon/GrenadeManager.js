@@ -6,6 +6,9 @@
  */
 import * as THREE from 'three';
 
+// Pre-allocated vector for grenade throws
+const _grenadeForward = new THREE.Vector3();
+
 export class GrenadeManager {
   constructor(scene, world, audio) {
     this.scene = scene;
@@ -131,16 +134,16 @@ export class GrenadeManager {
       this.projectilePool.push(mesh);
     }
 
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-
-    const spawnPos = camera.position.clone().addScaledVector(forward, 0.6);
-    mesh.position.copy(spawnPos);
+    camera.getWorldDirection(_grenadeForward);
+    mesh.position.copy(camera.position).addScaledVector(_grenadeForward, 0.6);
     mesh.visible = true;
 
     // Initial velocity: throw forward with slight upward arc
-    const velocity = forward.clone().multiplyScalar(this.throwSpeed);
-    velocity.y += 3.2;
+    const velocity = new THREE.Vector3(
+      _grenadeForward.x * this.throwSpeed,
+      _grenadeForward.y * this.throwSpeed + 3.2,
+      _grenadeForward.z * this.throwSpeed
+    );
 
     this.projectiles.push({
       mesh,
@@ -270,13 +273,15 @@ export class GrenadeManager {
       // Check collision or proximity with living enemies
       let enemyNearby = false;
       const grenadePos = p.mesh.position;
-      const proximityThreshold = 1.6;
+      const proximityThresholdSq = 1.6 * 1.6; // 2.56
 
       for (let e = 0; e < enemies.length; e++) {
         const enemy = enemies[e];
         if (enemy && !enemy.isDead && enemy.position) {
-          const dist = grenadePos.distanceTo(enemy.position);
-          if (dist <= proximityThreshold) {
+          const dx = grenadePos.x - enemy.position.x;
+          const dy = grenadePos.y - enemy.position.y;
+          const dz = grenadePos.z - enemy.position.z;
+          if (dx * dx + dy * dy + dz * dz <= proximityThresholdSq) {
             enemyNearby = true;
             break;
           }
@@ -299,8 +304,9 @@ export class GrenadeManager {
       pickup.group.position.y = 0.35 + Math.sin(pickup.bobTimer) * 0.08;
 
       if (player && !player.isDead) {
-        const dist = player.position.distanceTo(pickup.position);
-        if (dist < 1.6) {
+        const dx = player.position.x - pickup.position.x;
+        const dz = player.position.z - pickup.position.z;
+        if (dx * dx + dz * dz < 2.56) {
           if (this.grenades < this.maxGrenades) {
             this.grenades++;
             this.audio.playPickup();

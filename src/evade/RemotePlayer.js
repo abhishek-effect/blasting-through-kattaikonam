@@ -8,6 +8,58 @@
  * - Posture animations: running limb swing, crouching, sliding, and downed (lying flat on ground).
  */
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { assetUrl } from '../config/assets.js';
+
+let playerFbxTemplate = null;
+let playerFbxPromise = null;
+
+function getPlayerFBXTemplate() {
+  if (playerFbxPromise) return playerFbxPromise;
+  playerFbxPromise = new Promise((resolve) => {
+    try {
+      const loader = new FBXLoader();
+      loader.load(
+        assetUrl('/models/player.fbx'),
+        (fbx) => {
+          // Compute bounding box
+          const box = new THREE.Box3().setFromObject(fbx);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+
+          // Standard human player height ~1.8m
+          const targetHeight = 1.8;
+          const scale = (size.y > 0.01) ? (targetHeight / size.y) : 0.01;
+          fbx.scale.setScalar(scale);
+
+          // Center on X and Z, align floor bottom to Y = 0
+          fbx.position.x = -center.x * scale;
+          fbx.position.z = -center.z * scale;
+          fbx.position.y = -box.min.y * scale;
+
+          fbx.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = false;
+              child.receiveShadow = false;
+            }
+          });
+
+          playerFbxTemplate = fbx;
+          resolve(fbx);
+        },
+        undefined,
+        (err) => {
+          console.warn('[RemotePlayer] player.fbx load failed, using procedural humanoid:', err);
+          resolve(null);
+        }
+      );
+    } catch (e) {
+      console.warn('[RemotePlayer] FBXLoader initialization error:', e);
+      resolve(null);
+    }
+  });
+  return playerFbxPromise;
+}
 
 export class RemotePlayer {
   constructor(scene, id, name, isHost = false) {
@@ -15,6 +67,7 @@ export class RemotePlayer {
     this.id = id;
     this.name = name;
     this.isHost = isHost;
+    this.isDestroyed = false;
 
     this.health = 100;
     this.maxHealth = 100;
@@ -36,6 +89,12 @@ export class RemotePlayer {
     const hue = Math.abs(this.hashCode(id)) % 360;
     this.primaryColor = new THREE.Color(`hsl(${hue}, 70%, 55%)`);
 
+    this.bodyGroup = new THREE.Group();
+    this.group.add(this.bodyGroup);
+
+    this.proceduralGroup = null;
+    this.customModel = null;
+
     this.buildCharacterMesh();
     this.buildNameTag();
 
@@ -52,10 +111,10 @@ export class RemotePlayer {
   }
 
   buildCharacterMesh() {
-    this.bodyGroup = new THREE.Group();
-    this.group.add(this.bodyGroup);
+    // 1. Build initial stylized procedural avatar
+    this.proceduralGroup = new THREE.Group();
+    this.bodyGroup.add(this.proceduralGroup);
 
-    // Materials
     const shirtMat = new THREE.MeshStandardMaterial({
       color: this.primaryColor,
       roughness: 0.6,
@@ -72,50 +131,70 @@ export class RemotePlayer {
       roughness: 0.7
     });
 
-    // 1. Torso
+    // Torso
     const torsoGeo = new THREE.BoxGeometry(0.55, 0.75, 0.3);
     this.torso = new THREE.Mesh(torsoGeo, shirtMat);
     this.torso.position.y = 1.05;
-    this.torso.castShadow = false;
-    this.bodyGroup.add(this.torso);
+    this.proceduralGroup.add(this.torso);
 
-    // 2. Head
+    // Head
     const headGeo = new THREE.BoxGeometry(0.38, 0.38, 0.38);
     this.head = new THREE.Mesh(headGeo, skinMat);
     this.head.position.y = 1.62;
-    this.head.castShadow = false;
-    this.bodyGroup.add(this.head);
+    this.proceduralGroup.add(this.head);
 
     // Visor / Face
     const visorGeo = new THREE.BoxGeometry(0.3, 0.12, 0.05);
     const visorMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     const visor = new THREE.Mesh(visorGeo, visorMat);
     visor.position.set(0, 1.63, 0.19);
-    this.bodyGroup.add(visor);
+    this.proceduralGroup.add(visor);
 
-    // 3. Left & Right Arms
+    // Left & Right Arms
     const armGeo = new THREE.BoxGeometry(0.18, 0.65, 0.2);
     this.leftArm = new THREE.Mesh(armGeo, shirtMat);
     this.leftArm.position.set(-0.38, 1.05, 0);
-    this.leftArm.castShadow = false;
-    this.bodyGroup.add(this.leftArm);
+    this.proceduralGroup.add(this.leftArm);
 
     this.rightArm = new THREE.Mesh(armGeo, shirtMat);
     this.rightArm.position.set(0.38, 1.05, 0);
-    this.rightArm.castShadow = false;
-    this.bodyGroup.add(this.rightArm);
+    this.proceduralGroup.add(this.rightArm);
 
-    // 4. Left & Right Legs
+    // Left & Right Legs
     const legGeo = new THREE.BoxGeometry(0.22, 0.7, 0.22);
     this.leftLeg = new THREE.Mesh(legGeo, pantsMat);
     this.leftLeg.position.set(-0.16, 0.35, 0);
-    this.leftLeg.castShadow = false;
-    this.bodyGroup.add(this.leftLeg);
+    this.proceduralGroup.add(this.leftLeg);
 
     this.rightLeg = new THREE.Mesh(legGeo, pantsMat);
     this.rightLeg.position.set(0.16, 0.35, 0);
-    this.rightLeg.castShadow = false;
-    this.bodyGroup.add(this.rightLeg);
+    this.proceduralGroup.add(this.rightLeg);
+
+    // 2. Load and attach 3D player.fbx model
+    getPlayerFBXTemplate().then((template) => {
+      if (template && !this.isDestroyed) {
+        if (this.proceduralGroup) {
+          this.bodyGroup.remove(this.proceduralGroup);
+          this.proceduralGroup = null;
+        }
+
+        const modelClone = template.clone(true);
+        modelClone.traverse((child) => {
+          if (child.isMesh && child.material) {
+            child.material = Array.isArray(child.material)
+              ? child.material.map((m) => m.clone())
+              : child.material.clone();
+            const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+            if (mat && mat.color) {
+              mat.color.lerp(this.primaryColor, 0.25);
+            }
+          }
+        });
+
+        this.customModel = modelClone;
+        this.bodyGroup.add(modelClone);
+      }
+    });
   }
 
   buildNameTag() {
@@ -177,9 +256,15 @@ export class RemotePlayer {
   updateFromNetwork(data) {
     if (data.pos) {
       this.targetPos.set(data.pos.x, data.pos.y, data.pos.z);
+      if (this.currentPos.lengthSq() === 0) {
+        this.currentPos.copy(this.targetPos);
+      }
     }
     if (data.yaw !== undefined) {
       this.targetYaw = data.yaw;
+      if (this.currentYaw === 0) {
+        this.currentYaw = this.targetYaw;
+      }
     }
     if (data.health !== undefined && data.health !== this.health) {
       this.health = data.health;
@@ -198,9 +283,10 @@ export class RemotePlayer {
   }
 
   update(deltaTime) {
-    // 1. Smooth position interpolation
+    // 1. Smooth position interpolation (feet placed on floor)
     this.currentPos.lerp(this.targetPos, Math.min(1, deltaTime * 14));
-    this.group.position.copy(this.currentPos);
+    const floorY = Math.max(0, this.currentPos.y - 1.65);
+    this.group.position.set(this.currentPos.x, floorY, this.currentPos.z);
 
     // 2. Smooth rotation interpolation
     let deltaYaw = this.targetYaw - this.currentYaw;
@@ -234,24 +320,31 @@ export class RemotePlayer {
       this.bodyGroup.rotation.x = 0;
     }
 
-    // 4. Running limb swing animation
+    // 4. Running limb swing or model bob animation
     const speed = this.currentPos.distanceTo(this.targetPos) / Math.max(0.001, deltaTime);
     if (speed > 1.2 && !this.isSliding && !this.isDowned) {
       this.animTime += deltaTime * speed * 2.2;
       const swing = Math.sin(this.animTime) * 0.65;
-      this.leftArm.rotation.x = swing;
-      this.rightArm.rotation.x = -swing;
-      this.leftLeg.rotation.x = -swing;
-      this.rightLeg.rotation.x = swing;
+      if (this.leftArm) this.leftArm.rotation.x = swing;
+      if (this.rightArm) this.rightArm.rotation.x = -swing;
+      if (this.leftLeg) this.leftLeg.rotation.x = -swing;
+      if (this.rightLeg) this.rightLeg.rotation.x = swing;
+      if (this.customModel) {
+        this.customModel.position.y = Math.abs(Math.sin(this.animTime * 1.5)) * 0.08;
+      }
     } else {
-      this.leftArm.rotation.x = 0;
-      this.rightArm.rotation.x = 0;
-      this.leftLeg.rotation.x = 0;
-      this.rightLeg.rotation.x = 0;
+      if (this.leftArm) this.leftArm.rotation.x = 0;
+      if (this.rightArm) this.rightArm.rotation.x = 0;
+      if (this.leftLeg) this.leftLeg.rotation.x = 0;
+      if (this.rightLeg) this.rightLeg.rotation.x = 0;
+      if (this.customModel) {
+        this.customModel.position.y = 0;
+      }
     }
   }
 
   destroy() {
+    this.isDestroyed = true;
     if (this.group && this.group.parent) {
       this.group.parent.remove(this.group);
     }

@@ -38,8 +38,8 @@ export class EvadeLobbyUI {
       <div class="lobby-card">
         <div class="lobby-header">
           <div class="lobby-badge">PEER-TO-PEER MULTIPLAYER</div>
-          <h2 class="lobby-title">ROBLOX EVADE</h2>
-          <p class="lobby-subtitle">Survive, unlock campus doors, and escape the Nextbots!</p>
+          <h2 class="lobby-title">EVADE MULTIPLAYER</h2>
+          <p class="lobby-subtitle">Survive, unlock campus doors, and escape the Evil Santhomites!</p>
         </div>
 
         <!-- Name Input -->
@@ -93,12 +93,14 @@ export class EvadeLobbyUI {
 
         <!-- Tab 2: Join Room View -->
         <div id="view-join-room" class="lobby-tab-view hidden">
-          <p class="tab-desc">Enter your friend's 5-letter Room Code to connect directly via WebRTC.</p>
-          <div class="lobby-field-row">
-            <input type="text" id="join-room-code-input" class="lobby-input uppercase" maxlength="8" placeholder="ENTER ROOM CODE (e.g. K9X2A)" />
-            <button id="btn-join-room" class="lobby-action-btn primary-btn" style="margin-top: 10px;">
-              🔗 CONNECT TO HOST
-            </button>
+          <div id="join-input-section">
+            <p class="tab-desc">Enter your friend's 5-letter Room Code to connect directly via WebRTC.</p>
+            <div class="lobby-field-row">
+              <input type="text" id="join-room-code-input" class="lobby-input uppercase" maxlength="8" placeholder="ENTER ROOM CODE (e.g. K9X2A)" />
+              <button id="btn-join-room" class="lobby-action-btn primary-btn" style="margin-top: 10px;">
+                🔗 CONNECT TO HOST
+              </button>
+            </div>
           </div>
 
           <div id="client-wait-box" class="client-wait-box hidden">
@@ -139,6 +141,7 @@ export class EvadeLobbyUI {
     this.btnStartSolo = document.getElementById('btn-start-solo');
     this.btnHostLeave = document.getElementById('btn-host-leave');
 
+    this.joinInputSection = document.getElementById('join-input-section');
     this.joinCodeInput = document.getElementById('join-room-code-input');
     this.btnJoinRoom = document.getElementById('btn-join-room');
     this.clientWaitBox = document.getElementById('client-wait-box');
@@ -173,6 +176,11 @@ export class EvadeLobbyUI {
         this.hostPreCreate.classList.add('hidden');
         this.hostRoomInfo.classList.remove('hidden');
         this.updatePlayersList([{ id: this.networkManager.localId, name, isHost: true }], true);
+        if (this.tabJoin) {
+          this.tabJoin.disabled = true;
+          this.tabJoin.style.opacity = '0.4';
+          this.tabJoin.title = 'Leave current room to join another';
+        }
       } catch (err) {
         alert('Failed to initialize Host room on PeerJS network: ' + (err.message || err));
         this.btnCreateRoom.disabled = false;
@@ -194,17 +202,14 @@ export class EvadeLobbyUI {
 
     // Host Start Match
     this.btnStartMatch.addEventListener('click', () => {
-      const isSolo = (this.networkManager.connections.size <= 1);
-      this.networkManager.startMatch();
       this.hide();
-      if (this.onStartMatch) this.onStartMatch(isSolo);
+      this.networkManager.startMatch();
     });
 
     // Solo Practice Run
     this.btnStartSolo.addEventListener('click', () => {
-      this.networkManager.startMatch();
       this.hide();
-      if (this.onStartMatch) this.onStartMatch(true);
+      this.networkManager.startMatch();
     });
 
     // Client Join Room
@@ -227,6 +232,14 @@ export class EvadeLobbyUI {
         });
         this.clientWaitStatus.textContent = 'Connected! Waiting for Host to start match...';
         this.btnJoinRoom.textContent = '✅ CONNECTED';
+        if (this.joinInputSection) {
+          this.joinInputSection.classList.add('hidden');
+        }
+        if (this.tabHost) {
+          this.tabHost.disabled = true;
+          this.tabHost.style.opacity = '0.4';
+          this.tabHost.title = 'Connected to room as client';
+        }
       } catch (err) {
         this.clientWaitStatus.textContent = '❌ Connection failed: ' + (err.message || 'Room not found.');
         this.btnJoinRoom.disabled = false;
@@ -251,19 +264,22 @@ export class EvadeLobbyUI {
       this.updatePlayersList(players, canStart);
     };
 
-    this.networkManager.onGameStart = () => {
+    this.networkManager.onGameStart = (payload) => {
       this.hide();
-      if (this.onStartMatch) this.onStartMatch(false);
+      const isSolo = payload && !!payload.isSolo;
+      if (this.onStartMatch) this.onStartMatch(isSolo);
     };
   }
 
   switchTab(tab) {
     if (tab === 'host') {
+      if (this.tabHost.disabled) return;
       this.tabHost.classList.add('active');
       this.tabJoin.classList.remove('active');
       this.viewHost.classList.remove('hidden');
       this.viewJoin.classList.add('hidden');
     } else {
+      if (this.tabJoin.disabled) return;
       this.tabJoin.classList.add('active');
       this.tabHost.classList.remove('active');
       this.viewJoin.classList.remove('hidden');
@@ -321,7 +337,18 @@ export class EvadeLobbyUI {
       this.btnJoinRoom.disabled = false;
       this.btnJoinRoom.textContent = '🔗 CONNECT TO HOST';
     }
+    if (this.joinInputSection) this.joinInputSection.classList.remove('hidden');
     if (this.clientWaitBox) this.clientWaitBox.classList.add('hidden');
+    if (this.tabHost) {
+      this.tabHost.disabled = false;
+      this.tabHost.style.opacity = '1';
+      this.tabHost.title = '';
+    }
+    if (this.tabJoin) {
+      this.tabJoin.disabled = false;
+      this.tabJoin.style.opacity = '1';
+      this.tabJoin.title = '';
+    }
     if (this.hostPlayersList) this.hostPlayersList.innerHTML = '';
     if (this.clientPlayersList) this.clientPlayersList.innerHTML = '';
     if (this.playersCounterText) {

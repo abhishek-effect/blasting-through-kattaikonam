@@ -6,6 +6,10 @@
  */
 import * as THREE from 'three';
 
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _moveDir = new THREE.Vector3();
+
 export class Player {
   constructor(camera, world, input, audio, gameState) {
     this.camera = camera;
@@ -44,7 +48,7 @@ export class Player {
     this.isCrouching = false;
     this.isSliding = false;
     this.slideTimer = 0;
-    this.slideDuration = 1.25; // Lasts ~1.25 seconds at a time
+    this.slideDuration = 5.0; // Capped at 5 seconds at a time
     this.slideCooldown = 0;
     this.initialSlideSpeed = 9.2; // Slightly faster than sprinting (7.5)
     this.slideDirection = new THREE.Vector3();
@@ -154,6 +158,13 @@ export class Player {
 
     if (this.health <= 0) {
       this.isDead = true;
+      const container = document.getElementById('game-container') || document.body;
+      if (container) {
+        container.classList.remove('screen-shake');
+        void container.offsetWidth;
+        container.classList.add('screen-shake');
+        setTimeout(() => container.classList.remove('screen-shake'), 500);
+      }
       this.gameState.setState('GAME_OVER');
     }
   }
@@ -167,7 +178,7 @@ export class Player {
       this.switchSlot(requestedSlot);
     }
 
-    // 1. Process Look (Mouse or Touch Drag) with Smooth Interpolation
+    // 1. Process Look (Mouse or Touch Drag)
     const { yaw: deltaYaw, pitch: deltaPitch } = this.input.getLookDelta();
     this.lastDeltaYaw = deltaYaw;
     this.lastDeltaPitch = deltaPitch;
@@ -177,10 +188,16 @@ export class Player {
     const maxPitch = (85 * Math.PI) / 180;
     this.targetPitch = Math.max(-maxPitch, Math.min(maxPitch, this.targetPitch));
 
-    // Smooth exponential damping
-    const smoothFactor = Math.min(1.0, deltaTime * 28.0);
-    this.yaw += (this.targetYaw - this.yaw) * smoothFactor;
-    this.pitch += (this.targetPitch - this.pitch) * smoothFactor;
+    // Pointer-lock desktop mouse look is direct and instantaneous (zero lag)
+    // Touch controls use smooth damping
+    if (this.input.isPointerLocked) {
+      this.yaw = this.targetYaw;
+      this.pitch = this.targetPitch;
+    } else {
+      const smoothFactor = Math.min(1.0, deltaTime * 36.0);
+      this.yaw += (this.targetYaw - this.yaw) * smoothFactor;
+      this.pitch += (this.targetPitch - this.pitch) * smoothFactor;
+    }
 
     // 2. Crouch & Slide Input Processing
     if (this.slideCooldown > 0) {
@@ -188,33 +205,32 @@ export class Player {
     }
 
     const move = this.input.getMoveVector();
-    const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    _forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
 
     // Check Slide Activation ('Ctrl' key)
+    const wantsSlide = (this.input.checkAndConsumeSlide && this.input.checkAndConsumeSlide());
     if (
-      this.input.checkAndConsumeSlide &&
-      this.input.checkAndConsumeSlide() &&
+      wantsSlide &&
       this.isGrounded &&
       this.slideCooldown <= 0
     ) {
       this.isSliding = true;
       this.slideTimer = 0;
-      this.slideCooldown = 0.5;
       this.isCrouching = false;
       if (this.input.setCrouching) {
         this.input.setCrouching(false);
       }
 
-      const moveDir = new THREE.Vector3()
-        .addScaledVector(right, move.x)
-        .addScaledVector(forward, -move.z);
+      _moveDir.set(0, 0, 0)
+        .addScaledVector(_right, move.x)
+        .addScaledVector(_forward, -move.z);
 
-      if (moveDir.lengthSq() > 0.001) {
-        moveDir.normalize();
-        this.slideDirection.copy(moveDir);
+      if (_moveDir.lengthSq() > 0.001) {
+        _moveDir.normalize();
+        this.slideDirection.copy(_moveDir);
       } else {
-        this.slideDirection.copy(forward).normalize();
+        this.slideDirection.copy(_forward).normalize();
       }
 
       if (this.audio && this.audio.playSlide) {
@@ -258,14 +274,14 @@ export class Player {
         this.isGrounded = false;
         this.isSliding = false;
         this.slideRoll = 0;
-        this.slideCooldown = 0.5;
+        this.slideCooldown = 5.0; // 5-second cooldown
         if (this.audio && this.audio.playJump) {
           this.audio.playJump();
         }
       } else if (this.slideTimer >= this.slideDuration) {
         this.isSliding = false;
         this.slideRoll = 0;
-        this.slideCooldown = 0.5;
+        this.slideCooldown = 5.0; // 5-second cooldown
         if (this.input.isCrouching && this.input.isCrouching()) {
           this.isCrouching = true;
         }
@@ -277,15 +293,15 @@ export class Player {
         ? this.crouchSpeed
         : (isSprinting ? this.sprintSpeed : this.walkSpeed);
 
-      const moveDir = new THREE.Vector3()
-        .addScaledVector(right, move.x)
-        .addScaledVector(forward, -move.z);
+      _moveDir.set(0, 0, 0)
+        .addScaledVector(_right, move.x)
+        .addScaledVector(_forward, -move.z);
 
-      isMoving = moveDir.lengthSq() > 0.001;
+      isMoving = _moveDir.lengthSq() > 0.001;
       if (isMoving) {
-        moveDir.normalize();
-        this.velocity.x = moveDir.x * currentSpeed;
-        this.velocity.z = moveDir.z * currentSpeed;
+        _moveDir.normalize();
+        this.velocity.x = _moveDir.x * currentSpeed;
+        this.velocity.z = _moveDir.z * currentSpeed;
       } else {
         this.velocity.x = 0;
         this.velocity.z = 0;

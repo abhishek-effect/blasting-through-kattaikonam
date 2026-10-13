@@ -61,25 +61,31 @@ export class EnemySpawner {
   spawnZoneEnemies(zone) {
     ensureAtLeastOneEnemyType();
     const roster = ASSET_PATHS.enemies.types;
-    let allRosterKeys = Object.keys(roster);
+
+    // Shoot Shoot Shoot mode: Exclusively no-background PNGs (exclude all JPGs)
+    const isPngSprite = (item) => {
+      if (!item || !item.sprite) return false;
+      const s = item.sprite.toLowerCase();
+      if (s.endsWith('.jpg') || s.endsWith('.jpeg')) return false;
+      return s.endsWith('.png') || s.startsWith('data:image/png') || s.startsWith('data:');
+    };
+
+    let pngKeys = Object.keys(roster).filter((k) => isPngSprite(roster[k]));
+    if (pngKeys.length === 0) {
+      pngKeys = Object.keys(roster);
+    }
 
     for (let i = 0; i < zone.count; i++) {
-      allRosterKeys = Object.keys(roster);
-      if (allRosterKeys.length === 0) {
-        ensureAtLeastOneEnemyType();
-        allRosterKeys = Object.keys(roster);
-      }
-
       let validTypes = (zone.allowedTypes && !zone.allowedTypes.includes('all'))
-        ? zone.allowedTypes.filter((t) => roster[t])
-        : allRosterKeys;
+        ? zone.allowedTypes.filter((t) => roster[t] && isPngSprite(roster[t]))
+        : pngKeys;
 
       if (validTypes.length === 0) {
-        validTypes = allRosterKeys;
+        validTypes = pngKeys;
       }
 
       const typeKey = validTypes[Math.floor(Math.random() * validTypes.length)];
-      const typeConfig = roster[typeKey] || roster[allRosterKeys[0]];
+      const typeConfig = roster[typeKey] || roster[pngKeys[0]];
 
       this.instanceCounter++;
       const instanceId = `${typeKey}_${String(this.instanceCounter).padStart(3, '0')}`;
@@ -152,8 +158,8 @@ export class EnemySpawner {
     // 2. Soft separation between active enemies so they don't overlap
     this.resolveEnemySeparation();
 
-    // 3. Update each active enemy instance
-    for (let i = 0; i < this.enemies.length; i++) {
+    // 3. Update each active enemy instance (and garbage-collect fully dead instances)
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
 
       enemy.update(deltaTime, player.position, (dmg, sourcePos) => {
@@ -164,25 +170,35 @@ export class EnemySpawner {
       if (enemy.isDead && !enemy._deathHandled) {
         this.handleEnemyKill(enemy, player);
       }
+
+      // Cleanup fully dead enemy after death animation completes (prevents array bloat)
+      if (enemy.isDead && enemy.deathTimer > 1.3) {
+        enemy.destroy();
+        this.enemies.splice(i, 1);
+      }
     }
   }
 
   resolveEnemySeparation() {
     const minDist = 1.1;
+    const minDistSq = minDist * minDist;
     for (let i = 0; i < this.enemies.length; i++) {
+      const e1 = this.enemies[i];
+      if (e1.isDead) continue;
       for (let j = i + 1; j < this.enemies.length; j++) {
-        const e1 = this.enemies[i];
         const e2 = this.enemies[j];
-        if (e1.isDead || e2.isDead) continue;
+        if (e2.isDead) continue;
 
         const dx = e2.position.x - e1.position.x;
         const dz = e2.position.z - e1.position.z;
-        const dist = Math.hypot(dx, dz);
+        const distSq = dx * dx + dz * dz;
 
-        if (dist > 0 && dist < minDist) {
-          const overlap = (minDist - dist) / 2;
-          const nx = dx / dist;
-          const nz = dz / dist;
+        if (distSq > 0 && distSq < minDistSq) {
+          const dist = Math.sqrt(distSq);
+          const overlap = (minDist - dist) * 0.5;
+          const invDist = 1 / dist;
+          const nx = dx * invDist;
+          const nz = dz * invDist;
 
           e1.position.x -= nx * overlap;
           e1.position.z -= nz * overlap;

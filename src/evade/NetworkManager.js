@@ -430,6 +430,7 @@ export class NetworkManager {
         if (this.onRemotePlayerUpdate) {
           this.onRemotePlayerUpdate(data);
         }
+        this.broadcast(data, conn.peer);
         break;
       }
 
@@ -467,6 +468,12 @@ export class NetworkManager {
           this.isGameRunning = true;
           if (this.onGameStart) {
             this.onGameStart(data);
+          }
+          break;
+
+        case MSG_TYPES.CLIENT_UPDATE:
+          if (this.onRemotePlayerUpdate) {
+            this.onRemotePlayerUpdate(data);
           }
           break;
 
@@ -545,10 +552,12 @@ export class NetworkManager {
    */
   startMatch() {
     this.isGameRunning = true;
+    const isSolo = (!this.isHost) ? false : (this.connections.size <= 1);
 
     const payload = {
       type: MSG_TYPES.GAME_START,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isSolo
     };
 
     if (this.isHost) {
@@ -575,6 +584,7 @@ export class NetworkManager {
       if (this.onRemotePlayerUpdate) {
         this.onRemotePlayerUpdate(payload);
       }
+      this.broadcast(payload);
     } else if (this.hostConn && this.hostConn.open) {
       this.hostConn.send(payload);
     }

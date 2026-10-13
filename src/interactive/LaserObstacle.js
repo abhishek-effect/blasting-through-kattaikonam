@@ -8,6 +8,9 @@
 import * as THREE from 'three';
 import { ASSET_PATHS, loadTexture } from '../config/assets.js';
 
+// Pre-allocated static vector for laser zap damage source (0 allocations)
+const _laserHitPos = new THREE.Vector3();
+
 export class LaserObstacle {
   constructor(scene, audio, config = {}) {
     this.scene = scene;
@@ -43,10 +46,14 @@ export class LaserObstacle {
 
     const emitter1 = new THREE.Mesh(mountGeo, launcherMat);
     emitter1.position.set(this.x1, this.y, this.z1);
+    emitter1.matrixAutoUpdate = false;
+    emitter1.updateMatrix();
     this.group.add(emitter1);
 
     const emitter2 = new THREE.Mesh(mountGeo, launcherMat);
     emitter2.position.set(this.x2, this.y, this.z2);
+    emitter2.matrixAutoUpdate = false;
+    emitter2.updateMatrix();
     this.group.add(emitter2);
 
     // 2. Glowing Laser Beam spanning emitter1 and emitter2
@@ -76,12 +83,16 @@ export class LaserObstacle {
     const beamMeshA = new THREE.Mesh(beamPlaneGeo, this.beamMat);
     beamMeshA.position.set(midX, this.y, midZ);
     beamMeshA.rotation.y = -angle;
+    beamMeshA.matrixAutoUpdate = false;
+    beamMeshA.updateMatrix();
     this.group.add(beamMeshA);
 
     const beamMeshB = new THREE.Mesh(beamPlaneGeo, this.beamMat);
     beamMeshB.position.set(midX, this.y, midZ);
     beamMeshB.rotation.y = -angle;
     beamMeshB.rotation.x = Math.PI / 2;
+    beamMeshB.matrixAutoUpdate = false;
+    beamMeshB.updateMatrix();
     this.group.add(beamMeshB);
 
     // Core bright hot beam line
@@ -95,6 +106,8 @@ export class LaserObstacle {
     coreMesh.position.set(midX, this.y, midZ);
     coreMesh.rotation.z = Math.PI / 2;
     coreMesh.rotation.y = -angle;
+    coreMesh.matrixAutoUpdate = false;
+    coreMesh.updateMatrix();
     this.group.add(coreMesh);
 
     // 3. Ambient warning light
@@ -156,7 +169,8 @@ export class LaserObstacle {
       if (feetY < (this.y + 0.06)) {
         // Player failed to jump over or touched the beam -> Zap!
         this.cooldownTimer = this.damageCooldown;
-        player.takeDamage(this.damage, new THREE.Vector3(closestX, this.y, closestZ));
+        _laserHitPos.set(closestX, this.y, closestZ);
+        player.takeDamage(this.damage, _laserHitPos);
         if (this.audio && this.audio.playLaserZap) {
           this.audio.playLaserZap();
         }
