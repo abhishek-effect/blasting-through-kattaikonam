@@ -143,6 +143,7 @@ export class EvadeHUD {
             </div>
           </div>
           <div class="voting-footer">
+            <button id="btn-vote-confirm" class="voting-confirm-btn">▶ CONFIRM & START NOW</button>
             <span class="voting-tiebreaker-note">⚖️ If votes are equal, Host's choice decides the winner.</span>
             <div id="voting-result-banner" class="voting-result-banner hidden"></div>
           </div>
@@ -187,6 +188,7 @@ export class EvadeHUD {
     this.votingCountEscape = document.getElementById('voting-count-escape');
     this.votingCountSurvive = document.getElementById('voting-count-survive');
     this.votingResultBanner = document.getElementById('voting-result-banner');
+    this.btnVoteConfirm = document.getElementById('btn-vote-confirm');
   }
 
   show() {
@@ -432,14 +434,25 @@ export class EvadeHUD {
    * Displays the 10-second In-Game Sub-Mode Voting Phase Modal
    * @param {number} duration Countdown duration in seconds (default 10)
    * @param {Function} onVoteSelect Callback when player picks 'escape' or 'survive'
+   * @param {Function} onConfirmNow Callback when player clicks 'CONFIRM & START NOW'
    */
-  showVotingModal(duration = 10, onVoteSelect = null) {
+  showVotingModal(duration = 10, onVoteSelect = null, onConfirmNow = null) {
     if (!this.votingModalEl) return;
     this.votingModalEl.classList.remove('hidden');
 
     if (this.votingResultBanner) {
       this.votingResultBanner.classList.add('hidden');
       this.votingResultBanner.textContent = '';
+    }
+
+    if (this.btnVoteConfirm) {
+      this.btnVoteConfirm.disabled = false;
+      this.btnVoteConfirm.classList.remove('hidden');
+      this.btnVoteConfirm.onclick = (e) => {
+        e.stopPropagation();
+        this.btnVoteConfirm.disabled = true;
+        if (onConfirmNow) onConfirmNow();
+      };
     }
 
     if (this.btnVoteEscape) {
@@ -521,6 +534,7 @@ export class EvadeHUD {
 
     if (this.btnVoteEscape) this.btnVoteEscape.disabled = true;
     if (this.btnVoteSurvive) this.btnVoteSurvive.disabled = true;
+    if (this.btnVoteConfirm) this.btnVoteConfirm.classList.add('hidden');
 
     const isEscape = winnerMode === 'escape';
     if (this.votingCountdownEl) {

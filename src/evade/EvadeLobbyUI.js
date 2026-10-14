@@ -63,6 +63,9 @@ export class EvadeLobbyUI {
 
             <div id="host-unhosted-section">
               <button id="btn-create-room" class="lobby-action-btn primary-btn">★ HOST A NEW GAME</button>
+              <button id="btn-start-solo-unhosted" class="lobby-action-btn solo-btn" style="margin-top: 10px; background: linear-gradient(135deg, #27ae60, #2ecc71); border-color: #2ecc71; font-weight: bold; letter-spacing: 1px;">
+                🕹️ SOLO PRACTICE RUN
+              </button>
             </div>
 
             <div id="host-room-info" class="host-room-info hidden">
@@ -160,6 +163,7 @@ export class EvadeLobbyUI {
     this.hostPlayersList = document.getElementById('host-players-list');
     this.btnStartMatch = document.getElementById('btn-start-match');
     this.btnStartSolo = document.getElementById('btn-start-solo');
+    this.btnStartSoloUnhosted = document.getElementById('btn-start-solo-unhosted');
     this.btnHostLeave = document.getElementById('btn-host-leave');
 
     this.joinInputSection = document.getElementById('join-input-section');
@@ -234,10 +238,24 @@ export class EvadeLobbyUI {
     });
 
     // Solo Practice Run
-    this.btnStartSolo.addEventListener('click', () => {
+    const triggerSolo = () => {
+      const name = this.nameInput.value.trim() || 'Survivor';
+      this.savedName = name;
+      localStorage.setItem('kattaikonam_player_name', this.savedName);
+      if (this.networkManager) {
+        this.networkManager.localPlayerName = name;
+        this.networkManager.isHost = true;
+      }
       this.hide();
       this.networkManager.startVotingPhase(true);
-    });
+    };
+
+    if (this.btnStartSoloUnhosted) {
+      this.btnStartSoloUnhosted.addEventListener('click', triggerSolo);
+    }
+    if (this.btnStartSolo) {
+      this.btnStartSolo.addEventListener('click', triggerSolo);
+    }
 
     // Client Join Room
     this.btnJoinRoom.addEventListener('click', async () => {
@@ -303,18 +321,6 @@ export class EvadeLobbyUI {
     // Hook NetworkManager events
     this.networkManager.onLobbyUpdate = (players, canStart) => {
       this.updatePlayersList(players, canStart);
-    };
-
-    this.networkManager.onVotingStart = (payload) => {
-      this.hide();
-      const isSolo = payload && !!payload.isSolo;
-      if (this.onStartMatch) this.onStartMatch(isSolo);
-    };
-
-    this.networkManager.onGameStart = (payload) => {
-      this.hide();
-      const isSolo = payload && !!payload.isSolo;
-      if (this.onStartMatch) this.onStartMatch(isSolo);
     };
   }
 
@@ -437,6 +443,9 @@ export class EvadeLobbyUI {
     if (this.btnCreateRoom) {
       this.btnCreateRoom.disabled = false;
       this.btnCreateRoom.textContent = '★ HOST A NEW GAME';
+    }
+    if (this.btnStartSoloUnhosted) {
+      this.btnStartSoloUnhosted.disabled = false;
     }
     if (this.displayRoomCode) this.displayRoomCode.textContent = '-----';
     if (this.joinCodeInput) this.joinCodeInput.value = '';

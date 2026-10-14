@@ -448,17 +448,22 @@ export class Game {
     const rawDelta = this.clock.getDelta();
     const deltaTime = Math.min(rawDelta, 0.1);
 
-    if (this.gameState.isPlaying()) {
-      if (this.evadeGame && this.evadeGame.isActive && this.evadeGame.isMatchRunning) {
-        // --- EVADE MULTIPLAYER MODE ---
+    const isEvade = this.evadeGame && this.evadeGame.isActive;
+
+    if (isEvade) {
+      // --- EVADE MULTIPLAYER MODE ---
+      // Player updates when actively playing
+      if (this.gameState.isPlaying()) {
         this.player.update(deltaTime);
-        this.evadeGame.update(deltaTime);
-        if (this.level && this.level.update) {
-          this.level.update(deltaTime, this.player.position);
-        }
-        this.interactionSystem.update(this.player, this.input);
-      } else {
-        // --- SHOOT SHOOT SHOOT MODE (PRESERVED UNTOUCHED) ---
+      }
+      // Evade match & voting phase MUST tick continuously, even if menu is open
+      this.evadeGame.update(deltaTime);
+      if (this.level && this.level.update) {
+        this.level.update(deltaTime, this.player.position);
+      }
+      this.interactionSystem.update(this.player, this.input);
+    } else if (this.gameState.isPlaying()) {
+      // --- SHOOT SHOOT SHOOT MODE (PRESERVED UNTOUCHED) ---
         const activeItem = this.player.getActiveItem();
 
         // 1. Check Reload Input (for weapons)
@@ -550,16 +555,6 @@ export class Game {
         }
         this.interactionSystem.update(this.player, this.input);
       }
-    } else if (this.gameState.current === STATES.PAUSED && this.gameState.currentMode === GAME_MODES.PLAY) {
-      // In online Play mode, when Menu is open, keep network simulation, player physics, and bots alive
-      if (this.evadeGame && this.evadeGame.isActive && this.evadeGame.isMatchRunning) {
-        this.player.update(deltaTime);
-        this.evadeGame.update(deltaTime);
-        if (this.level && this.level.update) {
-          this.level.update(deltaTime, this.player.position);
-        }
-      }
-    }
 
     // 9. Update HUD
     this.hud.update(deltaTime, this.player, this.grenadeManager, this.camera);

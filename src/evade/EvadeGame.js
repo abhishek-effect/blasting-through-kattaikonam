@@ -273,19 +273,49 @@ export class EvadeGame {
     this.hud.show();
 
     // Show the 10-second In-Game Sub-Mode Voting Modal
-    this.hud.showVotingModal(payload.duration || 10, (mode) => {
-      this.network.sendVote(mode);
-    });
+    this.hud.showVotingModal(
+      payload.duration || 10,
+      (mode) => {
+        this.network.sendVote(mode);
+      },
+      () => {
+        // Instant skip/confirm if player doesn't want to wait
+        if (this.network.isHost || this.isSoloMatch) {
+          if (this.votingTimeout) {
+            clearTimeout(this.votingTimeout);
+            this.votingTimeout = null;
+          }
+          this.isVotingPhase = false;
+          this.network.finishVotingPhase(this.isSoloMatch);
+        }
+      }
+    );
 
-    // Enter playing state and lock pointer
-    this.gameState.setState(STATES.PLAYING);
-    this.input.requestPointerLock();
+    // Keep cursor free during voting so players can click cards/buttons easily
+    if (document.exitPointerLock) {
+      try { document.exitPointerLock(); } catch (e) {}
+    }
+
+    // Safety wall-clock timer ensures voting NEVER hangs indefinitely
+    if (this.network.isHost || this.isSoloMatch) {
+      if (this.votingTimeout) clearTimeout(this.votingTimeout);
+      this.votingTimeout = setTimeout(() => {
+        if (this.isVotingPhase) {
+          this.isVotingPhase = false;
+          this.network.finishVotingPhase(this.isSoloMatch);
+        }
+      }, ((payload.duration || 10) * 1000) + 250);
+    }
   }
 
   /**
    * Callback when voting phase concludes (after 10s)
    */
   onVotingDecided(payload) {
+    if (this.votingTimeout) {
+      clearTimeout(this.votingTimeout);
+      this.votingTimeout = null;
+    }
     this.isVotingPhase = false;
     const mode = payload.mode || 'escape';
     const surviveDuration = payload.surviveDuration || 120;
@@ -380,14 +410,22 @@ export class EvadeGame {
 
     // 1. Voting Phase Update
     if (this.isVotingPhase) {
-      // Host Authoritative Countdown ticker
+      this.votingTimer -= deltaTime;
+      this.hud.updateVotingCountdown(this.votingTimer);
+
       if (this.network.isHost || this.isSoloMatch) {
-        this.votingTimer -= deltaTime;
-        this.hud.updateVotingCountdown(this.votingTimer);
         if (this.votingTimer <= 0) {
+          if (this.votingTimeout) {
+            clearTimeout(this.votingTimeout);
+            this.votingTimeout = null;
+          }
           this.isVotingPhase = false;
           this.network.finishVotingPhase(this.isSoloMatch);
         }
+      } else if (this.votingTimer <= -3.0) {
+        // Safety fallback for client if host dropped out during voting
+        this.isVotingPhase = false;
+        this.onVotingDecided({ mode: 'escape', surviveDuration: 120, isSolo: false });
       }
       return; // Do NOT update nextbots or combat during voting phase!
     }
@@ -809,6 +847,10 @@ export class EvadeGame {
     this.isVotingPhase = false;
     this.isMatchRunning = false;
     this.isElevatorEscaping = false;
+    if (this.votingTimeout) {
+      clearTimeout(this.votingTimeout);
+      this.votingTimeout = null;
+    }
     document.body.classList.remove('evade-mode');
     this.hud.hide();
     this.hud.hideVotingModal();

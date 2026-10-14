@@ -604,7 +604,9 @@ export class NetworkManager {
    * Host starts the 10-second voting phase for all connected peers
    */
   startVotingPhase(isSolo = false) {
-    if (!this.isHost) {
+    if (isSolo) {
+      this.isHost = true;
+    } else if (!this.isHost) {
       console.warn('[NetworkManager] Only the host can start the game.');
       return;
     }
@@ -631,7 +633,11 @@ export class NetworkManager {
    * Host tallies votes and broadcasts the winning sub-mode to all connected peers
    */
   finishVotingPhase(isSolo = false) {
-    if (!this.isHost) return;
+    if (isSolo) {
+      this.isHost = true;
+    } else if (!this.isHost) {
+      return;
+    }
     const summary = this.getVotesSummary();
     const winningMode = summary.winner;
     const playerCount = Math.max(1, this.connections.size);
