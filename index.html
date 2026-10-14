@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Blasting Through Kattaikonam - Retro FPS</title>
   <link rel="icon" type="image/png" href="./favicon.png" />
-  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-QQKOKPYb.js"></script>
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-DI7wY75q.js"></script>
   <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-BjboqPVj.js">
-  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-CHFYh7V8.css">
+  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-BpL0Ps1b.css">
 </head>
 <body>
   <div id="game-container">
@@ -185,6 +185,7 @@
         <div class="menu-buttons-list">
           <button id="btn-menu-play" class="menu-btn play-btn">▶ PLAY</button>
           <button id="btn-menu-shoot" class="menu-btn shoot-btn">💥 SHOOT SHOOT SHOOT</button>
+          <button id="btn-menu-howtoplay" class="menu-btn">📖 HOW TO PLAY</button>
           <button id="btn-menu-options" class="menu-btn">⚙ OPTIONS</button>
           <button id="btn-menu-credits" class="menu-btn">📜 CREDITS</button>
         </div>
@@ -194,6 +195,7 @@
       <div id="pause-menu-view" class="menu-view hidden">
         <div class="menu-buttons-list">
           <button id="btn-pause-resume" class="menu-btn primary-btn">▶ RESUME GAME</button>
+          <button id="btn-pause-howtoplay" class="menu-btn">📖 HOW TO PLAY</button>
           <button id="btn-pause-options" class="menu-btn">⚙ OPTIONS</button>
           <button id="btn-pause-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
         </div>
@@ -207,7 +209,46 @@
         </div>
       </div>
 
-      <!-- 4. Options & Settings View -->
+      <!-- 4. How To Play View -->
+      <div id="howtoplay-view" class="menu-view hidden">
+        <h2 class="view-title">HOW TO PLAY</h2>
+        <div class="howtoplay-scroll-box">
+          <div class="howtoplay-section">
+            <h3 class="howtoplay-heading">🎮 GAME MODES</h3>
+            <div class="howtoplay-card">
+              <h4>🏃 EVADE: ESCAPE MODE</h4>
+              <p>Explore the campus to search for keys that unlock locked laboratory doors. Find the Master Key to unlock the Seminar Hall. Gather your squad inside to obtain the photocopy in hand, then run to the West Wing elevator and escape!</p>
+            </div>
+            <div class="howtoplay-card">
+              <h4>⏱️ EVADE: SURVIVE MODE</h4>
+              <p>All campus doors and the Seminar Hall are unlocked from the start! Work together to survive the relentless Evil Santhomites for 2 to 3 minutes (coordinated countdown). Stay fast, revive fallen friends, and survive until 00:00!</p>
+            </div>
+            <div class="howtoplay-card">
+              <h4>💥 SHOOT SHOOT SHOOT MODE</h4>
+              <p>Retro FPS action! Use your AK-47, Pistol, and Grenades to blast campus enemies. Eliminate 20 enemies to clear the lockdown on the Seminar Hall!</p>
+            </div>
+          </div>
+
+          <div class="howtoplay-section">
+            <h3 class="howtoplay-heading">⌨️ CONTROLS & MECHANICS</h3>
+            <div class="howtoplay-grid">
+              <div class="control-pill"><b>WASD</b>: Move</div>
+              <div class="control-pill"><b>Shift</b>: Sprint</div>
+              <div class="control-pill"><b>Ctrl</b>: Slide (5s cooldown)</div>
+              <div class="control-pill"><b>V</b>: Rear-View Camera</div>
+              <div class="control-pill"><b>E</b>: Interact / Revive (Hold 2.5s)</div>
+              <div class="control-pill"><b>Space</b>: Jump</div>
+              <div class="control-pill"><b>Left Click</b>: Shoot / Use</div>
+              <div class="control-pill"><b>1, 2, 3</b>: Switch Weapons</div>
+              <div class="control-pill"><b>G</b>: Throw Grenade</div>
+              <div class="control-pill"><b>Esc / P</b>: Pause Menu</div>
+            </div>
+          </div>
+        </div>
+        <button id="btn-howtoplay-back" class="menu-btn back-btn">← BACK</button>
+      </div>
+
+      <!-- 5. Options & Settings View -->
       <div id="options-view" class="menu-view hidden">
         <h2 class="view-title">GAME OPTIONS</h2>
 
@@ -219,8 +260,9 @@
           <input type="range" id="slider-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0" class="sens-slider" />
         </div>
 
-        <!-- Audio & Gameplay Settings -->
+        <!-- Audio & Display Settings -->
         <div class="options-audio-row">
+          <button id="btn-toggle-fullscreen" class="menu-sub-btn">🖥️ FULLSCREEN: OFF</button>
           <button id="btn-toggle-bgm" class="menu-sub-btn">🎵 MUSIC: ON</button>
           <button id="btn-toggle-sfx" class="menu-sub-btn">🔊 SOUND: ON</button>
           <button id="btn-toggle-taunts" class="menu-sub-btn">💀 KILL TAUNTS: ON</button>
@@ -236,7 +278,8 @@
               <li><b>Left Click</b>: Fire weapon / Use medkit</li>
               <li><b>1, 2, 3</b>: Switch (Rifle, Pistol, Medkit)</li>
               <li><b>G</b>: Throw Grenade (Drops every 3 kills)</li>
-              <li><b>E</b>: Interact / Elevator</li>
+              <li><b>E</b>: Interact / Elevator / Revive</li>
+              <li><b>V</b>: Look behind (Rear View)</li>
               <li><b>Shift</b>: Sprint | <b>C</b>: Crouch | <b>Ctrl</b>: Slide</li>
               <li><b>R</b>: Reload | <b>P / Esc</b>: Pause</li>
             </ul>
@@ -246,12 +289,13 @@
             <ul>
               <li><b>Left Thumbstick</b>: Move</li>
               <li><b>Right Half Drag</b>: Aim & Look</li>
+              <li><b>👀 REAR Button</b>: Look behind</li>
               <li><b>⬆️ Button</b>: Leap over laser traps</li>
               <li><b>Tap Gun / Picture</b>: Switch weapons</li>
               <li><b>💥 FIRE Button</b>: Shoot / Use item</li>
               <li><b>🔄️ Button</b>: Reload weapon</li>
               <li><b>💣 G Button</b>: Throw Grenade</li>
-              <li><b>USE [E]</b>: Elevator interaction</li>
+              <li><b>USE [E]</b>: Elevator / Revive</li>
               <li><b>RUN Button</b>: Toggle sprint</li>
               <li><b>CROUCH Button</b>: Crouch / Slide</li>
               <li><b>⏸️ Button</b>: Pause menu</li>
@@ -259,20 +303,10 @@
           </div>
         </div>
 
-        <!-- Dynamic Enemy Photo Uploader -->
-        <div id="photo-upload-section" class="photo-upload-container">
-          <label for="enemy-photo-input" class="btn-upload-photo" id="lbl-upload-photo">
-            📸 UPLOAD CUSTOM ENEMY PHOTO (PNG / JPG)
-          </label>
-          <input type="file" id="enemy-photo-input" accept="image/*" multiple style="display: none;" />
-          <span id="upload-status" class="upload-status-text"></span>
-          <div id="roster-preview" class="roster-preview-row"></div>
-        </div>
-
         <button id="btn-options-back" class="menu-btn back-btn">← BACK</button>
       </div>
 
-      <!-- 5. Credits View (reads from credits.txt) -->
+      <!-- 6. Credits View (reads from credits.txt) -->
       <div id="credits-view" class="menu-view hidden">
         <h2 class="view-title">CREDITS</h2>
         <div class="credits-box">
