@@ -556,6 +556,7 @@ export class LevelGenerator {
     const seatGeo = new THREE.BoxGeometry(0.46, 0.05, 0.46).translate(0, 0.45, 0);
     const backGeo = new THREE.BoxGeometry(0.44, 0.32, 0.04).translate(0, 0.68, -0.20);
     const chairCushionGeo = mergeGeometries([seatGeo, backGeo]);
+    chairCushionGeo.rotateY(Math.PI);
 
     const strutGeos = [-0.16, 0.16].map((sx) => new THREE.BoxGeometry(0.03, 0.24, 0.03).translate(sx, 0.54, -0.20));
     const chairLegGeos = [
@@ -565,6 +566,7 @@ export class LevelGenerator {
       [0.18, 0.18],
     ].map(([cx, cz]) => new THREE.BoxGeometry(0.04, 0.42, 0.04).translate(cx, 0.21, cz));
     const chairFrameGeo = mergeGeometries([...strutGeos, ...chairLegGeos]);
+    chairFrameGeo.rotateY(Math.PI);
 
     const tableFrameInstanced = new THREE.InstancedMesh(tableFrameGeo, tableFrameMat, 30);
     const csTableTopInstanced = new THREE.InstancedMesh(tableTopGeo, csTableMat, 6);
@@ -731,13 +733,13 @@ export class LevelGenerator {
     // 1. LIBRARY BOOKSHELVES (5 Bookshelves matching library-reference.png)
     const bookshelfConfigs = [
       // Top bookshelf to the right of the library door
-      { id: 'lib_shelf_door_right', x: 88.0, z: 83.6, rotY: 0, w: 2.4, d: 0.6, h: 2.3 },
+      { id: 'lib_shelf_door_right', x: 89.0, z: 83.48, rotY: 0, w: 2.1, d: 0.44, h: 2.4 },
       // Left wall (West wall) - top and bottom
-      { id: 'lib_shelf_west_top', x: 66.8, z: 87.0, rotY: Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
-      { id: 'lib_shelf_west_bot', x: 66.8, z: 96.0, rotY: Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
+      { id: 'lib_shelf_west_top', x: 66.48, z: 88.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
+      { id: 'lib_shelf_west_bot', x: 66.48, z: 96.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
       // Right wall (East wall) - top and bottom
-      { id: 'lib_shelf_east_top', x: 99.2, z: 87.0, rotY: -Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 },
-      { id: 'lib_shelf_east_bot', x: 99.2, z: 96.0, rotY: -Math.PI / 2, w: 2.4, d: 0.6, h: 2.3 }
+      { id: 'lib_shelf_east_top', x: 99.52, z: 88.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
+      { id: 'lib_shelf_east_bot', x: 99.52, z: 96.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 }
     ];
 
     // Colors for procedural books
@@ -830,7 +832,7 @@ export class LevelGenerator {
           const tBox = new THREE.Box3().setFromObject(template);
           const tSize = tBox.getSize(new THREE.Vector3());
           const tCenter = tBox.getCenter(new THREE.Vector3());
-          const targetH = 2.3;
+          const targetH = 2.4;
           const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 1.0;
 
           bookshelfConfigs.forEach((cfg) => {
@@ -838,10 +840,15 @@ export class LevelGenerator {
             shelfClone.scale.setScalar(scale);
             shelfClone.position.set(-tCenter.x * scale, -tBox.min.y * scale, -tCenter.z * scale);
 
+            const alignGroup = new THREE.Group();
+            alignGroup.rotation.y = -Math.PI / 2;
+            alignGroup.scale.set(1.0, 1.0, 1.6);
+            alignGroup.add(shelfClone);
+
             const rig = new THREE.Group();
             rig.position.set(cfg.x, 0, cfg.z);
             rig.rotation.y = cfg.rotY;
-            rig.add(shelfClone);
+            rig.add(alignGroup);
 
             if (cfg._procMesh) {
               cfg._procMesh.visible = false;
@@ -862,9 +869,9 @@ export class LevelGenerator {
     // 2. PHYSICS LAB WARDROBES (2 Wardrobes matching phy-lab-reference.png)
     const wardrobeConfigs = [
       // Top-left wardrobe
-      { id: 'phy_wardrobe_top', x: 35.8, z: 2.8, rotY: Math.PI / 2, w: 1.8, d: 0.8, h: 2.3 },
+      { id: 'phy_wardrobe_top', x: 35.70, z: 3.6, rotY: Math.PI / 2, w: 2.0, d: 0.85, h: 2.95 },
       // Bottom-left wardrobe
-      { id: 'phy_wardrobe_bot', x: 35.8, z: 11.2, rotY: Math.PI / 2, w: 1.8, d: 0.8, h: 2.3 }
+      { id: 'phy_wardrobe_bot', x: 35.70, z: 11.2, rotY: Math.PI / 2, w: 2.0, d: 0.85, h: 2.95 }
     ];
 
     wardrobeConfigs.forEach((cfg) => {
@@ -916,18 +923,40 @@ export class LevelGenerator {
           const tBox = new THREE.Box3().setFromObject(fbx);
           const tSize = tBox.getSize(new THREE.Vector3());
           const tCenter = tBox.getCenter(new THREE.Vector3());
-          const targetH = 2.3;
-          const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 0.01;
+          const targetH = 2.95;
+          const targetW = 2.0;
+          const targetD = 0.85;
+
+          const sX = (tSize.x > 0.01) ? (targetD / tSize.x) : 0.01;
+          const sY = (tSize.y > 0.01) ? (targetH / tSize.y) : 0.01;
+          const sZ = (tSize.z > 0.01) ? (targetW / tSize.z) : 0.01;
 
           wardrobeConfigs.forEach((cfg) => {
             const wardClone = fbx.clone(true);
-            wardClone.scale.setScalar(scale);
-            wardClone.position.set(-tCenter.x * scale, -tBox.min.y * scale, -tCenter.z * scale);
+            wardClone.scale.copy(fbx.scale).multiply(new THREE.Vector3(sX, sY, sZ));
+            wardClone.position.set(-tCenter.x * sX, -tBox.min.y * sY, -tCenter.z * sZ);
+
+            // Enhance materials with polished teak wood and brass handles
+            wardClone.traverse((c) => {
+              if (c.isMesh) {
+                c.castShadow = true;
+                c.receiveShadow = true;
+                if (c.name && c.name.startsWith('Box00')) {
+                  c.material = brassMat;
+                } else {
+                  c.material = teakWoodMat;
+                }
+              }
+            });
+
+            const alignGroup = new THREE.Group();
+            alignGroup.rotation.y = Math.PI / 2;
+            alignGroup.add(wardClone);
 
             const rig = new THREE.Group();
             rig.position.set(cfg.x, 0, cfg.z);
             rig.rotation.y = cfg.rotY;
-            rig.add(wardClone);
+            rig.add(alignGroup);
 
             if (cfg._procMesh) {
               cfg._procMesh.visible = false;
@@ -947,7 +976,7 @@ export class LevelGenerator {
 
     // 3. PHYSICS LAB WHITEBOARD (West wall near teacher's table, matching phy-lab-reference.png)
     const wbConfig = {
-      x: 35.08, z: 7.0, rotY: Math.PI / 2, w: 2.8, h: 1.5, d: 0.12
+      x: 35.25, z: 7.0, rotY: Math.PI / 2, w: 2.4, h: 1.5, d: 0.08
     };
 
     const wbGroup = new THREE.Group();
@@ -994,8 +1023,8 @@ export class LevelGenerator {
 
     // AABB Collider for Whiteboard frame
     const wbBox = new THREE.Box3();
-    wbBox.min.set(wbConfig.x - 0.15, 0, wbConfig.z - 1.4);
-    wbBox.max.set(wbConfig.x + 0.15, 2.7, wbConfig.z + 1.4);
+    wbBox.min.set(35.29, 0, wbConfig.z - 1.05);
+    wbBox.max.set(35.87, 2.0, wbConfig.z + 1.05);
     this.colliders.push(wbBox);
 
     // Asynchronously load 3D whiteboard.obj
@@ -1004,17 +1033,27 @@ export class LevelGenerator {
       objLoader.load(
         assetUrl('/models/whiteboard.obj'),
         (obj) => {
+          // Keep only object '01' (the rolling whiteboard), remove drafting boards ('02', '02.1')
+          const toRemove = [];
+          obj.children.forEach((c) => {
+            if (c.name !== '01') {
+              c.visible = false;
+              toRemove.push(c);
+            }
+          });
+          toRemove.forEach((c) => obj.remove(c));
+
           const tBox = new THREE.Box3().setFromObject(obj);
           const tSize = tBox.getSize(new THREE.Vector3());
           const tCenter = tBox.getCenter(new THREE.Vector3());
-          const targetH = 1.6;
+          const targetH = 1.95;
           const scale = (tSize.y > 0.01) ? (targetH / tSize.y) : 0.01;
 
           obj.scale.setScalar(scale);
-          obj.position.set(-tCenter.x * scale, -tBox.min.y * scale + 1.1, -tCenter.z * scale);
+          obj.position.set(-tCenter.x * scale, -tBox.min.y * scale, -tCenter.z * scale);
 
           const rig = new THREE.Group();
-          rig.position.set(wbConfig.x, 0, wbConfig.z);
+          rig.position.set(35.58, 0, wbConfig.z);
           rig.rotation.y = wbConfig.rotY;
           rig.add(obj);
 
