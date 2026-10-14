@@ -28,6 +28,7 @@ export class InputManager {
       Digit3: false,
       Space: false,
       KeyC: false,
+      KeyV: false,
       ControlLeft: false,
       ControlRight: false,
     };
@@ -36,6 +37,7 @@ export class InputManager {
     this.crouchActive = false;
     this.crouchKeyDownTime = 0;
     this.slideRequested = false;
+    this.isLookBehindActive = false;
 
     // Virtual joystick state
     this.joystick = {
@@ -148,6 +150,8 @@ export class InputManager {
       } else if (e.code === 'KeyC') {
         this.crouchKeyDownTime = performance.now();
         this.crouchActive = !this.crouchActive;
+      } else if (e.code === 'KeyV') {
+        this.isLookBehindActive = !this.isLookBehindActive;
       } else if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
         this.slideRequested = true;
         if (e.cancelable && this.isPointerLocked) {
@@ -384,11 +388,28 @@ export class InputManager {
       }, { passive: false });
     }
 
-    // 7. Interact button
+    // 7. Interact button (supports tap for interact & hold for revive [E])
     if (btnInteract) {
       btnInteract.addEventListener('touchstart', (e) => {
         e.preventDefault();
         this.interactRequested = true;
+        this.keys.KeyE = true;
+      }, { passive: false });
+      const releaseInteract = (e) => {
+        e.preventDefault();
+        this.keys.KeyE = false;
+      };
+      btnInteract.addEventListener('touchend', releaseInteract, { passive: false });
+      btnInteract.addEventListener('touchcancel', releaseInteract, { passive: false });
+    }
+
+    // 8. Mobile Rear View (Look Behind) button
+    const btnRearview = document.getElementById('btn-mobile-rearview');
+    if (btnRearview) {
+      btnRearview.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.isLookBehindActive = !this.isLookBehindActive;
+        btnRearview.classList.toggle('active', this.isLookBehindActive);
       }, { passive: false });
     }
   }

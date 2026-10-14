@@ -11,62 +11,221 @@
  */
 import * as THREE from 'three';
 
-export const KEY_CHAIN = [
-  {
-    step: 0,
-    id: 'key_infirmary',
-    name: 'INFIRMARY KEY',
-    doorId: 'door_infirmary',
-    doorName: 'INFIRMARY',
-    pos: new THREE.Vector3(34, 0.8, 80), // South Central Corridor near spawn
-    hint: 'Search South Hall near spawn for the Infirmary Key'
-  },
-  {
-    step: 1,
-    id: 'key_computer_lab',
-    name: 'COMPUTER LAB KEY',
-    doorId: 'door_computer_lab',
-    doorName: 'COMPUTER LAB',
-    pos: new THREE.Vector3(7, 0.8, 22), // Inside School Infirmary
-    hint: 'Enter Infirmary to locate the Computer Lab Key'
-  },
-  {
-    step: 2,
-    id: 'key_bio_lab',
-    name: 'BIOLOGY LAB KEY',
-    doorId: 'door_bio_lab',
-    doorName: 'BIOLOGY LAB',
-    pos: new THREE.Vector3(7, 0.8, 57), // Inside Computer Lab
-    hint: 'Search Computer Lab tables for Biology Lab Key'
-  },
-  {
-    step: 3,
-    id: 'key_phy_lab',
-    name: 'PHYSICS LAB KEY',
-    doorId: 'door_phy_lab',
-    doorName: 'PHYSICS LAB',
-    pos: new THREE.Vector3(7, 0.8, 75), // Inside Biology Lab
-    hint: 'Search Biology Lab counter for Physics Lab Key'
-  },
-  {
-    step: 4,
-    id: 'key_library',
-    name: 'CAMPUS LIBRARY KEY',
-    doorId: 'door_library',
-    doorName: 'CAMPUS LIBRARY',
-    pos: new THREE.Vector3(50, 0.8, 8), // Inside Physics Lab
-    hint: 'Search Physics Lab workbenches for Library Key'
-  },
-  {
-    step: 5,
-    id: 'key_seminar_hall',
-    name: 'SEMINAR HALL KEY',
-    doorId: 'door_seminar_gate',
-    doorName: 'SEMINAR HALL',
-    pos: new THREE.Vector3(83, 0.8, 91), // Deep inside Campus Library
-    hint: 'Locate the Master Seminar Hall Key in Campus Library!'
+export function getKeyChain(playerCount = 1) {
+  if (playerCount >= 4) {
+    // 9 keys chain for 4+ players: Infirmary -> Computer Lab -> Bio Lab -> Board Room -> Locked Room -> Unlockable Room -> Phy Lab -> Library -> Seminar Hall
+    return [
+      {
+        step: 0,
+        id: 'key_infirmary',
+        name: 'INFIRMARY KEY',
+        doorId: 'door_infirmary',
+        doorName: 'INFIRMARY',
+        pos: new THREE.Vector3(34, 0.8, 80),
+        hint: 'Unlock seminar hall by obtaining its key! First find Infirmary Key in South Hall'
+      },
+      {
+        step: 1,
+        id: 'key_computer_lab',
+        name: 'COMPUTER LAB KEY',
+        doorId: 'door_computer_lab',
+        doorName: 'COMPUTER LAB',
+        pos: new THREE.Vector3(7, 0.8, 22),
+        hint: 'Enter Infirmary to locate the Computer Lab Key'
+      },
+      {
+        step: 2,
+        id: 'key_bio_lab',
+        name: 'BIOLOGY LAB KEY',
+        doorId: 'door_bio_lab',
+        doorName: 'BIOLOGY LAB',
+        pos: new THREE.Vector3(7, 0.8, 57),
+        hint: 'Search Computer Lab tables for Biology Lab Key'
+      },
+      {
+        step: 3,
+        id: 'key_board_room',
+        name: 'BOARD ROOM KEY',
+        doorId: 'door_board_room',
+        doorName: 'BOARD ROOM',
+        pos: new THREE.Vector3(7, 0.8, 75),
+        hint: 'Search Biology Lab for Board Room Key'
+      },
+      {
+        step: 4,
+        id: 'key_locked_room',
+        name: 'FACULTY ARCHIVES KEY',
+        doorId: 'door_locked_room',
+        doorName: 'FACULTY ARCHIVES',
+        pos: new THREE.Vector3(55, 0.8, 92),
+        hint: 'Search Board Room conference table for Archives Key'
+      },
+      {
+        step: 5,
+        id: 'key_unlockable_room',
+        name: 'NORTH SUITE KEY',
+        doorId: 'door_unlockable_room',
+        doorName: 'NORTH SUITE',
+        pos: new THREE.Vector3(72, 0.8, 7),
+        hint: 'Search Faculty Archives for North Suite Key'
+      },
+      {
+        step: 6,
+        id: 'key_phy_lab',
+        name: 'PHYSICS LAB KEY',
+        doorId: 'door_phy_lab',
+        doorName: 'PHYSICS LAB',
+        pos: new THREE.Vector3(91, 0.8, 7),
+        hint: 'Search North Suite for Physics Lab Key'
+      },
+      {
+        step: 7,
+        id: 'key_library',
+        name: 'CAMPUS LIBRARY KEY',
+        doorId: 'door_library',
+        doorName: 'CAMPUS LIBRARY',
+        pos: new THREE.Vector3(48, 0.8, 8),
+        hint: 'Search Physics Lab workbenches for Library Key'
+      },
+      {
+        step: 8,
+        id: 'key_seminar_hall',
+        name: 'SEMINAR HALL KEY',
+        doorId: 'door_seminar_gate',
+        doorName: 'SEMINAR HALL',
+        pos: new THREE.Vector3(83, 0.8, 91),
+        hint: 'Locate Master Seminar Hall Key in Campus Library!'
+      }
+    ];
+  } else if (playerCount === 3) {
+    // 7 keys chain for 3 players: Infirmary -> Computer Lab -> Bio Lab -> Board Room -> Phy Lab -> Library -> Seminar Hall
+    return [
+      {
+        step: 0,
+        id: 'key_infirmary',
+        name: 'INFIRMARY KEY',
+        doorId: 'door_infirmary',
+        doorName: 'INFIRMARY',
+        pos: new THREE.Vector3(34, 0.8, 80),
+        hint: 'Unlock seminar hall by obtaining its key! First find Infirmary Key in South Hall'
+      },
+      {
+        step: 1,
+        id: 'key_computer_lab',
+        name: 'COMPUTER LAB KEY',
+        doorId: 'door_computer_lab',
+        doorName: 'COMPUTER LAB',
+        pos: new THREE.Vector3(7, 0.8, 22),
+        hint: 'Enter Infirmary to locate the Computer Lab Key'
+      },
+      {
+        step: 2,
+        id: 'key_bio_lab',
+        name: 'BIOLOGY LAB KEY',
+        doorId: 'door_bio_lab',
+        doorName: 'BIOLOGY LAB',
+        pos: new THREE.Vector3(7, 0.8, 57),
+        hint: 'Search Computer Lab tables for Biology Lab Key'
+      },
+      {
+        step: 3,
+        id: 'key_board_room',
+        name: 'BOARD ROOM KEY',
+        doorId: 'door_board_room',
+        doorName: 'BOARD ROOM',
+        pos: new THREE.Vector3(7, 0.8, 75),
+        hint: 'Search Biology Lab for Board Room Key'
+      },
+      {
+        step: 4,
+        id: 'key_phy_lab',
+        name: 'PHYSICS LAB KEY',
+        doorId: 'door_phy_lab',
+        doorName: 'PHYSICS LAB',
+        pos: new THREE.Vector3(55, 0.8, 92),
+        hint: 'Search Board Room for Physics Lab Key'
+      },
+      {
+        step: 5,
+        id: 'key_library',
+        name: 'CAMPUS LIBRARY KEY',
+        doorId: 'door_library',
+        doorName: 'CAMPUS LIBRARY',
+        pos: new THREE.Vector3(48, 0.8, 8),
+        hint: 'Search Physics Lab workbenches for Library Key'
+      },
+      {
+        step: 6,
+        id: 'key_seminar_hall',
+        name: 'SEMINAR HALL KEY',
+        doorId: 'door_seminar_gate',
+        doorName: 'SEMINAR HALL',
+        pos: new THREE.Vector3(83, 0.8, 91),
+        hint: 'Locate Master Seminar Hall Key in Campus Library!'
+      }
+    ];
+  } else {
+    // 1-2 players default 6 keys chain
+    return [
+      {
+        step: 0,
+        id: 'key_infirmary',
+        name: 'INFIRMARY KEY',
+        doorId: 'door_infirmary',
+        doorName: 'INFIRMARY',
+        pos: new THREE.Vector3(34, 0.8, 80),
+        hint: 'Unlock seminar hall by obtaining its key! First find Infirmary Key in South Hall'
+      },
+      {
+        step: 1,
+        id: 'key_computer_lab',
+        name: 'COMPUTER LAB KEY',
+        doorId: 'door_computer_lab',
+        doorName: 'COMPUTER LAB',
+        pos: new THREE.Vector3(7, 0.8, 22),
+        hint: 'Enter Infirmary to locate Computer Lab Key'
+      },
+      {
+        step: 2,
+        id: 'key_bio_lab',
+        name: 'BIOLOGY LAB KEY',
+        doorId: 'door_bio_lab',
+        doorName: 'BIOLOGY LAB',
+        pos: new THREE.Vector3(7, 0.8, 57),
+        hint: 'Search Computer Lab tables for Biology Lab Key'
+      },
+      {
+        step: 3,
+        id: 'key_phy_lab',
+        name: 'PHYSICS LAB KEY',
+        doorId: 'door_phy_lab',
+        doorName: 'PHYSICS LAB',
+        pos: new THREE.Vector3(7, 0.8, 75),
+        hint: 'Search Biology Lab counter for Physics Lab Key'
+      },
+      {
+        step: 4,
+        id: 'key_library',
+        name: 'CAMPUS LIBRARY KEY',
+        doorId: 'door_library',
+        doorName: 'CAMPUS LIBRARY',
+        pos: new THREE.Vector3(48, 0.8, 8),
+        hint: 'Search Physics Lab workbenches for Library Key'
+      },
+      {
+        step: 5,
+        id: 'key_seminar_hall',
+        name: 'SEMINAR HALL KEY',
+        doorId: 'door_seminar_gate',
+        doorName: 'SEMINAR HALL',
+        pos: new THREE.Vector3(83, 0.8, 91),
+        hint: 'Locate Master Seminar Hall Key in Campus Library!'
+      }
+    ];
   }
-];
+}
+
+export const KEY_CHAIN = getKeyChain(1);
 
 export class KeyProgression {
   constructor(scene, level, nextbotManager, audio) {
@@ -75,15 +234,19 @@ export class KeyProgression {
     this.nextbotManager = nextbotManager;
     this.audio = audio;
 
+    this.playerCount = 1;
+    this.keyChain = getKeyChain(1);
     this.currentStep = 0;
     this.activeKeyMesh = null;
     this.activeKeyData = null;
     this.escapeZoneMesh = null;
     this.isSeminarUnlocked = false;
+    this.hasPhotocopyGranted = false;
 
     // Callbacks
     this.onKeyCollected = null;
     this.onRoomUnlocked = null;
+    this.onPhotocopyObtained = null;
     this.onEscapeTriggered = null;
 
     // Build Key Geometries & Materials
@@ -98,8 +261,8 @@ export class KeyProgression {
       emissiveIntensity: 0.4
     });
 
-    // Escape Zone Beacon
-    this.escapeZonePos = new THREE.Vector3(77.5, 0, 46.5); // Inside Seminar Hall Auditorium Stage
+    // Seminar Hall Gathering Zone Beacon (Stage)
+    this.escapeZonePos = new THREE.Vector3(77.5, 0, 46.5);
     this.escapeRadius = 7.5;
   }
 
@@ -115,17 +278,38 @@ export class KeyProgression {
     }
     this.currentStep = 0;
     this.isSeminarUnlocked = false;
+    this.hasPhotocopyGranted = false;
   }
 
   /**
-   * Initializes or resets key hunt progression
+   * Initializes progression for Survive Mode (all rooms unlocked, no keys needed)
    */
-  initProgression() {
+  initSurviveMode() {
     this.reset();
+    if (this.level && this.level.doors) {
+      this.level.doors.forEach((d) => {
+        d.isLocked = false;
+        d.setOpen(true);
+      });
+    }
+    if (this.level && this.level.unlockSeminarGate) {
+      this.level.unlockSeminarGate();
+    }
+    this.isSeminarUnlocked = true;
+    this.hasPhotocopyGranted = true;
+  }
+
+  /**
+   * Initializes key hunt progression for Escape Mode based on player count
+   */
+  initProgression(playerCount = 1) {
+    this.reset();
+    this.playerCount = playerCount;
+    this.keyChain = getKeyChain(playerCount);
 
     // 1. Lock all relevant room doors
     if (this.level && this.level.doors) {
-      KEY_CHAIN.forEach((kc) => {
+      this.keyChain.forEach((kc) => {
         const door = this.level.doors.find((d) => d.id === kc.doorId);
         if (door) {
           door.setOpen(false);
@@ -149,13 +333,13 @@ export class KeyProgression {
       this.activeKeyMesh = null;
     }
 
-    if (step >= KEY_CHAIN.length) {
+    if (step >= this.keyChain.length) {
       this.activeKeyData = null;
       return;
     }
 
     this.currentStep = step;
-    const kc = KEY_CHAIN[step];
+    const kc = this.keyChain[step];
     this.activeKeyData = kc;
 
     // Build 3D Key Model
@@ -263,8 +447,8 @@ export class KeyProgression {
       }
     }
 
-    // 2. Animate and check escape zone
-    if (this.isSeminarUnlocked && this.escapeZoneMesh) {
+    // 2. Animate and check Seminar Hall gathering zone for photocopy
+    if (this.isSeminarUnlocked && !this.hasPhotocopyGranted && this.escapeZoneMesh) {
       this.escapeZoneMesh.rotation.y += deltaTime * 0.4;
 
       if (playerPosition) {
@@ -272,7 +456,17 @@ export class KeyProgression {
           this.escapeZonePos.x - playerPosition.x,
           this.escapeZonePos.z - playerPosition.z
         );
-        if (d <= this.escapeRadius) {
+        const inSeminarHall = playerPosition.x >= 55 && playerPosition.x <= 100 && playerPosition.z >= 27 && playerPosition.z <= 66;
+
+        if (d <= this.escapeRadius || inSeminarHall) {
+          this.hasPhotocopyGranted = true;
+          if (this.escapeZoneMesh) {
+            this.scene.remove(this.escapeZoneMesh);
+            this.escapeZoneMesh = null;
+          }
+          if (this.onPhotocopyObtained) {
+            this.onPhotocopyObtained();
+          }
           if (onEscapeCallback) {
             onEscapeCallback();
           }
@@ -301,7 +495,7 @@ export class KeyProgression {
       this.onKeyCollected(collectedKey, nextStep);
     }
 
-    if (nextStep < KEY_CHAIN.length) {
+    if (nextStep < this.keyChain.length) {
       this.spawnKeyForStep(nextStep);
     } else {
       // All keys found! Seminar Hall is unlocked
@@ -320,7 +514,7 @@ export class KeyProgression {
       this.createEscapeZone();
 
       if (this.nextbotManager) {
-        this.nextbotManager.onRoomUnlocked(KEY_CHAIN.length);
+        this.nextbotManager.onRoomUnlocked(this.keyChain.length);
       }
       if (this.onRoomUnlocked) {
         this.onRoomUnlocked('SEMINAR HALL', true);
@@ -347,12 +541,15 @@ export class KeyProgression {
   }
 
   getCurrentObjectiveText() {
+    if (this.hasPhotocopyGranted) {
+      return '🏃 USE PHOTOCOPY AT WEST ELEVATOR TO ESCAPE!';
+    }
     if (this.isSeminarUnlocked) {
-      return '★ SEMINAR HALL OPEN! RUN INSIDE TO ESCAPE!';
+      return '★ SEMINAR HALL OPEN! ALL SURVIVORS ENTER TO GET PHOTOCOPY!';
     }
     if (this.activeKeyData) {
       return `🔑 OBJECTIVE: ${this.activeKeyData.hint}`;
     }
-    return 'SURVIVE AND ESCAPE';
+    return 'Unlock seminar hall by obtaining its key!';
   }
 }

@@ -3,8 +3,9 @@
  * Renders the PeerJS peer-to-peer multiplayer lobby modal:
  * - Enter Player Name
  * - Create Room (Host) with Shareable Room Code & Link
- * - Join Room (Client)
- * - Waiting room showing connected peers list (Minimum 2 players requirement)
+ * - Join Room (Client) with Available Matches real-time discovery
+ * - Survive vs Escape Sub-Mode Voting
+ * - Waiting room showing connected peers list
  * - Solo Practice Run option for immediate testing
  */
 export class EvadeLobbyUI {
@@ -22,6 +23,7 @@ export class EvadeLobbyUI {
     this.savedName = localStorage.getItem('kattaikonam_player_name') || `Survivor_${Math.floor(Math.random() * 899 + 100)}`;
     this.buildMarkup();
     this.initEvents();
+    this.initAvailableMatches();
 
     // Check if URL has ?room=CODE
     const urlParams = new URLSearchParams(window.location.search);
@@ -72,6 +74,22 @@ export class EvadeLobbyUI {
               <span id="players-counter-text">Players in lobby: 1 (Min 2 required)</span>
             </div>
 
+            <!-- Mode Voting Section (Host) -->
+            <div class="lobby-vote-section">
+              <div class="vote-title">VOTE GAME SUB-MODE:</div>
+              <div class="vote-buttons-row">
+                <button id="host-vote-escape" class="lobby-vote-btn active" data-mode="escape">
+                  <span>🏃 ESCAPE</span>
+                  <span id="host-count-escape" class="vote-count">(1)</span>
+                </button>
+                <button id="host-vote-survive" class="lobby-vote-btn" data-mode="survive">
+                  <span>⏱️ SURVIVE</span>
+                  <span id="host-count-survive" class="vote-count">(0)</span>
+                </button>
+              </div>
+              <div id="host-vote-desc" class="vote-desc">Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.</div>
+            </div>
+
             <div class="players-list-box">
               <div class="list-title">CONNECTED SURVIVORS:</div>
               <div id="host-players-list" class="players-list"></div>
@@ -94,18 +112,46 @@ export class EvadeLobbyUI {
         <!-- Tab 2: Join Room View -->
         <div id="view-join-room" class="lobby-tab-view hidden">
           <div id="join-input-section">
-            <p class="tab-desc">Enter your friend's 5-letter Room Code to connect directly via WebRTC.</p>
+            <p class="tab-desc">Enter your friend's 5-letter Room Code or select from available matches below.</p>
             <div class="lobby-field-row">
               <input type="text" id="join-room-code-input" class="lobby-input uppercase" maxlength="8" placeholder="ENTER ROOM CODE (e.g. K9X2A)" />
               <button id="btn-join-room" class="lobby-action-btn primary-btn" style="margin-top: 10px;">
                 🔗 CONNECT TO HOST
               </button>
             </div>
+
+            <!-- Available Matches Section -->
+            <div class="available-matches-box">
+              <div class="available-matches-header">
+                <span class="matches-title">AVAILABLE MATCHES</span>
+                <button id="btn-refresh-matches" class="lobby-small-btn">🔄 REFRESH</button>
+              </div>
+              <div id="available-matches-list" class="available-matches-list">
+                <div style="font-size: 11px; color: #888; padding: 6px;">Searching for live matches...</div>
+              </div>
+            </div>
           </div>
 
           <div id="client-wait-box" class="client-wait-box hidden">
             <div class="connecting-spinner">⏳</div>
             <div id="client-wait-status" class="client-wait-status">Connecting to Host...</div>
+
+            <!-- Mode Voting Section (Client) -->
+            <div class="lobby-vote-section">
+              <div class="vote-title">VOTE GAME SUB-MODE:</div>
+              <div class="vote-buttons-row">
+                <button id="client-vote-escape" class="lobby-vote-btn active" data-mode="escape">
+                  <span>🏃 ESCAPE</span>
+                  <span id="client-count-escape" class="vote-count">(1)</span>
+                </button>
+                <button id="client-vote-survive" class="lobby-vote-btn" data-mode="survive">
+                  <span>⏱️ SURVIVE</span>
+                  <span id="client-count-survive" class="vote-count">(0)</span>
+                </button>
+              </div>
+              <div id="client-vote-desc" class="vote-desc">Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.</div>
+            </div>
+
             <div class="players-list-box" style="margin-top: 10px;">
               <div class="list-title">LOBBY PLAYERS:</div>
               <div id="client-players-list" class="players-list"></div>
@@ -141,9 +187,25 @@ export class EvadeLobbyUI {
     this.btnStartSolo = document.getElementById('btn-start-solo');
     this.btnHostLeave = document.getElementById('btn-host-leave');
 
+    // Vote buttons
+    this.hostVoteEscape = document.getElementById('host-vote-escape');
+    this.hostVoteSurvive = document.getElementById('host-vote-survive');
+    this.hostCountEscape = document.getElementById('host-count-escape');
+    this.hostCountSurvive = document.getElementById('host-count-survive');
+    this.hostVoteDesc = document.getElementById('host-vote-desc');
+
+    this.clientVoteEscape = document.getElementById('client-vote-escape');
+    this.clientVoteSurvive = document.getElementById('client-vote-survive');
+    this.clientCountEscape = document.getElementById('client-count-escape');
+    this.clientCountSurvive = document.getElementById('client-count-survive');
+    this.clientVoteDesc = document.getElementById('client-vote-desc');
+
     this.joinInputSection = document.getElementById('join-input-section');
     this.joinCodeInput = document.getElementById('join-room-code-input');
     this.btnJoinRoom = document.getElementById('btn-join-room');
+    this.availableMatchesList = document.getElementById('available-matches-list');
+    this.btnRefreshMatches = document.getElementById('btn-refresh-matches');
+
     this.clientWaitBox = document.getElementById('client-wait-box');
     this.clientWaitStatus = document.getElementById('client-wait-status');
     this.clientPlayersList = document.getElementById('client-players-list');
@@ -162,7 +224,14 @@ export class EvadeLobbyUI {
     });
 
     this.tabHost.addEventListener('click', () => this.switchTab('host'));
-    this.tabJoin.addEventListener('click', () => this.switchTab('join'));
+    this.tabJoin.addEventListener('click', () => {
+      this.switchTab('join');
+      this.refreshAvailableMatches();
+    });
+
+    if (this.btnRefreshMatches) {
+      this.btnRefreshMatches.addEventListener('click', () => this.refreshAvailableMatches());
+    }
 
     // Host Create Room
     this.btnCreateRoom.addEventListener('click', async () => {
@@ -211,6 +280,16 @@ export class EvadeLobbyUI {
       this.hide();
       this.networkManager.startMatch();
     });
+
+    // Voting Buttons
+    const handleVote = (mode) => {
+      this.networkManager.sendVote(mode);
+    };
+
+    if (this.hostVoteEscape) this.hostVoteEscape.addEventListener('click', () => handleVote('escape'));
+    if (this.hostVoteSurvive) this.hostVoteSurvive.addEventListener('click', () => handleVote('survive'));
+    if (this.clientVoteEscape) this.clientVoteEscape.addEventListener('click', () => handleVote('escape'));
+    if (this.clientVoteSurvive) this.clientVoteSurvive.addEventListener('click', () => handleVote('survive'));
 
     // Client Join Room
     this.btnJoinRoom.addEventListener('click', async () => {
@@ -264,11 +343,106 @@ export class EvadeLobbyUI {
       this.updatePlayersList(players, canStart);
     };
 
+    this.networkManager.onVoteUpdate = (votes) => {
+      this.updateVotes(votes);
+    };
+
     this.networkManager.onGameStart = (payload) => {
       this.hide();
       const isSolo = payload && !!payload.isSolo;
-      if (this.onStartMatch) this.onStartMatch(isSolo);
+      const mode = (payload && payload.mode) ? payload.mode : 'escape';
+      if (this.onStartMatch) this.onStartMatch(isSolo, mode);
     };
+  }
+
+  updateVotes(votes) {
+    if (!votes) return;
+    const isSurvive = votes.winner === 'survive';
+
+    const updateSet = (btnEsc, btnSurv, countEsc, countSurv, desc) => {
+      if (btnEsc && btnSurv) {
+        btnEsc.classList.toggle('active', !isSurvive);
+        btnSurv.classList.toggle('active', isSurvive);
+        btnSurv.classList.toggle('survive', isSurvive);
+      }
+      if (countEsc) countEsc.textContent = `(${votes.escape || 0})`;
+      if (countSurv) countSurv.textContent = `(${votes.survive || 0})`;
+      if (desc) {
+        desc.textContent = isSurvive
+          ? 'Survive: All doors unlocked! Survive 2-3 mins against Evil Santhomites to win.'
+          : 'Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.';
+      }
+    };
+
+    updateSet(this.hostVoteEscape, this.hostVoteSurvive, this.hostCountEscape, this.hostCountSurvive, this.hostVoteDesc);
+    updateSet(this.clientVoteEscape, this.clientVoteSurvive, this.clientCountEscape, this.clientCountSurvive, this.clientVoteDesc);
+  }
+
+  initAvailableMatches() {
+    this.refreshAvailableMatches();
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const bc = new BroadcastChannel('btk_evade_network');
+        bc.onmessage = (e) => {
+          if (e.data && (e.data.type === 'LOBBY_HEARTBEAT' || e.data.type === 'LOBBY_CLOSED')) {
+            this.refreshAvailableMatches();
+          }
+        };
+      } catch (e) {}
+    }
+
+    setInterval(() => {
+      if (!this.container.classList.contains('hidden') && !this.viewJoin.classList.contains('hidden')) {
+        this.refreshAvailableMatches();
+      }
+    }, 2000);
+  }
+
+  refreshAvailableMatches() {
+    if (!this.availableMatchesList) return;
+
+    let activeRooms = {};
+    try {
+      activeRooms = JSON.parse(localStorage.getItem('btk_active_rooms') || '{}');
+    } catch (e) {}
+
+    const now = Date.now();
+    const rooms = Object.values(activeRooms).filter((r) => r && r.roomCode && (now - r.timestamp < 5500));
+
+    // Exclude own hosted room
+    const filtered = rooms.filter((r) => r.roomCode !== this.networkManager.roomCode);
+
+    if (filtered.length === 0) {
+      this.availableMatchesList.innerHTML = `
+        <div style="font-size: 11px; color: #888; padding: 6px; text-align: center;">
+          No active matches found. Host a game or enter a code above!
+        </div>
+      `;
+      return;
+    }
+
+    this.availableMatchesList.innerHTML = '';
+    filtered.forEach((r) => {
+      const item = document.createElement('div');
+      item.className = 'available-match-item';
+      item.innerHTML = `
+        <div>
+          <div class="match-item-code">${r.roomCode}</div>
+          <div class="match-item-host">Host: ${r.hostName || 'Survivor'}</div>
+        </div>
+        <div>
+          <div class="match-item-count">${r.playerCount || 1} Players</div>
+        </div>
+        <button class="btn-quick-join" data-code="${r.roomCode}">🔗 JOIN</button>
+      `;
+      const btn = item.querySelector('.btn-quick-join');
+      btn.addEventListener('click', () => {
+        this.joinCodeInput.value = r.roomCode;
+        this.btnJoinRoom.click();
+      });
+      this.availableMatchesList.appendChild(item);
+    });
   }
 
   switchTab(tab) {
@@ -284,6 +458,7 @@ export class EvadeLobbyUI {
       this.tabHost.classList.remove('active');
       this.viewJoin.classList.remove('hidden');
       this.viewHost.classList.add('hidden');
+      this.refreshAvailableMatches();
     }
   }
 
@@ -308,7 +483,7 @@ export class EvadeLobbyUI {
     const renderList = (el) => {
       if (!el) return;
       el.innerHTML = '';
-      players.forEach((p, idx) => {
+      players.forEach((p) => {
         const item = document.createElement('div');
         item.className = 'lobby-player-row';
         item.innerHTML = `
@@ -359,14 +534,15 @@ export class EvadeLobbyUI {
       this.btnStartMatch.classList.remove('disabled');
       this.btnStartMatch.textContent = '▶ START GAME NOW';
     }
+    this.updateVotes({ escape: 1, survive: 0, winner: 'escape' });
   }
 
   show() {
     this.container.classList.remove('hidden');
+    this.refreshAvailableMatches();
   }
 
   hide() {
     this.container.classList.add('hidden');
   }
 }
-

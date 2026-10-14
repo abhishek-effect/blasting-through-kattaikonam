@@ -4,6 +4,8 @@
  * Pre-computes all noise and audio buffers ahead of time to eliminate audio thread lag spikes
  * during combat, shooting, grenade throwing, sliding, and medkit use.
  */
+import { ASSET_PATHS } from '../config/assets.js';
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
@@ -669,5 +671,53 @@ export class AudioManager {
       source.connect(filter);
       filter.connect(gain);
     });
+  }
+
+  /**
+   * Plays sequential elevator ride audio followed by elevator arrived audio
+   * @param {Function} onArrived Callback when arrival chime completes
+   */
+  playElevatorSequence(onArrived = null) {
+    this.ensureContext();
+    const rideUrl = ASSET_PATHS.audio.elevatorRide;
+    const arrivedUrl = ASSET_PATHS.audio.elevatorArrived;
+
+    const rideAudio = new Audio(rideUrl);
+    const arrivedAudio = new Audio(arrivedUrl);
+
+    const effVol = (this.isMuted || this.sfxMuted) ? 0 : this.sfxVolume;
+    rideAudio.volume = effVol;
+    arrivedAudio.volume = effVol;
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (onArrived) onArrived();
+    };
+
+    rideAudio.addEventListener('ended', () => {
+      arrivedAudio.play().catch(() => {});
+      arrivedAudio.addEventListener('ended', finish, { once: true });
+      // Fallback in case ended does not fire
+      setTimeout(finish, 4000);
+    }, { once: true });
+
+    // Safety timeout in case ride audio fails to play
+    rideAudio.play().catch((err) => {
+      console.warn('[AudioManager] Elevator ride audio play error:', err);
+      arrivedAudio.play().catch(() => {});
+      setTimeout(finish, 2500);
+    });
+
+    // If ride takes longer than 6 seconds, transition to arrived
+    setTimeout(() => {
+      if (!finished && !arrivedAudio.played.length) {
+        try { rideAudio.pause(); } catch (e) {}
+        arrivedAudio.play().catch(() => {});
+        arrivedAudio.addEventListener('ended', finish, { once: true });
+        setTimeout(finish, 3500);
+      }
+    }, 6000);
   }
 }

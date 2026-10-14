@@ -333,7 +333,9 @@ export class Game {
       } else if (newState === STATES.GAME_OVER || newState === STATES.VICTORY) {
         this.audio.stopBGM();
       } else if (newState === STATES.PAUSED) {
-        this.audio.pauseBGM();
+        if (!this.evadeGame || !this.evadeGame.isActive) {
+          this.audio.pauseBGM();
+        }
       } else if (newState === STATES.MENU) {
         this.audio.pauseBGM();
         if (this.evadeGame && this.evadeGame.isActive) {
@@ -549,9 +551,13 @@ export class Game {
         this.interactionSystem.update(this.player, this.input);
       }
     } else if (this.gameState.current === STATES.PAUSED && this.gameState.currentMode === GAME_MODES.PLAY) {
-      // In online Play mode, when Menu is open, keep network simulation and peers alive
+      // In online Play mode, when Menu is open, keep network simulation, player physics, and bots alive
       if (this.evadeGame && this.evadeGame.isActive && this.evadeGame.isMatchRunning) {
+        this.player.update(deltaTime);
         this.evadeGame.update(deltaTime);
+        if (this.level && this.level.update) {
+          this.level.update(deltaTime, this.player.position);
+        }
       }
     }
 

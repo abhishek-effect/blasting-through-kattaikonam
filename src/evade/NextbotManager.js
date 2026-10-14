@@ -18,6 +18,14 @@ export const EVIL_SANTHOMITE_TYPES = [
   { id: 'adesh', name: 'Adesh', img: assetUrl('/images/enemies/adesh.jpg'), color: '#ff9f1a' },
   { id: 'aswin', name: 'Aswin', img: assetUrl('/images/enemies/aswin.jpg'), color: '#7158e2' },
   { id: 'dipu', name: 'Dipu', img: assetUrl('/images/enemies/dipu.jpg'), color: '#17c0eb' },
+  { id: 'aahil', name: 'Aahil', img: assetUrl('/images/enemies/aahil.jpg'), color: '#ff4757' },
+  { id: 'eshan', name: 'Eshan', img: assetUrl('/images/enemies/Eshan.jpg'), color: '#2ed573' },
+  { id: 'johann', name: 'Johann', img: assetUrl('/images/enemies/johann.jpg'), color: '#ffa502' },
+  { id: 'ligin', name: 'Ligin', img: assetUrl('/images/enemies/ligin.jpg'), color: '#1e90ff' },
+  { id: 'mahadev', name: 'Mahadev', img: assetUrl('/images/enemies/mahadev.jpg'), color: '#ff6348' },
+  { id: 'ritul', name: 'Ritul', img: assetUrl('/images/enemies/ritul.jpg'), color: '#e056fd' },
+  { id: 'ryan', name: 'Ryan', img: assetUrl('/images/enemies/ryan.jpg'), color: '#f0932b' },
+  { id: 'sijinil', name: 'Sijinil', img: assetUrl('/images/enemies/sijinil.jpg'), color: '#00d2d3' },
 ];
 
 export const NEXTBOT_TYPES = EVIL_SANTHOMITE_TYPES;
@@ -34,6 +42,7 @@ export class EvilSanthomiteManager {
     this.level = level;
     this.isHost = true;
     this.isMultiplayer = false;
+    this.playerCount = 1;
 
     // Active Nextbot instances: Array of Nextbot objects
     this.bots = [];
@@ -53,15 +62,22 @@ export class EvilSanthomiteManager {
     // Spawning bounds / locations safely placed in open corridors away from keys & locked rooms
     this.spawnPoints = [
       new THREE.Vector3(31, 0, 48),  // Central Atrium open floor
-      new THREE.Vector3(48, 0, 24),  // North Central Hallway (outside Physics Lab, far from locked rooms)
+      new THREE.Vector3(48, 0, 24),  // North Central Hallway (outside Physics Lab)
       new THREE.Vector3(20, 0, 40),  // West Corridor (outside elevator, open hallway)
       new THREE.Vector3(50, 0, 68),  // East Hallway (outside Seminar Gate)
       new THREE.Vector3(34, 0, 68),  // South Central Hallway
+      new THREE.Vector3(20, 0, 65),  // West South Corridor
+      new THREE.Vector3(31, 0, 32),  // Central North Hallway
+      new THREE.Vector3(40, 0, 85),  // South Hallway Approach
     ];
 
     // Proximity audio state
     this.proximityVolume = 0;
     this.closestDistance = 999;
+  }
+
+  getMaxBots() {
+    return Math.max(2, this.playerCount * 2);
   }
 
   getTexture(imgPath) {
@@ -89,12 +105,16 @@ export class EvilSanthomiteManager {
   }
 
   /**
-   * Spawns exactly 2 initial Nextbots at start of match (Abhishek and Adesh)
+   * Spawns exactly 2 initial Nextbots chosen randomly from the 12 JPG enemies
    */
   spawnInitialBots() {
     this.reset();
-    this.spawnBot(0, this.spawnPoints[0]);
-    this.spawnBot(1, this.spawnPoints[1]);
+    const available = NEXTBOT_TYPES.map((_, i) => i);
+    const idx1 = available.splice(Math.floor(Math.random() * available.length), 1)[0];
+    const idx2 = available.splice(Math.floor(Math.random() * available.length), 1)[0];
+
+    this.spawnBot(idx1, this.spawnPoints[0]);
+    this.spawnBot(idx2, this.spawnPoints[1 % this.spawnPoints.length]);
   }
 
   spawnInitialBot() {
@@ -102,7 +122,29 @@ export class EvilSanthomiteManager {
   }
 
   /**
-   * Called when a room is unlocked: activates +1 new bot per key and accelerates all bots
+   * Spawns bots for Survive Mode based on player count (capped at 2 * playerCount)
+   */
+  spawnSurviveBots(playerCount = 1) {
+    this.playerCount = playerCount;
+    this.reset();
+    const targetCount = this.getMaxBots();
+    const available = NEXTBOT_TYPES.map((_, i) => i);
+
+    for (let i = 0; i < targetCount; i++) {
+      let chosenIdx;
+      if (available.length > 0) {
+        const randPos = Math.floor(Math.random() * available.length);
+        chosenIdx = available.splice(randPos, 1)[0];
+      } else {
+        chosenIdx = Math.floor(Math.random() * NEXTBOT_TYPES.length);
+      }
+      const sp = this.spawnPoints[i % this.spawnPoints.length];
+      this.spawnBot(chosenIdx, sp);
+    }
+  }
+
+  /**
+   * Called when a room is unlocked: activates +1 new random bot per key (capped at 2 * playerCount) and accelerates all bots
    */
   onRoomUnlocked(roomsUnlockedCount) {
     // Increase speed for all bots (+0.75 m/s per room unlocked)
@@ -111,13 +153,18 @@ export class EvilSanthomiteManager {
       b.speed = this.currentSpeed;
     });
 
-    // Activate +1 new bot with every key (host or solo authoritative)
-    if (this.isHost || !this.isMultiplayer) {
-      const nextIdx = this.bots.length;
-      if (nextIdx < NEXTBOT_TYPES.length) {
-        const sp = this.spawnPoints[nextIdx % this.spawnPoints.length];
-        this.spawnBot(nextIdx, sp);
-      }
+    // Activate +1 new random bot with every key up to maxBots (2 * active players)
+    const maxBots = this.getMaxBots();
+    if ((this.isHost || !this.isMultiplayer) && this.bots.length < maxBots) {
+      const activeTypeIndices = new Set(this.bots.map((b) => b.typeIndex));
+      const unusedIndices = NEXTBOT_TYPES.map((_, i) => i).filter((i) => !activeTypeIndices.has(i));
+      const chosenIdx = unusedIndices.length > 0
+        ? unusedIndices[Math.floor(Math.random() * unusedIndices.length)]
+        : Math.floor(Math.random() * NEXTBOT_TYPES.length);
+
+      const spIdx = this.bots.length % this.spawnPoints.length;
+      const sp = this.spawnPoints[spIdx];
+      this.spawnBot(chosenIdx, sp);
     }
   }
 

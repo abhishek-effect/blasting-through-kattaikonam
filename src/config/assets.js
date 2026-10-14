@@ -30,12 +30,14 @@ export const ASSET_PATHS = {
   },
   items: {
     grenade: assetUrl('/images/grenade.avif'),
+    photocopy: assetUrl('/images/photocopy.jpg'),
   },
   ui: {
     blastingTitle: assetUrl('/images/blasting.png'),
     favicon: assetUrl('/favicon.png'),
     credits: assetUrl('/credits.txt'),
     damageIndicator: assetUrl('/images/damage-indicator.png'),
+    evadeIndicator: assetUrl('/images/evade-location-indicator.png'),
   },
   props: {
     bioLabPoster: assetUrl('/images/props/bio-lab-poster.jpg'),
@@ -53,6 +55,8 @@ export const ASSET_PATHS = {
     grenade: assetUrl('/audio/grenade.mp3'),
     shoot: assetUrl('/audio/shoot.mp3'),
     reload: assetUrl('/audio/gun-reload.mp3'),
+    elevatorRide: assetUrl('/audio/elevator-ride.mp3'),
+    elevatorArrived: assetUrl('/audio/elevator-arrived.mp3'),
     kills: [
       assetUrl('/audio/kill-1.wav'),
       assetUrl('/audio/kill-2.wav'),
@@ -413,14 +417,18 @@ export async function preloadAllAssets(onProgress = null) {
 
   // 2. Weapons & items
   Object.values(ASSET_PATHS.weapons).forEach((u) => urlsToPreload.add(u));
-  if (ASSET_PATHS.items && ASSET_PATHS.items.grenade) {
-    urlsToPreload.add(ASSET_PATHS.items.grenade);
+  if (ASSET_PATHS.items) {
+    if (ASSET_PATHS.items.grenade) urlsToPreload.add(ASSET_PATHS.items.grenade);
+    if (ASSET_PATHS.items.photocopy) urlsToPreload.add(ASSET_PATHS.items.photocopy);
   }
 
-  // 3. UI images (blasting title display, favicon, damage indicator)
+  // 3. UI images (blasting title display, favicon, damage indicator, evade indicator)
   urlsToPreload.add(ASSET_PATHS.ui.blastingTitle);
   urlsToPreload.add(ASSET_PATHS.ui.favicon);
   urlsToPreload.add(ASSET_PATHS.ui.damageIndicator);
+  if (ASSET_PATHS.ui.evadeIndicator) {
+    urlsToPreload.add(ASSET_PATHS.ui.evadeIndicator);
+  }
 
   // 3b. Room props & posters
   if (ASSET_PATHS.props) {

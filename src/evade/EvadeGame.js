@@ -41,6 +41,9 @@ export class EvadeGame {
     this.isLocalEscaped = false;
     this.isLocalDowned = false;
     this.bleedoutTimer = 45.0; // 45s bleedout when downed
+    this.subMode = 'escape'; // 'escape' or 'survive'
+    this.surviveTimer = 0;
+    this.isElevatorEscaping = false;
 
     // Submodules
     this.network = new NetworkManager();
@@ -74,14 +77,28 @@ export class EvadeGame {
 
   initCallbacks() {
     // Lobby Start Match
-    this.lobby.onStartMatch = (isSolo) => {
-      this.startMatch(isSolo);
+    this.lobby.onStartMatch = (isSolo, mode = 'escape') => {
+      this.startMatch(isSolo, mode);
     };
 
     this.lobby.onBackToMenu = () => {
       this.stop();
       this.gameState.setState(STATES.MENU);
     };
+
+    // Progression photocopy acquired callback
+    this.progression.onPhotocopyObtained = () => {
+      this.onPhotocopyObtained();
+    };
+
+    // Elevator interaction callback hook
+    if (this.level && this.level.elevator) {
+      this.level.elevator.onInteract = () => {
+        if (this.isActive && this.isMatchRunning && this.subMode === 'escape' && this.player.hasPhotocopy) {
+          this.triggerElevatorEscape();
+        }
+      };
+    }
 
     // Key collected callback
     this.progression.onKeyCollected = (keyData, nextStep) => {
@@ -136,6 +153,13 @@ export class EvadeGame {
       if (data.objective && this.hud) {
         this.hud.setObjective(data.objective);
       }
+      if (data.subMode && this.subMode !== data.subMode) {
+        this.subMode = data.subMode;
+      }
+      if (data.surviveTimer !== undefined && this.subMode === 'survive') {
+        this.surviveTimer = data.surviveTimer;
+        this.hud.setSurvivalTimer(this.surviveTimer);
+      }
     };
 
     // Network gameplay events
@@ -157,6 +181,16 @@ export class EvadeGame {
         }
       } else if (event.type === MSG_TYPES.PLAYER_OOFED) {
         this.checkAllPlayersDefeated();
+      } else if (event.type === MSG_TYPES.PHOTOCOPY_ACQUIRED) {
+        const rp = this.remotePlayers.get(event.id);
+        if (rp) {
+          rp.hasPhotocopy = true;
+        }
+      } else if (event.type === MSG_TYPES.PLAYER_ESCAPED) {
+        const rp = this.remotePlayers.get(event.id);
+        if (rp) {
+          rp.isEscaped = true;
+        }
       }
     };
 
@@ -183,17 +217,20 @@ export class EvadeGame {
   /**
    * Starts an active Evade round
    */
-  startMatch(isSolo = false) {
+  startMatch(isSolo = false, mode = 'escape') {
     this.isMatchRunning = true;
     this.isLocalEscaped = false;
     this.isLocalDowned = false;
+    this.isElevatorEscaping = false;
     this.bleedoutTimer = 45.0;
+    this.subMode = mode;
 
     // Reset local player to South Spawn Corridor
     const startPos = new THREE.Vector3(34.0, 1.65, 92.5);
     this.player.reset(startPos);
     this.player.health = 100;
     this.player.maxHealth = 100;
+    this.player.hasPhotocopy = false;
 
     // Stow shooting weapons (Evade is pure movement & survival)
     document.body.classList.add('evade-mode');
@@ -201,21 +238,45 @@ export class EvadeGame {
       this.player.setWeaponsVisible(false);
     }
 
-    // Enable Evade HUD
-    this.hud.show();
-    this.hud.setObjective(this.progression.getCurrentObjectiveText());
-    this.hud.setThreatLevel(2, 1.0);
-
-    // Initialize key progression (locks all doors, spawns Key 1)
-    this.progression.initProgression();
+    const activePlayerCount = Math.max(1, 1 + this.remotePlayers.size);
 
     // Set network authority on bots
     this.nextbots.isHost = this.network.isHost;
     this.nextbots.isMultiplayer = !isSolo;
+    this.nextbots.playerCount = activePlayerCount;
 
-    // Spawn initial 2 Evil Santhomites (Host or Solo match spawns bots; multiplayer clients sync from host)
-    if (this.network.isHost || isSolo) {
-      this.nextbots.spawnInitialBots();
+    // Enable Evade HUD
+    this.hud.show();
+    this.hud.setPhotocopyStatus(false);
+    this.hud.setRearView(false);
+
+    if (this.subMode === 'survive') {
+      // Survive duration: 2 mins (1-2 players), 2.5 mins (3 players), 3 mins (4+ players)
+      let duration = 120;
+      if (activePlayerCount === 3) duration = 150;
+      else if (activePlayerCount >= 4) duration = 180;
+
+      this.surviveTimer = duration;
+      this.hud.setSurvivalTimer(this.surviveTimer);
+      this.progression.initSurviveMode();
+      this.hud.setObjective('⏱️ SURVIVE UNTIL CAMPUS LOCKDOWN LIFTS!');
+      this.hud.setThreatLevel(this.nextbots.getMaxBots(), 1.0);
+
+      // Spawn bots for survive mode
+      if (this.network.isHost || isSolo) {
+        this.nextbots.spawnSurviveBots(activePlayerCount);
+      }
+    } else {
+      // Escape mode:
+      this.hud.hideSurvivalTimer();
+      this.progression.initProgression(activePlayerCount);
+      this.hud.setObjective(this.progression.getCurrentObjectiveText());
+      this.hud.setThreatLevel(2, 1.0);
+
+      // Spawn initial 2 Evil Santhomites
+      if (this.network.isHost || isSolo) {
+        this.nextbots.spawnInitialBots();
+      }
     }
 
     if (this.network.isHost) {
@@ -261,6 +322,17 @@ export class EvadeGame {
       this.hud.setDowned(false);
     }
 
+    // 2b. Survive mode timer countdown
+    if (this.subMode === 'survive' && !this.isLocalDowned && !this.isLocalEscaped) {
+      if (this.network.isHost || !this.network.isConnected) {
+        this.surviveTimer -= deltaTime;
+      }
+      this.hud.setSurvivalTimer(Math.max(0, this.surviveTimer));
+      if (this.surviveTimer <= 0) {
+        this.escapeLocalPlayer(true);
+      }
+    }
+
     // 3. Update Nextbots (chase AI, touch damage)
     const remoteArray = Array.from(this.remotePlayers.values());
     this.nextbots.update(
@@ -277,10 +349,20 @@ export class EvadeGame {
       this.network.isHost
     );
 
-    // 4. Update Key Progression & Escape detection
-    this.progression.update(deltaTime, this.player.position, () => {
-      this.escapeLocalPlayer();
-    });
+    // 3b. Update Persistent Threat Tracker Arrow & Rearview UI
+    this.updateThreatTracker();
+    this.hud.setRearView(!!this.player.isLookingBehind);
+    this.hud.setPhotocopyStatus(!!this.player.hasPhotocopy);
+
+    // 4. Update Key Progression & Seminar Hall Gathering
+    if (this.subMode === 'escape') {
+      this.progression.update(deltaTime, this.player.position, () => {
+        this.onPhotocopyObtained();
+      });
+
+      // 4b. Check Elevator Escape Interaction
+      this.checkElevatorEscape();
+    }
 
     // 5. Update 3D Remote Players
     remoteArray.forEach((rp) => {
@@ -439,20 +521,112 @@ export class EvadeGame {
     }
   }
 
-  escapeLocalPlayer() {
+  updateThreatTracker() {
+    if (!this.hud || !this.nextbots || !this.nextbots.bots.length) return;
+
+    let nearestBot = null;
+    let minDist = Infinity;
+
+    for (let i = 0; i < this.nextbots.bots.length; i++) {
+      const b = this.nextbots.bots[i];
+      if (b && b.group) {
+        const d = Math.hypot(
+          b.group.position.x - this.player.position.x,
+          b.group.position.z - this.player.position.z
+        );
+        if (d < minDist) {
+          minDist = d;
+          nearestBot = b;
+        }
+      }
+    }
+
+    if (nearestBot && nearestBot.group) {
+      const dx = nearestBot.group.position.x - this.player.position.x;
+      const dz = nearestBot.group.position.z - this.player.position.z;
+      // In Three.js world coordinates: forward (yaw=0) is -Z, right is +X.
+      const worldAngle = Math.atan2(dx, -dz);
+      // Current camera view yaw (including 180° flip if rear view is active)
+      const viewYaw = this.player.yaw + (this.player.isLookingBehind ? Math.PI : 0);
+      let rel = worldAngle - viewYaw;
+      while (rel > Math.PI) rel -= Math.PI * 2;
+      while (rel < -Math.PI) rel += Math.PI * 2;
+      const deg = (rel * 180) / Math.PI;
+
+      const threatName = nearestBot.type ? nearestBot.type.name : 'Evil Santhomite';
+      this.hud.updateThreatTracker(deg, minDist, threatName);
+    }
+  }
+
+  onPhotocopyObtained() {
+    if (this.player.hasPhotocopy) return;
+    this.player.hasPhotocopy = true;
+
+    if (this.audio && this.audio.playPickup) {
+      this.audio.playPickup();
+    }
+
+    if (this.hud) {
+      this.hud.setPhotocopyStatus(true);
+      this.hud.setObjective(this.progression.getCurrentObjectiveText());
+    }
+
+    // Broadcast across network so remote players sync status
+    this.network.sendEvent(MSG_TYPES.PHOTOCOPY_ACQUIRED, {
+      id: this.network.localId
+    });
+  }
+
+  checkElevatorEscape() {
+    if (this.isElevatorEscaping || this.isLocalEscaped || !this.player.hasPhotocopy) return;
+
+    if (this.level && this.level.elevator) {
+      this.level.elevator.update(this.player);
+
+      if (this.level.elevator.isPlayerNear) {
+        const wantsInteract = this.input.checkAndConsumeInteract && this.input.checkAndConsumeInteract();
+        if (wantsInteract) {
+          this.triggerElevatorEscape();
+        }
+      }
+    }
+  }
+
+  triggerElevatorEscape() {
+    if (this.isElevatorEscaping || this.isLocalEscaped) return;
+    this.isElevatorEscaping = true;
+
+    if (this.hud && this.hud.showNotification) {
+      this.hud.showNotification('🛗 ENTERING ELEVATOR... ESCAPING CAMPUS!', 5.0);
+    }
+
+    if (this.audio && this.audio.playElevatorSequence) {
+      this.audio.playElevatorSequence(() => {
+        this.escapeLocalPlayer(false);
+      });
+    } else {
+      setTimeout(() => {
+        this.escapeLocalPlayer(false);
+      }, 3500);
+    }
+  }
+
+  escapeLocalPlayer(isSurviveMode = false) {
     if (this.isLocalEscaped) return;
     this.isLocalEscaped = true;
 
     // Victory!
     this.hud.showEscapedScreen(
       () => this.restartMatch(),
-      () => this.stopAndExitToMenu()
+      () => this.stopAndExitToMenu(),
+      isSurviveMode
     );
 
     // Notify peers
     this.network.sendEvent(MSG_TYPES.PLAYER_ESCAPED, {
       id: this.network.localId,
-      name: this.network.localPlayerName
+      name: this.network.localPlayerName,
+      isSurviveMode
     });
 
     if (this.audio && this.audio.playComboSound) {
@@ -509,7 +683,8 @@ export class EvadeGame {
       isDowned: this.isLocalDowned,
       isEscaped: this.isLocalEscaped,
       isSliding: this.player.isSliding,
-      isCrouching: this.player.isCrouching
+      isCrouching: this.player.isCrouching,
+      hasPhotocopy: this.player.hasPhotocopy
     });
 
     // 2. If Host, broadcast bots and progression world state
@@ -518,14 +693,16 @@ export class EvadeGame {
         bots: this.nextbots.getNetworkState(),
         step: this.progression.currentStep,
         objective: this.progression.getCurrentObjectiveText(),
-        isSeminarUnlocked: this.progression.isSeminarUnlocked
+        isSeminarUnlocked: this.progression.isSeminarUnlocked,
+        subMode: this.subMode,
+        surviveTimer: this.surviveTimer
       });
     }
   }
 
   restartMatch() {
     this.hud.hideEndScreens();
-    this.startMatch(this.remotePlayers.size === 0);
+    this.startMatch(this.remotePlayers.size === 0, this.subMode);
   }
 
   stopAndExitToMenu() {
@@ -537,11 +714,18 @@ export class EvadeGame {
   stop() {
     this.isActive = false;
     this.isMatchRunning = false;
+    this.isElevatorEscaping = false;
     document.body.classList.remove('evade-mode');
     this.hud.hide();
+    this.hud.hideSurvivalTimer();
     this.nextbots.reset();
     if (this.progression) {
       this.progression.reset();
+    }
+
+    this.player.hasPhotocopy = false;
+    if (this.player.photocopyMesh) {
+      this.player.photocopyMesh.visible = false;
     }
 
     // Disconnect peerjs network connection

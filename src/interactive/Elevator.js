@@ -153,6 +153,10 @@ export class Elevator {
       return false; // Still locked!
     }
 
+    if (this.onInteract) {
+      this.onInteract(this.data.targetFloor);
+    }
+
     if (onFloorTransition) {
       onFloorTransition(this.data.targetFloor);
     }

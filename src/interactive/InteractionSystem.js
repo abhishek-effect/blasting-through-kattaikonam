@@ -48,9 +48,16 @@ export class InteractionSystem {
 
       if (dist < 3.8) {
         promptFound = true;
+        const isEvade = typeof document !== 'undefined' && document.body.classList.contains('evade-mode');
         const kills = this.enemySpawner ? this.enemySpawner.totalKills : 0;
 
-        if (kills < gate.requiresKills) {
+        if (isEvade) {
+          this.activePrompt = {
+            title: 'SEMINAR HALL: MASTER KEY REQUIRED',
+            subtitle: 'Unlock seminar hall by obtaining its key!',
+            isLocked: true
+          };
+        } else if (kills < gate.requiresKills) {
           this.activePrompt = {
             title: 'SEMINAR HALL: SECURITY LOCKDOWN',
             subtitle: `Eliminate 20 campus enemies to enter (${kills}/${gate.requiresKills} Kills)`,

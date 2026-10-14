@@ -5,6 +5,7 @@
  * gravity, sprint, crouch ('C'), slide ('Ctrl'), and health.
  */
 import * as THREE from 'three';
+import { loadTexture, ASSET_PATHS } from '../config/assets.js';
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -67,6 +68,20 @@ export class Player {
 
     // Progression Hook: Photocopy requirement for elevator
     this.hasPhotocopy = false;
+    this.isLookingBehind = false;
+
+    // Held Photocopy 3D Viewmodel (attached to camera in hands)
+    const photoTex = loadTexture(ASSET_PATHS.items.photocopy, 1, 1, '#ffffff', '#dddddd');
+    const photoGeo = new THREE.PlaneGeometry(0.24, 0.32);
+    const photoMat = new THREE.MeshBasicMaterial({
+      map: photoTex,
+      side: THREE.DoubleSide
+    });
+    this.photocopyMesh = new THREE.Mesh(photoGeo, photoMat);
+    this.photocopyMesh.position.set(0.26, -0.22, -0.42);
+    this.photocopyMesh.rotation.set(-0.35, -0.25, 0.12);
+    this.photocopyMesh.visible = false;
+    this.camera.add(this.photocopyMesh);
 
     // Damage flash timer
     this.damageFlashTimer = 0;
@@ -172,6 +187,8 @@ export class Player {
   update(deltaTime) {
     if (this.isDead) return;
 
+    this.isLookingBehind = !!(this.input && this.input.isLookBehindActive);
+
     // Check slot change input (1, 2, 3 or tap)
     const requestedSlot = this.input.checkAndConsumeSlotChange();
     if (requestedSlot !== null) {
@@ -268,9 +285,11 @@ export class Player {
       // Camera dynamic roll during slide
       this.slideRoll = -0.042 * Math.sin(slideProgress * Math.PI);
 
-      // Slide Jump mechanics
+      // Slide Jump mechanics: retain momentum with +15% boost in jump direction
       if (this.input.checkAndConsumeJump && this.input.checkAndConsumeJump() && this.isGrounded) {
-        this.velocity.y = this.jumpForce * 1.05;
+        this.velocity.y = this.jumpForce * 1.08;
+        this.velocity.x = this.slideDirection.x * (currentSlideSpeed * 1.15);
+        this.velocity.z = this.slideDirection.z * (currentSlideSpeed * 1.15);
         this.isGrounded = false;
         this.isSliding = false;
         this.slideRoll = 0;
@@ -300,23 +319,47 @@ export class Player {
       isMoving = _moveDir.lengthSq() > 0.001;
       if (isMoving) {
         _moveDir.normalize();
-        this.velocity.x = _moveDir.x * currentSpeed;
-        this.velocity.z = _moveDir.z * currentSpeed;
-      } else {
-        this.velocity.x = 0;
-        this.velocity.z = 0;
       }
 
-      // Jump & Gravity
-      if (this.input.checkAndConsumeJump && this.input.checkAndConsumeJump() && this.isGrounded) {
-        this.isCrouching = false;
-        if (this.input.setCrouching) {
-          this.input.setCrouching(false);
+      if (this.isGrounded) {
+        // Ground acceleration: smooth acceleration to target velocity
+        const accelFactor = Math.min(1.0, deltaTime * (isMoving ? 14.0 : 18.0));
+        const targetVelX = isMoving ? _moveDir.x * currentSpeed : 0;
+        const targetVelZ = isMoving ? _moveDir.z * currentSpeed : 0;
+        this.velocity.x += (targetVelX - this.velocity.x) * accelFactor;
+        this.velocity.z += (targetVelZ - this.velocity.z) * accelFactor;
+
+        // Jump & Gravity
+        if (this.input.checkAndConsumeJump && this.input.checkAndConsumeJump()) {
+          this.isCrouching = false;
+          if (this.input.setCrouching) {
+            this.input.setCrouching(false);
+          }
+          this.velocity.y = this.jumpForce;
+          this.isGrounded = false;
+          // Sprint-jump momentum boost (+12% speed)
+          if (isSprinting && isMoving) {
+            this.velocity.x = _moveDir.x * (currentSpeed * 1.12);
+            this.velocity.z = _moveDir.z * (currentSpeed * 1.12);
+          }
+          if (this.audio && this.audio.playJump) {
+            this.audio.playJump();
+          }
         }
-        this.velocity.y = this.jumpForce;
-        this.isGrounded = false;
-        if (this.audio && this.audio.playJump) {
-          this.audio.playJump();
+      } else {
+        // In air: preserve momentum with air control nudging
+        if (isMoving) {
+          const airAccel = Math.min(1.0, deltaTime * 5.0);
+          this.velocity.x += _moveDir.x * currentSpeed * airAccel;
+          this.velocity.z += _moveDir.z * currentSpeed * airAccel;
+
+          // Cap horizontal speed slightly so it doesn't accelerate indefinitely
+          const hSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+          const maxAirSpeed = currentSpeed * 1.25;
+          if (hSpeed > maxAirSpeed) {
+            this.velocity.x = (this.velocity.x / hSpeed) * maxAirSpeed;
+            this.velocity.z = (this.velocity.z / hSpeed) * maxAirSpeed;
+          }
         }
       }
     }
@@ -414,12 +457,21 @@ export class Player {
     if (this.damageFlashTimer > 0) {
       this.damageFlashTimer = Math.max(0, this.damageFlashTimer - deltaTime);
     }
+
+    // Held Photocopy in-hand viewmodel animation
+    if (this.photocopyMesh) {
+      this.photocopyMesh.visible = !!this.hasPhotocopy;
+      if (this.hasPhotocopy) {
+        this.photocopyMesh.position.y = -0.22 + Math.sin(this.bobTimer * 1.2) * 0.015;
+      }
+    }
   }
 
   updateCameraTransform() {
     this.camera.rotation.set(0, 0, 0);
     this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = this.yaw;
+    const visualYaw = this.yaw + (this.isLookingBehind ? Math.PI : 0);
+    this.camera.rotation.y = visualYaw;
     this.camera.rotation.x = this.pitch;
     this.camera.rotation.z = this.currentSlideRoll;
   }

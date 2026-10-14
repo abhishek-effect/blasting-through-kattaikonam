@@ -7,7 +7,8 @@ const distDir = path.join(rootDir, 'dist');
 const tempIndex = path.join(rootDir, '.git', 'temp_index');
 
 console.log('Ensuring dist is freshly built...');
-execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
+const buildCmd = process.platform === 'win32' ? 'npm.cmd run build' : 'npm run build';
+execSync(buildCmd, { cwd: rootDir, stdio: 'inherit' });
 
 // Ensure .nojekyll exists in dist
 fs.writeFileSync(path.join(distDir, '.nojekyll'), '');
@@ -37,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: 3D multiplayer player visibility, Evil Santhomites dynamic targeting & corridor spawns, slide cooldown, library & phy lab props, and single-click start';
+const commitMsg = 'Deploy: Evade survive vs escape voting, photocopy quest & elevator ride sequence, rear-view look behind, persistent threat tracker, bot scaling & dynamic key rooms, revive mechanics, and performance optimizations';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

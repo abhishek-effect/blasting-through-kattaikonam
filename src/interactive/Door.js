@@ -191,20 +191,37 @@ export class Door {
   }
 
   getPromptInfo(kills = 0) {
-    if (this.isLocked && this.requiresKills > 0) {
-      if (kills < this.requiresKills) {
-        return {
-          title: `${this.name}: LOCKED`,
-          subtitle: `Eliminate ${this.requiresKills} campus enemies to unlock (${kills}/${this.requiresKills})`,
-          isLocked: true
-        };
-      } else {
-        // Unlock
-        this.isLocked = false;
-      }
-    }
+    const isEvade = typeof document !== 'undefined' && document.body.classList.contains('evade-mode');
 
     if (this.isLocked) {
+      if (isEvade) {
+        if (this.id === 'door_seminar_gate' || this.name.includes('SEMINAR')) {
+          return {
+            title: `${this.name}: LOCKED`,
+            subtitle: 'Unlock seminar hall by obtaining its key!',
+            isLocked: true
+          };
+        }
+        return {
+          title: `${this.name}: LOCKED`,
+          subtitle: 'Search campus rooms to find the key!',
+          isLocked: true
+        };
+      }
+
+      if (this.requiresKills > 0) {
+        if (kills < this.requiresKills) {
+          return {
+            title: `${this.name}: LOCKED`,
+            subtitle: `Eliminate ${this.requiresKills} campus enemies to unlock (${kills}/${this.requiresKills})`,
+            isLocked: true
+          };
+        } else {
+          // Unlock
+          this.isLocked = false;
+        }
+      }
+
       return {
         title: `${this.name}: LOCKED`,
         subtitle: 'Door is locked from the inside',

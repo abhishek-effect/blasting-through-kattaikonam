@@ -23,7 +23,9 @@ export const MSG_TYPES = {
   PLAYER_DOWNED: 'PLAYER_DOWNED',
   PLAYER_REVIVED: 'PLAYER_REVIVED',
   PLAYER_ESCAPED: 'PLAYER_ESCAPED',
-  PLAYER_OOFED: 'PLAYER_OOFED'
+  PLAYER_OOFED: 'PLAYER_OOFED',
+  PHOTOCOPY_ACQUIRED: 'PHOTOCOPY_ACQUIRED',
+  VOTE_UPDATE: 'VOTE_UPDATE'
 };
 
 const ICE_SERVERS = [
@@ -71,8 +73,18 @@ export class NetworkManager {
     // Local player ID
     this.localId = `p_${Math.random().toString(36).substring(2, 8)}`;
 
+    // Mode voting state ('escape' or 'survive')
+    this.playerVotes = new Map(); // Map<playerId, mode>
+    this.selectedMode = 'escape';
+    this.playerVotes.set(this.localId, 'escape');
+
+    // Lobby discovery beacon state
+    this.beaconInterval = null;
+    this.broadcastChannel = null;
+
     // Callbacks
     this.onLobbyUpdate = null;
+    this.onVoteUpdate = null;
     this.onGameStart = null;
     this.onRemotePlayerUpdate = null;
     this.onHostStateSync = null;
@@ -139,6 +151,7 @@ export class NetworkManager {
           });
 
           this.setupHostListeners();
+          this.startLobbyBeacon();
           resolve({ roomCode: this.roomCode, peerId: id });
         });
 
@@ -446,6 +459,21 @@ export class NetworkManager {
         this.broadcast(data, conn.peer);
         break;
       }
+
+      case MSG_TYPES.VOTE_UPDATE: {
+        const pId = data.playerId || conn.peer;
+        this.playerVotes.set(pId, data.mode);
+        const summary = this.getVotesSummary();
+        const votePayload = {
+          type: MSG_TYPES.VOTE_UPDATE,
+          votes: summary
+        };
+        if (this.onVoteUpdate) {
+          this.onVoteUpdate(summary);
+        }
+        this.broadcast(votePayload);
+        break;
+      }
     }
   }
 
@@ -461,6 +489,12 @@ export class NetworkManager {
         case MSG_TYPES.LOBBY_UPDATE:
           if (this.onLobbyUpdate) {
             this.onLobbyUpdate(data.players, data.canStart);
+          }
+          break;
+
+        case MSG_TYPES.VOTE_UPDATE:
+          if (this.onVoteUpdate) {
+            this.onVoteUpdate(data.votes);
           }
           break;
 
@@ -551,18 +585,25 @@ export class NetworkManager {
    * Host starts the match for all connected peers
    */
   startMatch() {
+    if (!this.isHost) {
+      console.warn('[NetworkManager] Only the host can start the game.');
+      return;
+    }
+
+    this.stopLobbyBeacon();
     this.isGameRunning = true;
-    const isSolo = (!this.isHost) ? false : (this.connections.size <= 1);
+    const isSolo = (this.connections.size <= 1);
+    const votesSummary = this.getVotesSummary();
+    const winningMode = votesSummary.winner;
 
     const payload = {
       type: MSG_TYPES.GAME_START,
       timestamp: Date.now(),
-      isSolo
+      isSolo,
+      mode: winningMode
     };
 
-    if (this.isHost) {
-      this.broadcast(payload);
-    }
+    this.broadcast(payload);
     if (this.onGameStart) {
       this.onGameStart(payload);
     }
@@ -637,6 +678,7 @@ export class NetworkManager {
   }
 
   disconnect() {
+    this.stopLobbyBeacon();
     if (this.peer) {
       try {
         this.peer.destroy();
@@ -656,6 +698,104 @@ export class NetworkManager {
     this.isConnected = false;
     this.isGameRunning = false;
     this.isHost = false;
+  }
+
+  sendVote(mode) {
+    this.selectedMode = mode;
+    this.playerVotes.set(this.localId, mode);
+
+    const summary = this.getVotesSummary();
+    const payload = {
+      type: MSG_TYPES.VOTE_UPDATE,
+      playerId: this.localId,
+      mode: mode,
+      votes: summary
+    };
+
+    if (this.isHost) {
+      this.broadcast(payload);
+      if (this.onVoteUpdate) {
+        this.onVoteUpdate(summary);
+      }
+    } else if (this.hostConn && this.hostConn.open) {
+      this.hostConn.send(payload);
+    }
+  }
+
+  getVotesSummary() {
+    let escapeCount = 0;
+    let surviveCount = 0;
+    this.playerVotes.forEach((v) => {
+      if (v === 'survive') surviveCount++;
+      else escapeCount++;
+    });
+    return {
+      escape: escapeCount,
+      survive: surviveCount,
+      winner: surviveCount > escapeCount ? 'survive' : 'escape'
+    };
+  }
+
+  startLobbyBeacon() {
+    this.stopLobbyBeacon();
+    this.broadcastBeacon();
+    this.beaconInterval = setInterval(() => {
+      this.broadcastBeacon();
+    }, 1500);
+  }
+
+  broadcastBeacon() {
+    if (!this.isHost || !this.roomCode) return;
+    try {
+      const activeRooms = JSON.parse(localStorage.getItem('btk_active_rooms') || '{}');
+      const now = Date.now();
+      for (const code of Object.keys(activeRooms)) {
+        if (now - activeRooms[code].timestamp > 5000) {
+          delete activeRooms[code];
+        }
+      }
+      activeRooms[this.roomCode] = {
+        roomCode: this.roomCode,
+        hostName: this.localPlayerName,
+        playerCount: this.connections.size || 1,
+        selectedMode: this.selectedMode,
+        timestamp: now
+      };
+      localStorage.setItem('btk_active_rooms', JSON.stringify(activeRooms));
+
+      if (typeof BroadcastChannel !== 'undefined') {
+        if (!this.broadcastChannel) {
+          this.broadcastChannel = new BroadcastChannel('btk_evade_network');
+        }
+        this.broadcastChannel.postMessage({
+          type: 'LOBBY_HEARTBEAT',
+          roomCode: this.roomCode,
+          hostName: this.localPlayerName,
+          playerCount: this.connections.size || 1,
+          selectedMode: this.selectedMode
+        });
+      }
+    } catch (e) {}
+  }
+
+  stopLobbyBeacon() {
+    if (this.beaconInterval) {
+      clearInterval(this.beaconInterval);
+      this.beaconInterval = null;
+    }
+    if (this.roomCode) {
+      try {
+        const activeRooms = JSON.parse(localStorage.getItem('btk_active_rooms') || '{}');
+        delete activeRooms[this.roomCode];
+        localStorage.setItem('btk_active_rooms', JSON.stringify(activeRooms));
+        if (this.broadcastChannel) {
+          this.broadcastChannel.postMessage({
+            type: 'LOBBY_CLOSED',
+            roomCode: this.roomCode
+          });
+        }
+      } catch (e) {}
+    }
   }
 }
 
