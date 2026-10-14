@@ -38,6 +38,9 @@ export class EvadeGame {
 
     this.isActive = false;
     this.isMatchRunning = false;
+    this.isVotingPhase = false;
+    this.votingTimer = 10;
+    this.isSoloMatch = false;
     this.isLocalEscaped = false;
     this.isLocalDowned = false;
     this.bleedoutTimer = 45.0; // 45s bleedout when downed
@@ -76,14 +79,30 @@ export class EvadeGame {
   }
 
   initCallbacks() {
-    // Lobby Start Match
-    this.lobby.onStartMatch = (isSolo, mode = 'escape') => {
-      this.startMatch(isSolo, mode);
+    // Lobby Start Match -> Host triggers voting phase
+    this.lobby.onStartMatch = (isSolo) => {
+      this.isSoloMatch = isSolo;
+      this.network.startVotingPhase(isSolo);
     };
 
     this.lobby.onBackToMenu = () => {
       this.stop();
       this.gameState.setState(STATES.MENU);
+    };
+
+    // Voting Phase Callbacks
+    this.network.onVotingStart = (payload) => {
+      this.onVotingStart(payload);
+    };
+
+    this.network.onVoteUpdate = (votes) => {
+      if (this.hud) {
+        this.hud.updateVotingTallies(votes, this.network.selectedMode);
+      }
+    };
+
+    this.network.onVotingDecided = (payload) => {
+      this.onVotingDecided(payload);
     };
 
     // Progression photocopy acquired callback
@@ -215,15 +234,14 @@ export class EvadeGame {
   }
 
   /**
-   * Starts an active Evade round
+   * Starts the 10-Second In-Game Sub-Mode Voting Phase
    */
-  startMatch(isSolo = false, mode = 'escape') {
-    this.isMatchRunning = true;
-    this.isLocalEscaped = false;
-    this.isLocalDowned = false;
-    this.isElevatorEscaping = false;
-    this.bleedoutTimer = 45.0;
-    this.subMode = mode;
+  onVotingStart(payload) {
+    this.isActive = true;
+    this.isVotingPhase = true;
+    this.isMatchRunning = false;
+    this.isSoloMatch = !!payload.isSolo;
+    this.votingTimer = payload.duration || 10;
 
     // Reset local player to South Spawn Corridor
     const startPos = new THREE.Vector3(34.0, 1.65, 92.5);
@@ -231,12 +249,73 @@ export class EvadeGame {
     this.player.health = 100;
     this.player.maxHealth = 100;
     this.player.hasPhotocopy = false;
+    if (this.player.setPhotocopyVisible) {
+      this.player.setPhotocopyVisible(false);
+    }
 
     // Stow shooting weapons (Evade is pure movement & survival)
     document.body.classList.add('evade-mode');
     if (this.player.setWeaponsVisible) {
       this.player.setWeaponsVisible(false);
     }
+
+    // Reset bots and progress during voting phase
+    this.nextbots.reset();
+    if (this.progression) {
+      this.progression.reset();
+    }
+
+    // Hide lobby and ensure any end screens are gone
+    if (this.lobby) this.lobby.hide();
+    this.hud.hideEndScreens();
+    this.hud.hideSurvivalTimer();
+    this.hud.setPhotocopyStatus(false);
+    this.hud.show();
+
+    // Show the 10-second In-Game Sub-Mode Voting Modal
+    this.hud.showVotingModal(payload.duration || 10, (mode) => {
+      this.network.sendVote(mode);
+    });
+
+    // Enter playing state and lock pointer
+    this.gameState.setState(STATES.PLAYING);
+    this.input.requestPointerLock();
+  }
+
+  /**
+   * Callback when voting phase concludes (after 10s)
+   */
+  onVotingDecided(payload) {
+    this.isVotingPhase = false;
+    const mode = payload.mode || 'escape';
+    const surviveDuration = payload.surviveDuration || 120;
+    const isSolo = !!payload.isSolo;
+
+    this.hud.showVotingResult(mode, () => {
+      this.beginGameplay(mode, surviveDuration, isSolo);
+    });
+  }
+
+  /**
+   * Starts an active Evade round (triggers voting phase on host)
+   */
+  startMatch(isSolo = false, mode = 'escape') {
+    if (this.network.isHost || isSolo) {
+      this.network.startVotingPhase(isSolo);
+    }
+  }
+
+  /**
+   * Begins actual gameplay once voting is decided
+   */
+  beginGameplay(mode = 'escape', surviveDuration = 120, isSolo = false) {
+    this.isMatchRunning = true;
+    this.isVotingPhase = false;
+    this.isLocalEscaped = false;
+    this.isLocalDowned = false;
+    this.isElevatorEscaping = false;
+    this.bleedoutTimer = 45.0;
+    this.subMode = mode;
 
     const activePlayerCount = Math.max(1, 1 + this.remotePlayers.size);
 
@@ -251,12 +330,7 @@ export class EvadeGame {
     this.hud.setRearView(false);
 
     if (this.subMode === 'survive') {
-      // Survive duration: 2 mins (1-2 players), 2.5 mins (3 players), 3 mins (4+ players)
-      let duration = 120;
-      if (activePlayerCount === 3) duration = 150;
-      else if (activePlayerCount >= 4) duration = 180;
-
-      this.surviveTimer = duration;
+      this.surviveTimer = surviveDuration;
       this.hud.setSurvivalTimer(this.surviveTimer);
       this.progression.initSurviveMode();
       this.hud.setObjective('⏱️ SURVIVE UNTIL CAMPUS LOCKDOWN LIFTS!');
@@ -268,7 +342,8 @@ export class EvadeGame {
       }
     } else {
       // Escape mode:
-      this.hud.hideSurvivalTimer();
+      this.surviveTimer = 0;
+      this.hud.hideSurvivalTimer(); // NEVER show timer in Escape mode!
       this.progression.initProgression(activePlayerCount);
       this.hud.setObjective(this.progression.getCurrentObjectiveText());
       this.hud.setThreatLevel(2, 1.0);
@@ -297,11 +372,27 @@ export class EvadeGame {
    * Main game loop update
    */
   update(deltaTime) {
-    if (!this.isActive || !this.isMatchRunning) return;
+    if (!this.isActive) return;
 
-    // 1. Update Flashlight orientation (0 allocations)
+    // 0. Update Flashlight orientation (0 allocations)
     this.camera.getWorldDirection(_egCamDir);
     this.flashlightTarget.position.copy(this.camera.position).addScaledVector(_egCamDir, 8.0);
+
+    // 1. Voting Phase Update
+    if (this.isVotingPhase) {
+      // Host Authoritative Countdown ticker
+      if (this.network.isHost || this.isSoloMatch) {
+        this.votingTimer -= deltaTime;
+        this.hud.updateVotingCountdown(this.votingTimer);
+        if (this.votingTimer <= 0) {
+          this.isVotingPhase = false;
+          this.network.finishVotingPhase(this.isSoloMatch);
+        }
+      }
+      return; // Do NOT update nextbots or combat during voting phase!
+    }
+
+    if (!this.isMatchRunning) return;
 
     // 2. Downed / Bleedout State handling
     if (this.isLocalDowned) {
@@ -702,7 +793,9 @@ export class EvadeGame {
 
   restartMatch() {
     this.hud.hideEndScreens();
-    this.startMatch(this.remotePlayers.size === 0, this.subMode);
+    if (this.network.isHost || this.remotePlayers.size === 0) {
+      this.network.startVotingPhase(this.remotePlayers.size === 0);
+    }
   }
 
   stopAndExitToMenu() {
@@ -713,10 +806,12 @@ export class EvadeGame {
 
   stop() {
     this.isActive = false;
+    this.isVotingPhase = false;
     this.isMatchRunning = false;
     this.isElevatorEscaping = false;
     document.body.classList.remove('evade-mode');
     this.hud.hide();
+    this.hud.hideVotingModal();
     this.hud.hideSurvivalTimer();
     this.nextbots.reset();
     if (this.progression) {

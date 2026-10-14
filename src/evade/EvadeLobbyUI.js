@@ -2,11 +2,10 @@
  * EvadeLobbyUI Module
  * Renders the PeerJS peer-to-peer multiplayer lobby modal:
  * - Enter Player Name
- * - Create Room (Host) with Shareable Room Code & Link
- * - Join Room (Client) with Available Matches real-time discovery
- * - Survive vs Escape Sub-Mode Voting
- * - Waiting room showing connected peers list
- * - Solo Practice Run option for immediate testing
+ * - Grouped Side-by-Side: Host Game (Left) & Join Game with Available Matches (Right)
+ * - Host gets shareable Room Code, Copy Link, and Start Match button
+ * - Clients joining see dedicated waiting room with leave option (NO start button)
+ * - Available matches list shown right next to Host Game with 1-click Join
  */
 export class EvadeLobbyUI {
   constructor(networkManager) {
@@ -30,7 +29,9 @@ export class EvadeLobbyUI {
     const roomParam = urlParams.get('room');
     if (roomParam && this.joinCodeInput) {
       this.joinCodeInput.value = roomParam.trim().toUpperCase();
-      this.switchTab('join');
+      setTimeout(() => {
+        if (this.btnJoinRoom) this.btnJoinRoom.click();
+      }, 300);
     }
   }
 
@@ -44,122 +45,97 @@ export class EvadeLobbyUI {
           <p class="lobby-subtitle">Survive, unlock campus doors, and escape the Evil Santhomites!</p>
         </div>
 
-        <!-- Name Input -->
+        <!-- Survivor Name Input -->
         <div class="lobby-field-row">
           <label for="lobby-player-name">YOUR SURVIVOR NAME:</label>
           <input type="text" id="lobby-player-name" class="lobby-input" maxlength="16" value="${this.savedName}" placeholder="Enter name..." />
         </div>
 
-        <!-- Mode Tabs: Host or Join -->
-        <div class="lobby-tabs">
-          <button id="tab-host" class="lobby-tab-btn active">HOST GAME</button>
-          <button id="tab-join" class="lobby-tab-btn">JOIN GAME</button>
+        <!-- Grouped 2-Column Section: HOST GAME (Left) & JOIN GAME (Right) -->
+        <div id="lobby-grouped-section" class="lobby-grouped-container">
+          <!-- Column 1: HOST GAME -->
+          <div id="lobby-host-card" class="lobby-group-card host-group">
+            <div class="group-header">
+              <span class="group-icon">👑</span>
+              <h3 class="group-title">HOST GAME</h3>
+            </div>
+            <p class="group-desc">Host your own game room and invite friends using a 5-letter Room Code.</p>
+
+            <div id="host-unhosted-section">
+              <button id="btn-create-room" class="lobby-action-btn primary-btn">★ HOST A NEW GAME</button>
+            </div>
+
+            <div id="host-room-info" class="host-room-info hidden">
+              <div class="room-code-display">
+                <span class="room-code-label">ROOM CODE:</span>
+                <span id="display-room-code" class="room-code-val">-----</span>
+                <button id="btn-copy-link" class="lobby-small-btn" title="Copy Invite Link">📋 COPY LINK</button>
+              </div>
+
+              <div class="players-counter-box">
+                <span id="players-counter-text">Players in lobby: 1</span>
+              </div>
+
+              <div class="players-list-box">
+                <div class="list-title">CONNECTED SURVIVORS:</div>
+                <div id="host-players-list" class="players-list"></div>
+              </div>
+
+              <div class="host-actions-row">
+                <button id="btn-start-match" class="lobby-action-btn start-btn">
+                  ▶ START MULTIPLAYER MATCH
+                </button>
+                <button id="btn-start-solo" class="lobby-action-btn solo-btn" title="Play solo practice without waiting">
+                  🕹️ SOLO PRACTICE RUN
+                </button>
+                <button id="btn-host-leave" class="lobby-action-btn secondary-btn" style="margin-top: 6px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
+                  🚪 CANCEL HOSTING
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: JOIN GAME (Right next to Host Game!) -->
+          <div id="lobby-join-card" class="lobby-group-card join-group">
+            <div class="group-header">
+              <span class="group-icon">🔗</span>
+              <h3 class="group-title">JOIN GAME</h3>
+            </div>
+            <p class="group-desc">Connect with a friend's Room Code or join an available match below.</p>
+
+            <div id="join-input-section">
+              <div class="lobby-field-row">
+                <input type="text" id="join-room-code-input" class="lobby-input uppercase" maxlength="8" placeholder="ENTER CODE (e.g. K9X2A)" />
+                <button id="btn-join-room" class="lobby-action-btn primary-btn" style="margin-top: 6px;">
+                  🔗 CONNECT TO HOST
+                </button>
+              </div>
+
+              <!-- Available Matches Section right next to host game -->
+              <div class="available-matches-box" style="margin-top: 14px;">
+                <div class="available-matches-header">
+                  <span class="matches-title">AVAILABLE MATCHES</span>
+                  <button id="btn-refresh-matches" class="lobby-small-btn">🔄 REFRESH</button>
+                </div>
+                <div id="available-matches-list" class="available-matches-list">
+                  <div style="font-size: 11px; color: #888; padding: 6px; text-align: center;">Searching for live matches...</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Tab 1: Host Room View -->
-        <div id="view-host-room" class="lobby-tab-view">
-          <div id="host-pre-create" class="host-pre-create">
-            <p class="tab-desc">Host a P2P server and invite friends using a 5-letter Room Code.</p>
-            <button id="btn-create-room" class="lobby-action-btn primary-btn">★ CREATE ROOM</button>
+        <!-- Dedicated Client Waiting Box (Shown when client connects to a room) -->
+        <div id="client-wait-box" class="client-wait-box hidden">
+          <div class="connecting-spinner">⏳</div>
+          <div id="client-wait-status" class="client-wait-status">Connecting to Host...</div>
+          <div class="players-list-box" style="margin-top: 8px;">
+            <div class="list-title">LOBBY PLAYERS:</div>
+            <div id="client-players-list" class="players-list"></div>
           </div>
-
-          <div id="host-room-info" class="host-room-info hidden">
-            <div class="room-code-display">
-              <span class="room-code-label">ROOM CODE:</span>
-              <span id="display-room-code" class="room-code-val">-----</span>
-              <button id="btn-copy-link" class="lobby-small-btn" title="Copy Invite Link">📋 COPY LINK</button>
-            </div>
-            
-            <div class="players-counter-box">
-              <span id="players-counter-text">Players in lobby: 1 (Min 2 required)</span>
-            </div>
-
-            <!-- Mode Voting Section (Host) -->
-            <div class="lobby-vote-section">
-              <div class="vote-title">VOTE GAME SUB-MODE:</div>
-              <div class="vote-buttons-row">
-                <button id="host-vote-escape" class="lobby-vote-btn active" data-mode="escape">
-                  <span>🏃 ESCAPE</span>
-                  <span id="host-count-escape" class="vote-count">(1)</span>
-                </button>
-                <button id="host-vote-survive" class="lobby-vote-btn" data-mode="survive">
-                  <span>⏱️ SURVIVE</span>
-                  <span id="host-count-survive" class="vote-count">(0)</span>
-                </button>
-              </div>
-              <div id="host-vote-desc" class="vote-desc">Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.</div>
-            </div>
-
-            <div class="players-list-box">
-              <div class="list-title">CONNECTED SURVIVORS:</div>
-              <div id="host-players-list" class="players-list"></div>
-            </div>
-
-            <div class="host-actions-row">
-              <button id="btn-start-match" class="lobby-action-btn start-btn">
-                ▶ START GAME NOW
-              </button>
-              <button id="btn-start-solo" class="lobby-action-btn solo-btn" title="Play solo practice without waiting">
-                🕹️ SOLO PRACTICE RUN
-              </button>
-            </div>
-            <button id="btn-host-leave" class="lobby-action-btn secondary-btn" style="margin-top: 10px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
-              🚪 LEAVE ROOM / MAIN MENU
-            </button>
-          </div>
-        </div>
-
-        <!-- Tab 2: Join Room View -->
-        <div id="view-join-room" class="lobby-tab-view hidden">
-          <div id="join-input-section">
-            <p class="tab-desc">Enter your friend's 5-letter Room Code or select from available matches below.</p>
-            <div class="lobby-field-row">
-              <input type="text" id="join-room-code-input" class="lobby-input uppercase" maxlength="8" placeholder="ENTER ROOM CODE (e.g. K9X2A)" />
-              <button id="btn-join-room" class="lobby-action-btn primary-btn" style="margin-top: 10px;">
-                🔗 CONNECT TO HOST
-              </button>
-            </div>
-
-            <!-- Available Matches Section -->
-            <div class="available-matches-box">
-              <div class="available-matches-header">
-                <span class="matches-title">AVAILABLE MATCHES</span>
-                <button id="btn-refresh-matches" class="lobby-small-btn">🔄 REFRESH</button>
-              </div>
-              <div id="available-matches-list" class="available-matches-list">
-                <div style="font-size: 11px; color: #888; padding: 6px;">Searching for live matches...</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="client-wait-box" class="client-wait-box hidden">
-            <div class="connecting-spinner">⏳</div>
-            <div id="client-wait-status" class="client-wait-status">Connecting to Host...</div>
-
-            <!-- Mode Voting Section (Client) -->
-            <div class="lobby-vote-section">
-              <div class="vote-title">VOTE GAME SUB-MODE:</div>
-              <div class="vote-buttons-row">
-                <button id="client-vote-escape" class="lobby-vote-btn active" data-mode="escape">
-                  <span>🏃 ESCAPE</span>
-                  <span id="client-count-escape" class="vote-count">(1)</span>
-                </button>
-                <button id="client-vote-survive" class="lobby-vote-btn" data-mode="survive">
-                  <span>⏱️ SURVIVE</span>
-                  <span id="client-count-survive" class="vote-count">(0)</span>
-                </button>
-              </div>
-              <div id="client-vote-desc" class="vote-desc">Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.</div>
-            </div>
-
-            <div class="players-list-box" style="margin-top: 10px;">
-              <div class="list-title">LOBBY PLAYERS:</div>
-              <div id="client-players-list" class="players-list"></div>
-            </div>
-            <button id="btn-client-leave" class="lobby-action-btn secondary-btn" style="margin-top: 12px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
-              🚪 LEAVE ROOM / MAIN MENU
-            </button>
-          </div>
+          <button id="btn-client-leave" class="lobby-action-btn secondary-btn" style="margin-top: 8px; background: rgba(192, 57, 43, 0.7); border-color: #e74c3c;">
+            🚪 LEAVE ROOM
+          </button>
         </div>
 
         <!-- Footer / Cancel -->
@@ -171,12 +147,11 @@ export class EvadeLobbyUI {
 
     // Elements
     this.nameInput = document.getElementById('lobby-player-name');
-    this.tabHost = document.getElementById('tab-host');
-    this.tabJoin = document.getElementById('tab-join');
-    this.viewHost = document.getElementById('view-host-room');
-    this.viewJoin = document.getElementById('view-join-room');
+    this.groupedSection = document.getElementById('lobby-grouped-section');
+    this.hostCard = document.getElementById('lobby-host-card');
+    this.joinCard = document.getElementById('lobby-join-card');
 
-    this.hostPreCreate = document.getElementById('host-pre-create');
+    this.hostUnhostedSection = document.getElementById('host-unhosted-section');
     this.hostRoomInfo = document.getElementById('host-room-info');
     this.btnCreateRoom = document.getElementById('btn-create-room');
     this.displayRoomCode = document.getElementById('display-room-code');
@@ -186,19 +161,6 @@ export class EvadeLobbyUI {
     this.btnStartMatch = document.getElementById('btn-start-match');
     this.btnStartSolo = document.getElementById('btn-start-solo');
     this.btnHostLeave = document.getElementById('btn-host-leave');
-
-    // Vote buttons
-    this.hostVoteEscape = document.getElementById('host-vote-escape');
-    this.hostVoteSurvive = document.getElementById('host-vote-survive');
-    this.hostCountEscape = document.getElementById('host-count-escape');
-    this.hostCountSurvive = document.getElementById('host-count-survive');
-    this.hostVoteDesc = document.getElementById('host-vote-desc');
-
-    this.clientVoteEscape = document.getElementById('client-vote-escape');
-    this.clientVoteSurvive = document.getElementById('client-vote-survive');
-    this.clientCountEscape = document.getElementById('client-count-escape');
-    this.clientCountSurvive = document.getElementById('client-count-survive');
-    this.clientVoteDesc = document.getElementById('client-vote-desc');
 
     this.joinInputSection = document.getElementById('join-input-section');
     this.joinCodeInput = document.getElementById('join-room-code-input');
@@ -223,37 +185,33 @@ export class EvadeLobbyUI {
       }
     });
 
-    this.tabHost.addEventListener('click', () => this.switchTab('host'));
-    this.tabJoin.addEventListener('click', () => {
-      this.switchTab('join');
-      this.refreshAvailableMatches();
-    });
-
     if (this.btnRefreshMatches) {
       this.btnRefreshMatches.addEventListener('click', () => this.refreshAvailableMatches());
     }
 
-    // Host Create Room
+    // Host Create / Start Hosting Room
     this.btnCreateRoom.addEventListener('click', async () => {
       this.btnCreateRoom.disabled = true;
-      this.btnCreateRoom.textContent = '⏳ CREATING ROOM...';
+      this.btnCreateRoom.textContent = '⏳ INITIALIZING HOST...';
       try {
         const name = this.nameInput.value.trim() || 'Host';
         this.networkManager.localPlayerName = name;
         const res = await this.networkManager.createRoom();
         this.displayRoomCode.textContent = res.roomCode;
-        this.hostPreCreate.classList.add('hidden');
+        this.hostUnhostedSection.classList.add('hidden');
         this.hostRoomInfo.classList.remove('hidden');
-        this.updatePlayersList([{ id: this.networkManager.localId, name, isHost: true }], true);
-        if (this.tabJoin) {
-          this.tabJoin.disabled = true;
-          this.tabJoin.style.opacity = '0.4';
-          this.tabJoin.title = 'Leave current room to join another';
+
+        // Dim Join Card while actively hosting
+        if (this.joinCard) {
+          this.joinCard.style.opacity = '0.35';
+          this.joinCard.style.pointerEvents = 'none';
         }
+
+        this.updatePlayersList([{ id: this.networkManager.localId, name, isHost: true }], true);
       } catch (err) {
         alert('Failed to initialize Host room on PeerJS network: ' + (err.message || err));
         this.btnCreateRoom.disabled = false;
-        this.btnCreateRoom.textContent = '★ CREATE ROOM';
+        this.btnCreateRoom.textContent = '★ HOST A NEW GAME';
       }
     });
 
@@ -269,27 +227,17 @@ export class EvadeLobbyUI {
       });
     });
 
-    // Host Start Match
+    // Host Start Match -> Triggers 10-Second In-Game Voting Phase across network
     this.btnStartMatch.addEventListener('click', () => {
       this.hide();
-      this.networkManager.startMatch();
+      this.networkManager.startVotingPhase(false);
     });
 
     // Solo Practice Run
     this.btnStartSolo.addEventListener('click', () => {
       this.hide();
-      this.networkManager.startMatch();
+      this.networkManager.startVotingPhase(true);
     });
-
-    // Voting Buttons
-    const handleVote = (mode) => {
-      this.networkManager.sendVote(mode);
-    };
-
-    if (this.hostVoteEscape) this.hostVoteEscape.addEventListener('click', () => handleVote('escape'));
-    if (this.hostVoteSurvive) this.hostVoteSurvive.addEventListener('click', () => handleVote('survive'));
-    if (this.clientVoteEscape) this.clientVoteEscape.addEventListener('click', () => handleVote('escape'));
-    if (this.clientVoteSurvive) this.clientVoteSurvive.addEventListener('click', () => handleVote('survive'));
 
     // Client Join Room
     this.btnJoinRoom.addEventListener('click', async () => {
@@ -301,6 +249,9 @@ export class EvadeLobbyUI {
 
       this.btnJoinRoom.disabled = true;
       this.btnJoinRoom.textContent = '⏳ CONNECTING...';
+
+      // Switch to client waiting screen (Grouped options hide)
+      if (this.groupedSection) this.groupedSection.classList.add('hidden');
       this.clientWaitBox.classList.remove('hidden');
       this.clientWaitStatus.textContent = `Connecting to Room [${code}]...`;
 
@@ -309,73 +260,62 @@ export class EvadeLobbyUI {
         await this.networkManager.joinRoom(code, name, (statusMsg) => {
           this.clientWaitStatus.textContent = statusMsg;
         });
-        this.clientWaitStatus.textContent = 'Connected! Waiting for Host to start match...';
-        this.btnJoinRoom.textContent = '✅ CONNECTED';
-        if (this.joinInputSection) {
-          this.joinInputSection.classList.add('hidden');
-        }
-        if (this.tabHost) {
-          this.tabHost.disabled = true;
-          this.tabHost.style.opacity = '0.4';
-          this.tabHost.title = 'Connected to room as client';
-        }
+        this.clientWaitStatus.textContent = `Connected to Room [${code}]! Waiting for Host to start match...`;
       } catch (err) {
         this.clientWaitStatus.textContent = '❌ Connection failed: ' + (err.message || 'Room not found.');
         this.btnJoinRoom.disabled = false;
-        this.btnJoinRoom.textContent = '🔄 RETRY CONNECTION';
+        this.btnJoinRoom.textContent = '🔗 CONNECT TO HOST';
       }
     });
 
-    // Universal Leave To Main Menu handler
-    const leaveToMainMenu = () => {
+    // Client Leave Room -> Returns back to lobby options (Host or Join)
+    this.btnClientLeave.addEventListener('click', () => {
+      this.networkManager.disconnect();
+      this.clientWaitBox.classList.add('hidden');
+      if (this.groupedSection) this.groupedSection.classList.remove('hidden');
+      this.btnJoinRoom.disabled = false;
+      this.btnJoinRoom.textContent = '🔗 CONNECT TO HOST';
+      this.refreshAvailableMatches();
+    });
+
+    // Host Cancel Hosting -> Returns host section back to unhosted
+    this.btnHostLeave.addEventListener('click', () => {
+      this.networkManager.disconnect();
+      this.hostRoomInfo.classList.add('hidden');
+      this.hostUnhostedSection.classList.remove('hidden');
+      this.btnCreateRoom.disabled = false;
+      this.btnCreateRoom.textContent = '★ HOST A NEW GAME';
+      if (this.joinCard) {
+        this.joinCard.style.opacity = '1';
+        this.joinCard.style.pointerEvents = 'auto';
+      }
+      this.refreshAvailableMatches();
+    });
+
+    // Return To Main Menu Button
+    this.btnBack.addEventListener('click', () => {
       this.hide();
       this.reset();
       this.networkManager.disconnect();
       if (this.onBackToMenu) this.onBackToMenu();
-    };
-
-    this.btnBack.addEventListener('click', leaveToMainMenu);
-    if (this.btnHostLeave) this.btnHostLeave.addEventListener('click', leaveToMainMenu);
-    if (this.btnClientLeave) this.btnClientLeave.addEventListener('click', leaveToMainMenu);
+    });
 
     // Hook NetworkManager events
     this.networkManager.onLobbyUpdate = (players, canStart) => {
       this.updatePlayersList(players, canStart);
     };
 
-    this.networkManager.onVoteUpdate = (votes) => {
-      this.updateVotes(votes);
+    this.networkManager.onVotingStart = (payload) => {
+      this.hide();
+      const isSolo = payload && !!payload.isSolo;
+      if (this.onStartMatch) this.onStartMatch(isSolo);
     };
 
     this.networkManager.onGameStart = (payload) => {
       this.hide();
       const isSolo = payload && !!payload.isSolo;
-      const mode = (payload && payload.mode) ? payload.mode : 'escape';
-      if (this.onStartMatch) this.onStartMatch(isSolo, mode);
+      if (this.onStartMatch) this.onStartMatch(isSolo);
     };
-  }
-
-  updateVotes(votes) {
-    if (!votes) return;
-    const isSurvive = votes.winner === 'survive';
-
-    const updateSet = (btnEsc, btnSurv, countEsc, countSurv, desc) => {
-      if (btnEsc && btnSurv) {
-        btnEsc.classList.toggle('active', !isSurvive);
-        btnSurv.classList.toggle('active', isSurvive);
-        btnSurv.classList.toggle('survive', isSurvive);
-      }
-      if (countEsc) countEsc.textContent = `(${votes.escape || 0})`;
-      if (countSurv) countSurv.textContent = `(${votes.survive || 0})`;
-      if (desc) {
-        desc.textContent = isSurvive
-          ? 'Survive: All doors unlocked! Survive 2-3 mins against Evil Santhomites to win.'
-          : 'Escape: Progressively hunt keys to unlock Seminar Hall, get photocopy, and escape via elevator.';
-      }
-    };
-
-    updateSet(this.hostVoteEscape, this.hostVoteSurvive, this.hostCountEscape, this.hostCountSurvive, this.hostVoteDesc);
-    updateSet(this.clientVoteEscape, this.clientVoteSurvive, this.clientCountEscape, this.clientCountSurvive, this.clientVoteDesc);
   }
 
   initAvailableMatches() {
@@ -393,7 +333,7 @@ export class EvadeLobbyUI {
     }
 
     setInterval(() => {
-      if (!this.container.classList.contains('hidden') && !this.viewJoin.classList.contains('hidden')) {
+      if (!this.container.classList.contains('hidden')) {
         this.refreshAvailableMatches();
       }
     }, 2000);
@@ -445,38 +385,30 @@ export class EvadeLobbyUI {
     });
   }
 
-  switchTab(tab) {
-    if (tab === 'host') {
-      if (this.tabHost.disabled) return;
-      this.tabHost.classList.add('active');
-      this.tabJoin.classList.remove('active');
-      this.viewHost.classList.remove('hidden');
-      this.viewJoin.classList.add('hidden');
-    } else {
-      if (this.tabJoin.disabled) return;
-      this.tabJoin.classList.add('active');
-      this.tabHost.classList.remove('active');
-      this.viewJoin.classList.remove('hidden');
-      this.viewHost.classList.add('hidden');
-      this.refreshAvailableMatches();
-    }
-  }
-
   updatePlayersList(players = [], canStart = false) {
     const count = players.length;
-    if (this.playersCounterText) {
-      this.playersCounterText.textContent = count > 1
-        ? `Players in lobby: ${count} (Ready for Multiplayer!)`
-        : `Players in lobby: ${count} (Waiting for friends or start now)`;
-    }
 
-    if (this.btnStartMatch) {
-      this.btnStartMatch.classList.remove('disabled');
-      this.btnStartMatch.disabled = false;
-      if (count > 1) {
-        this.btnStartMatch.textContent = `▶ START MULTIPLAYER MATCH (${count} PLAYERS)`;
-      } else {
-        this.btnStartMatch.textContent = `▶ START GAME NOW (${count} PLAYER)`;
+    // Only update and show start controls if local player is Host
+    if (this.networkManager.isHost) {
+      if (this.playersCounterText) {
+        this.playersCounterText.textContent = count > 1
+          ? `Players in lobby: ${count} (Ready for Multiplayer!)`
+          : `Players in lobby: ${count} (Waiting for friends or start now)`;
+      }
+
+      if (this.btnStartMatch) {
+        this.btnStartMatch.classList.remove('disabled');
+        this.btnStartMatch.disabled = false;
+        if (count > 1) {
+          this.btnStartMatch.textContent = `▶ START MULTIPLAYER MATCH (${count} PLAYERS)`;
+        } else {
+          this.btnStartMatch.textContent = `▶ START GAME NOW (${count} PLAYER)`;
+        }
+      }
+    } else {
+      // Client waiting screen updates
+      if (this.clientWaitStatus) {
+        this.clientWaitStatus.textContent = `Connected! (${count} Players in lobby). Waiting for Host to start match...`;
       }
     }
 
@@ -489,7 +421,7 @@ export class EvadeLobbyUI {
         item.innerHTML = `
           <span class="player-icon">${p.isHost ? '👑' : '👤'}</span>
           <span class="player-label">${p.name} ${p.id === this.networkManager.localId ? '(You)' : ''}</span>
-          <span class="player-status ready">READY</span>
+          <span class="player-status ready">${p.isHost ? 'HOST' : 'READY'}</span>
         `;
         el.appendChild(item);
       });
@@ -500,11 +432,11 @@ export class EvadeLobbyUI {
   }
 
   reset() {
-    if (this.hostPreCreate) this.hostPreCreate.classList.remove('hidden');
+    if (this.hostUnhostedSection) this.hostUnhostedSection.classList.remove('hidden');
     if (this.hostRoomInfo) this.hostRoomInfo.classList.add('hidden');
     if (this.btnCreateRoom) {
       this.btnCreateRoom.disabled = false;
-      this.btnCreateRoom.textContent = '★ CREATE ROOM';
+      this.btnCreateRoom.textContent = '★ HOST A NEW GAME';
     }
     if (this.displayRoomCode) this.displayRoomCode.textContent = '-----';
     if (this.joinCodeInput) this.joinCodeInput.value = '';
@@ -512,29 +444,19 @@ export class EvadeLobbyUI {
       this.btnJoinRoom.disabled = false;
       this.btnJoinRoom.textContent = '🔗 CONNECT TO HOST';
     }
-    if (this.joinInputSection) this.joinInputSection.classList.remove('hidden');
+    if (this.groupedSection) this.groupedSection.classList.remove('hidden');
     if (this.clientWaitBox) this.clientWaitBox.classList.add('hidden');
-    if (this.tabHost) {
-      this.tabHost.disabled = false;
-      this.tabHost.style.opacity = '1';
-      this.tabHost.title = '';
+
+    if (this.joinCard) {
+      this.joinCard.style.opacity = '1';
+      this.joinCard.style.pointerEvents = 'auto';
     }
-    if (this.tabJoin) {
-      this.tabJoin.disabled = false;
-      this.tabJoin.style.opacity = '1';
-      this.tabJoin.title = '';
-    }
+
     if (this.hostPlayersList) this.hostPlayersList.innerHTML = '';
     if (this.clientPlayersList) this.clientPlayersList.innerHTML = '';
     if (this.playersCounterText) {
       this.playersCounterText.textContent = 'Players in lobby: 1';
     }
-    if (this.btnStartMatch) {
-      this.btnStartMatch.disabled = false;
-      this.btnStartMatch.classList.remove('disabled');
-      this.btnStartMatch.textContent = '▶ START GAME NOW';
-    }
-    this.updateVotes({ escape: 1, survive: 0, winner: 'escape' });
   }
 
   show() {

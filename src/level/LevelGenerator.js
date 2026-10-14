@@ -732,14 +732,14 @@ export class LevelGenerator {
 
     // 1. LIBRARY BOOKSHELVES (5 Bookshelves matching library-reference.png)
     const bookshelfConfigs = [
-      // Top bookshelf to the right of the library door
-      { id: 'lib_shelf_door_right', x: 89.0, z: 83.48, rotY: 0, w: 2.1, d: 0.44, h: 2.4 },
-      // Left wall (West wall) - top and bottom
-      { id: 'lib_shelf_west_top', x: 66.48, z: 88.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
-      { id: 'lib_shelf_west_bot', x: 66.48, z: 96.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
-      // Right wall (East wall) - top and bottom
-      { id: 'lib_shelf_east_top', x: 99.52, z: 88.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
-      { id: 'lib_shelf_east_bot', x: 99.52, z: 96.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 }
+      // Top bookshelf to the right of the library door (rotated 180 deg)
+      { id: 'lib_shelf_door_right', x: 89.0, z: 83.48, rotY: Math.PI, w: 2.1, d: 0.44, h: 2.4 },
+      // Left wall (West wall) - top and bottom (rotated 180 deg)
+      { id: 'lib_shelf_west_top', x: 66.48, z: 88.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
+      { id: 'lib_shelf_west_bot', x: 66.48, z: 96.0, rotY: -Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
+      // Right wall (East wall) - top and bottom (rotated 180 deg)
+      { id: 'lib_shelf_east_top', x: 99.52, z: 88.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 },
+      { id: 'lib_shelf_east_bot', x: 99.52, z: 96.0, rotY: Math.PI / 2, w: 2.1, d: 0.44, h: 2.4 }
     ];
 
     // Colors for procedural books

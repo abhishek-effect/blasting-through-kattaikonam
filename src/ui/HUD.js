@@ -117,27 +117,34 @@ export class HUD {
     this.mainMenuView = document.getElementById('main-menu-view');
     this.pauseMenuView = document.getElementById('pause-menu-view');
     this.gameoverMenuView = document.getElementById('gameover-menu-view');
+    this.howToPlayView = document.getElementById('howtoplay-view');
     this.optionsView = document.getElementById('options-view');
     this.creditsView = document.getElementById('credits-view');
 
-    // Main Menu Buttons (PLAY & SHOOT SHOOT SHOOT)
+    // Main Menu Buttons (PLAY, SHOOT SHOOT SHOOT, HOW TO PLAY)
     this.btnMenuPlay = document.getElementById('btn-menu-play');
     this.btnMenuShoot = document.getElementById('btn-menu-shoot');
+    this.btnMenuHowToPlay = document.getElementById('btn-menu-howtoplay');
     this.btnMenuOptions = document.getElementById('btn-menu-options');
     this.btnMenuCredits = document.getElementById('btn-menu-credits');
 
     // Pause Menu Buttons
     this.btnPauseResume = document.getElementById('btn-pause-resume');
+    this.btnPauseHowToPlay = document.getElementById('btn-pause-howtoplay');
     this.btnPauseOptions = document.getElementById('btn-pause-options');
     this.btnPauseMainMenu = document.getElementById('btn-pause-mainmenu');
+
+    // How To Play Back Button
+    this.btnHowToPlayBack = document.getElementById('btn-howtoplay-back');
 
     // Game Over Buttons
     this.btnGameoverRestart = document.getElementById('btn-gameover-restart');
     this.btnGameoverMainMenu = document.getElementById('btn-gameover-mainmenu');
 
-    // Options Controls & Audio Toggles
+    // Options Controls, Fullscreen & Audio Toggles
     this.sliderSens = document.getElementById('slider-sensitivity');
     this.sensValDisplay = document.getElementById('sens-val-display');
+    this.btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
     this.btnToggleBgm = document.getElementById('btn-toggle-bgm');
     this.btnToggleSfx = document.getElementById('btn-toggle-sfx');
     this.btnOptionsBack = document.getElementById('btn-options-back');
@@ -416,6 +423,14 @@ export class HUD {
       this.btnMenuShoot.addEventListener('click', handleShoot);
     }
 
+    if (this.btnMenuHowToPlay) {
+      this.btnMenuHowToPlay.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.previousState = STATES.MENU;
+        this.gameState.setState(STATES.HOW_TO_PLAY);
+      });
+    }
+
     if (this.btnMenuOptions) {
       this.btnMenuOptions.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -443,6 +458,14 @@ export class HUD {
       });
     }
 
+    if (this.btnPauseHowToPlay) {
+      this.btnPauseHowToPlay.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.previousState = STATES.PAUSED;
+        this.gameState.setState(STATES.HOW_TO_PLAY);
+      });
+    }
+
     if (this.btnPauseOptions) {
       this.btnPauseOptions.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -459,7 +482,15 @@ export class HUD {
       });
     }
 
-    // 3. Game Over / Victory Buttons
+    // 3. How To Play Back Button
+    if (this.btnHowToPlayBack) {
+      this.btnHowToPlayBack.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.gameState.setState(this.previousState || STATES.MENU);
+      });
+    }
+
+    // 4. Game Over / Victory Buttons
     if (this.btnGameoverRestart) {
       this.btnGameoverRestart.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -477,12 +508,36 @@ export class HUD {
       });
     }
 
-    // 4. Options View Buttons & Toggles
+    // 5. Options View Buttons & Toggles
     if (this.btnOptionsBack) {
       this.btnOptionsBack.addEventListener('click', (e) => {
         e.stopPropagation();
         this.gameState.setState(this.previousState || STATES.MENU);
       });
+    }
+
+    if (this.btnToggleFullscreen) {
+      const updateFullscreenBtn = () => {
+        const isFull = !!document.fullscreenElement;
+        this.btnToggleFullscreen.textContent = isFull ? '🖥️ FULLSCREEN: ON' : '🖥️ FULLSCREEN: OFF';
+      };
+
+      this.btnToggleFullscreen.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          } else if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          }
+        } catch (err) {
+          console.warn('[HUD] Fullscreen toggle error:', err);
+        }
+        updateFullscreenBtn();
+      });
+
+      document.addEventListener('fullscreenchange', updateFullscreenBtn);
+      updateFullscreenBtn();
     }
 
     if (this.btnToggleBgm) {
@@ -505,7 +560,7 @@ export class HUD {
       });
     }
 
-    // 5. Credits View Buttons
+    // 6. Credits View Buttons
     if (this.btnCreditsBack) {
       this.btnCreditsBack.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -773,6 +828,7 @@ Coded by Gemini 3.8 Flash`;
     if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
     if (this.pauseMenuView) this.pauseMenuView.classList.add('hidden');
     if (this.gameoverMenuView) this.gameoverMenuView.classList.add('hidden');
+    if (this.howToPlayView) this.howToPlayView.classList.add('hidden');
     if (this.optionsView) this.optionsView.classList.add('hidden');
     if (this.creditsView) this.creditsView.classList.add('hidden');
   }
@@ -882,6 +938,10 @@ Coded by Gemini 3.8 Flash`;
       if (this.btnGameoverRestart) {
         this.btnGameoverRestart.textContent = '★ PLAY AGAIN';
       }
+    } else if (state === STATES.HOW_TO_PLAY) {
+      if (this.howToPlayView) this.howToPlayView.classList.remove('hidden');
+      if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+      if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
     } else if (state === STATES.OPTIONS) {
       if (this.optionsView) this.optionsView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');

@@ -52,22 +52,12 @@ export class EvadeHUD {
         <span id="evade-survive-timer-text">SURVIVE: 02:00</span>
       </div>
 
-      <!-- Persistent Evil Santhomite Directional Location Tracker -->
-      <div id="evade-threat-tracker" class="evade-threat-tracker">
-        <div class="tracker-card">
-          <div class="tracker-pointer-frame">
-            <img id="evade-tracker-arrow" src="./images/evade-location-indicator.png" alt="Threat Tracker" class="tracker-arrow" />
-          </div>
-          <div class="tracker-info">
-            <div id="evade-tracker-dist" class="tracker-dist">-- m</div>
-            <div id="evade-tracker-label" class="tracker-sub">NEAREST SANTHOMITE</div>
-          </div>
+      <!-- Directional Evil Santhomite Threat Indicator (centered, similar to damage indicator) -->
+      <div id="evade-threat-indicator-container" class="evade-threat-indicator-container">
+        <div id="evade-threat-indicator-item" class="evade-threat-indicator-item">
+          <img src="./images/evade-location-indicator.png" alt="Threat Direction" class="threat-indicator-arrow" />
+          <div id="evade-threat-indicator-dist" class="threat-indicator-dist">-- m</div>
         </div>
-      </div>
-
-      <!-- Rear View Active Banner -->
-      <div id="evade-rearview-banner" class="evade-rearview-banner hidden">
-        <span>👀 REAR VIEW ACTIVE [V]</span>
       </div>
 
       <!-- Photocopy Acquired In-Hand Status -->
@@ -124,6 +114,40 @@ export class EvadeHUD {
           </div>
         </div>
       </div>
+
+      <!-- 10-Second In-Game Sub-Mode Voting Phase Modal -->
+      <div id="evade-voting-modal" class="evade-voting-modal hidden">
+        <div class="voting-modal-backdrop"></div>
+        <div class="voting-modal-card">
+          <div class="voting-modal-header">
+            <div class="voting-badge">ROUND START</div>
+            <h2 class="voting-title">VOTE GAME SUB-MODE</h2>
+            <div id="voting-countdown" class="voting-countdown">DECIDING IN: 10s</div>
+          </div>
+          <div class="voting-cards-row">
+            <div id="voting-card-escape" class="voting-mode-card active" data-mode="escape">
+              <div class="voting-card-icon">🏃</div>
+              <div class="voting-card-title">ESCAPE MODE</div>
+              <div class="voting-card-desc">Hunt keys to unlock labs and Seminar Hall. Grab the photocopy inside and take the elevator to escape!</div>
+              <button id="btn-vote-escape" class="voting-card-btn active">
+                VOTE ESCAPE <span id="voting-count-escape" class="voting-count-pill">(1)</span>
+              </button>
+            </div>
+            <div id="voting-card-survive" class="voting-mode-card" data-mode="survive">
+              <div class="voting-card-icon">⏱️</div>
+              <div class="voting-card-title">SURVIVE MODE</div>
+              <div class="voting-card-desc">All campus rooms and Seminar Hall are unlocked! Evade the Evil Santhomites for 2 - 3 minutes to win.</div>
+              <button id="btn-vote-survive" class="voting-card-btn">
+                VOTE SURVIVE <span id="voting-count-survive" class="voting-count-pill">(0)</span>
+              </button>
+            </div>
+          </div>
+          <div class="voting-footer">
+            <span class="voting-tiebreaker-note">⚖️ If votes are equal, Host's choice decides the winner.</span>
+            <div id="voting-result-banner" class="voting-result-banner hidden"></div>
+          </div>
+        </div>
+      </div>
     `;
 
     // Elements
@@ -131,11 +155,9 @@ export class EvadeHUD {
     this.threatTextEl = document.getElementById('evade-threat-text');
     this.surviveBadgeEl = document.getElementById('evade-survive-timer-badge');
     this.surviveTimerTextEl = document.getElementById('evade-survive-timer-text');
-    this.threatTrackerEl = document.getElementById('evade-threat-tracker');
-    this.trackerArrowEl = document.getElementById('evade-tracker-arrow');
-    this.trackerDistEl = document.getElementById('evade-tracker-dist');
-    this.trackerLabelEl = document.getElementById('evade-tracker-label');
-    this.rearviewBannerEl = document.getElementById('evade-rearview-banner');
+    this.threatIndicatorContainer = document.getElementById('evade-threat-indicator-container');
+    this.threatIndicatorItem = document.getElementById('evade-threat-indicator-item');
+    this.threatIndicatorDist = document.getElementById('evade-threat-indicator-dist');
     this.photocopyBadgeEl = document.getElementById('evade-photocopy-badge');
 
     this.rosterListEl = document.getElementById('evade-roster-list');
@@ -154,6 +176,17 @@ export class EvadeHUD {
     this.btnMenu = document.getElementById('btn-evade-menu');
     this.btnVictoryReplay = document.getElementById('btn-evade-victory-replay');
     this.btnVictoryMenu = document.getElementById('btn-evade-victory-menu');
+
+    // Voting Phase Modal Elements
+    this.votingModalEl = document.getElementById('evade-voting-modal');
+    this.votingCountdownEl = document.getElementById('voting-countdown');
+    this.votingCardEscape = document.getElementById('voting-card-escape');
+    this.votingCardSurvive = document.getElementById('voting-card-survive');
+    this.btnVoteEscape = document.getElementById('btn-vote-escape');
+    this.btnVoteSurvive = document.getElementById('btn-vote-survive');
+    this.votingCountEscape = document.getElementById('voting-count-escape');
+    this.votingCountSurvive = document.getElementById('voting-count-survive');
+    this.votingResultBanner = document.getElementById('voting-result-banner');
   }
 
   show() {
@@ -284,42 +317,40 @@ export class EvadeHUD {
   }
 
   /**
-   * Updates the persistent on-screen directional Evil Santhomite tracker
-   * @param {number} angleDeg Relative angle in degrees to rotate arrow towards nearest threat
-   * @param {number} distance Distance in meters
+   * Updates screen-centered directional Evil Santhomite threat indicator (similar to damage indicator)
+   * @param {number} angleDeg Relative angle in degrees (-180 to 180)
+   * @param {number} distance Distance in meters to closest threat
    * @param {string} threatName Name of closest threat
    */
   updateThreatTracker(angleDeg, distance, threatName = 'Evil Santhomite') {
-    if (!this.threatTrackerEl || !this.trackerArrowEl || !this.trackerDistEl) return;
+    if (!this.threatIndicatorItem || !this.threatIndicatorDist) return;
 
     const roundedAngle = Math.round(angleDeg);
     const roundedDist = Math.round(distance * 10) / 10;
 
     if (roundedAngle !== this._lastTrackerAngle) {
       this._lastTrackerAngle = roundedAngle;
-      this.trackerArrowEl.style.transform = `rotate(${roundedAngle}deg)`;
+      this.threatIndicatorItem.style.transform = `rotate(${roundedAngle}deg)`;
     }
 
     if (roundedDist !== this._lastTrackerDist) {
       this._lastTrackerDist = roundedDist;
-      this.trackerDistEl.textContent = `${roundedDist.toFixed(1)}m`;
+      this.threatIndicatorDist.textContent = `${roundedDist.toFixed(1)}m`;
 
-      // Color coding & danger pulse based on proximity
-      let col = '#2ecc71';
+      // Proximity color and opacity similar to damage indicator
       if (roundedDist < 12) {
-        col = '#ff3838';
-        this.threatTrackerEl.classList.add('imminent-danger');
+        this.threatIndicatorItem.style.opacity = '1';
+        this.threatIndicatorDist.style.color = '#ff3838';
+        this.threatIndicatorItem.classList.add('threat-imminent');
       } else if (roundedDist < 25) {
-        col = '#ff9f1a';
-        this.threatTrackerEl.classList.remove('imminent-danger');
+        this.threatIndicatorItem.style.opacity = '0.85';
+        this.threatIndicatorDist.style.color = '#ff9f1a';
+        this.threatIndicatorItem.classList.remove('threat-imminent');
       } else {
-        this.threatTrackerEl.classList.remove('imminent-danger');
+        this.threatIndicatorItem.style.opacity = '0.55';
+        this.threatIndicatorDist.style.color = '#f1c40f';
+        this.threatIndicatorItem.classList.remove('threat-imminent');
       }
-      this.trackerDistEl.style.color = col;
-    }
-
-    if (this.trackerLabelEl && threatName) {
-      this.trackerLabelEl.textContent = threatName.toUpperCase();
     }
   }
 
@@ -358,26 +389,16 @@ export class EvadeHUD {
   }
 
   setRearView(isActive) {
-    if (!this.rearviewBannerEl) return;
-    if (isActive !== this._lastRearview) {
-      this._lastRearview = isActive;
-      if (isActive) {
-        this.rearviewBannerEl.classList.remove('hidden');
-      } else {
-        this.rearviewBannerEl.classList.add('hidden');
-      }
-    }
+    // Rear view active banner removed per user request
   }
 
   setPhotocopyStatus(hasPhotocopy) {
     if (!this.photocopyBadgeEl) return;
-    if (hasPhotocopy !== this._lastPhotocopy) {
-      this._lastPhotocopy = hasPhotocopy;
-      if (hasPhotocopy) {
-        this.photocopyBadgeEl.classList.remove('hidden');
-      } else {
-        this.photocopyBadgeEl.classList.add('hidden');
-      }
+    this._lastPhotocopy = !!hasPhotocopy;
+    if (hasPhotocopy) {
+      this.photocopyBadgeEl.classList.remove('hidden');
+    } else {
+      this.photocopyBadgeEl.classList.add('hidden');
     }
   }
 
@@ -404,6 +425,126 @@ export class EvadeHUD {
     }
     if (this.btnVictoryMenu) {
       this.btnVictoryMenu.onclick = () => onMenu && onMenu();
+    }
+  }
+
+  /**
+   * Displays the 10-second In-Game Sub-Mode Voting Phase Modal
+   * @param {number} duration Countdown duration in seconds (default 10)
+   * @param {Function} onVoteSelect Callback when player picks 'escape' or 'survive'
+   */
+  showVotingModal(duration = 10, onVoteSelect = null) {
+    if (!this.votingModalEl) return;
+    this.votingModalEl.classList.remove('hidden');
+
+    if (this.votingResultBanner) {
+      this.votingResultBanner.classList.add('hidden');
+      this.votingResultBanner.textContent = '';
+    }
+
+    if (this.btnVoteEscape) {
+      this.btnVoteEscape.disabled = false;
+      this.btnVoteEscape.onclick = (e) => {
+        e.stopPropagation();
+        this.selectLocalVote('escape');
+        if (onVoteSelect) onVoteSelect('escape');
+      };
+    }
+
+    if (this.btnVoteSurvive) {
+      this.btnVoteSurvive.disabled = false;
+      this.btnVoteSurvive.onclick = (e) => {
+        e.stopPropagation();
+        this.selectLocalVote('survive');
+        if (onVoteSelect) onVoteSelect('survive');
+      };
+    }
+
+    if (this.votingCardEscape) {
+      this.votingCardEscape.onclick = () => {
+        if (this.btnVoteEscape && !this.btnVoteEscape.disabled) {
+          this.btnVoteEscape.click();
+        }
+      };
+    }
+
+    if (this.votingCardSurvive) {
+      this.votingCardSurvive.onclick = () => {
+        if (this.btnVoteSurvive && !this.btnVoteSurvive.disabled) {
+          this.btnVoteSurvive.click();
+        }
+      };
+    }
+
+    this.updateVotingCountdown(duration);
+  }
+
+  updateVotingCountdown(secondsRemaining) {
+    if (!this.votingCountdownEl) return;
+    const sec = Math.max(0, Math.ceil(secondsRemaining));
+    this.votingCountdownEl.textContent = `DECIDING IN: ${sec}s`;
+    if (sec <= 3) {
+      this.votingCountdownEl.style.color = '#ff3838';
+    } else {
+      this.votingCountdownEl.style.color = '#e74c3c';
+    }
+  }
+
+  selectLocalVote(mode) {
+    if (this.votingCardEscape && this.votingCardSurvive) {
+      const isEscape = mode === 'escape';
+      this.votingCardEscape.classList.toggle('active', isEscape);
+      this.votingCardSurvive.classList.toggle('active', !isEscape);
+      if (this.btnVoteEscape) this.btnVoteEscape.classList.toggle('active', isEscape);
+      if (this.btnVoteSurvive) this.btnVoteSurvive.classList.toggle('active', !isEscape);
+    }
+  }
+
+  updateVotingTallies(votes, currentLocalVote = 'escape') {
+    if (!votes) return;
+    if (this.votingCountEscape) {
+      this.votingCountEscape.textContent = `(${votes.escape || 0})`;
+    }
+    if (this.votingCountSurvive) {
+      this.votingCountSurvive.textContent = `(${votes.survive || 0})`;
+    }
+    if (currentLocalVote) {
+      this.selectLocalVote(currentLocalVote);
+    }
+  }
+
+  showVotingResult(winnerMode, onComplete) {
+    if (!this.votingModalEl) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    if (this.btnVoteEscape) this.btnVoteEscape.disabled = true;
+    if (this.btnVoteSurvive) this.btnVoteSurvive.disabled = true;
+
+    const isEscape = winnerMode === 'escape';
+    if (this.votingCountdownEl) {
+      this.votingCountdownEl.textContent = 'VOTING CONCLUDED!';
+      this.votingCountdownEl.style.color = '#2ecc71';
+    }
+
+    if (this.votingResultBanner) {
+      this.votingResultBanner.classList.remove('hidden');
+      this.votingResultBanner.textContent = isEscape
+        ? '🏆 RESULT: ESCAPE MODE DECIDED!'
+        : '🏆 RESULT: SURVIVE MODE DECIDED!';
+      this.votingResultBanner.style.background = isEscape ? '#27ae60' : '#d35400';
+    }
+
+    setTimeout(() => {
+      this.hideVotingModal();
+      if (onComplete) onComplete();
+    }, 1500);
+  }
+
+  hideVotingModal() {
+    if (this.votingModalEl) {
+      this.votingModalEl.classList.add('hidden');
     }
   }
 }

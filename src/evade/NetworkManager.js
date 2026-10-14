@@ -17,6 +17,11 @@ export const MSG_TYPES = {
   CLIENT_UPDATE: 'CLIENT_UPDATE',
   HOST_STATE_SYNC: 'HOST_STATE_SYNC',
 
+  // Voting Phase
+  VOTING_START: 'VOTING_START',
+  VOTE_UPDATE: 'VOTE_UPDATE',
+  VOTING_DECIDED: 'VOTING_DECIDED',
+
   // Gameplay Events
   KEY_PICKUP: 'KEY_PICKUP',
   DOOR_UNLOCKED: 'DOOR_UNLOCKED',
@@ -24,8 +29,7 @@ export const MSG_TYPES = {
   PLAYER_REVIVED: 'PLAYER_REVIVED',
   PLAYER_ESCAPED: 'PLAYER_ESCAPED',
   PLAYER_OOFED: 'PLAYER_OOFED',
-  PHOTOCOPY_ACQUIRED: 'PHOTOCOPY_ACQUIRED',
-  VOTE_UPDATE: 'VOTE_UPDATE'
+  PHOTOCOPY_ACQUIRED: 'PHOTOCOPY_ACQUIRED'
 };
 
 const ICE_SERVERS = [
@@ -85,6 +89,8 @@ export class NetworkManager {
     // Callbacks
     this.onLobbyUpdate = null;
     this.onVoteUpdate = null;
+    this.onVotingStart = null;
+    this.onVotingDecided = null;
     this.onGameStart = null;
     this.onRemotePlayerUpdate = null;
     this.onHostStateSync = null;
@@ -498,6 +504,19 @@ export class NetworkManager {
           }
           break;
 
+        case MSG_TYPES.VOTING_START:
+          this.isGameRunning = true;
+          if (this.onVotingStart) {
+            this.onVotingStart(data);
+          }
+          break;
+
+        case MSG_TYPES.VOTING_DECIDED:
+          if (this.onVotingDecided) {
+            this.onVotingDecided(data);
+          }
+          break;
+
         case MSG_TYPES.GAME_START:
           this.isGameRunning = true;
           if (this.onGameStart) {
@@ -582,9 +601,9 @@ export class NetworkManager {
   }
 
   /**
-   * Host starts the match for all connected peers
+   * Host starts the 10-second voting phase for all connected peers
    */
-  startMatch() {
+  startVotingPhase(isSolo = false) {
     if (!this.isHost) {
       console.warn('[NetworkManager] Only the host can start the game.');
       return;
@@ -592,21 +611,52 @@ export class NetworkManager {
 
     this.stopLobbyBeacon();
     this.isGameRunning = true;
-    const isSolo = (this.connections.size <= 1);
-    const votesSummary = this.getVotesSummary();
-    const winningMode = votesSummary.winner;
+    const duration = 10;
+    const endTime = Date.now() + duration * 1000;
 
     const payload = {
-      type: MSG_TYPES.GAME_START,
-      timestamp: Date.now(),
-      isSolo,
-      mode: winningMode
+      type: MSG_TYPES.VOTING_START,
+      duration,
+      endTime,
+      isSolo: isSolo || (this.connections.size <= 1)
     };
 
     this.broadcast(payload);
-    if (this.onGameStart) {
-      this.onGameStart(payload);
+    if (this.onVotingStart) {
+      this.onVotingStart(payload);
     }
+  }
+
+  /**
+   * Host tallies votes and broadcasts the winning sub-mode to all connected peers
+   */
+  finishVotingPhase(isSolo = false) {
+    if (!this.isHost) return;
+    const summary = this.getVotesSummary();
+    const winningMode = summary.winner;
+    const playerCount = Math.max(1, this.connections.size);
+    let surviveDuration = 120;
+    if (playerCount === 3) surviveDuration = 150;
+    else if (playerCount >= 4) surviveDuration = 180;
+
+    const payload = {
+      type: MSG_TYPES.VOTING_DECIDED,
+      mode: winningMode,
+      surviveDuration,
+      isSolo
+    };
+
+    this.broadcast(payload);
+    if (this.onVotingDecided) {
+      this.onVotingDecided(payload);
+    }
+  }
+
+  /**
+   * Host starts the match (triggers 10-second voting phase)
+   */
+  startMatch(isSolo = false) {
+    this.startVotingPhase(isSolo);
   }
 
   /**
@@ -729,10 +779,24 @@ export class NetworkManager {
       if (v === 'survive') surviveCount++;
       else escapeCount++;
     });
+
+    let winner = 'escape';
+    const hostChoice = this.playerVotes.get(this.localId) || 'escape';
+
+    if (surviveCount > escapeCount) {
+      winner = 'survive';
+    } else if (escapeCount > surviveCount) {
+      winner = 'escape';
+    } else {
+      // Tie-breaker per rules: host's choice decides between escape and survive!
+      winner = hostChoice;
+    }
+
     return {
       escape: escapeCount,
       survive: surviveCount,
-      winner: surviveCount > escapeCount ? 'survive' : 'escape'
+      winner,
+      hostChoice
     };
   }
 

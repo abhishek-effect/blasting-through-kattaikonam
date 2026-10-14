@@ -33,6 +33,7 @@ export const NEXTBOT_TYPES = EVIL_SANTHOMITE_TYPES;
 // Pre-allocated static vectors (zero GC allocations)
 const _botToTarget = new THREE.Vector3();
 const _botAvoidDir = new THREE.Vector3();
+const _botSeparation = new THREE.Vector3();
 
 export class EvilSanthomiteManager {
   constructor(scene, colliders, audio, level = null) {
@@ -294,6 +295,27 @@ export class EvilSanthomiteManager {
             _botToTarget.x /= dist;
             _botToTarget.z /= dist;
 
+            // Inter-bot steering separation (prevents bots from clustering or chasing in a single blob)
+            _botSeparation.set(0, 0, 0);
+            for (let j = 0; j < this.bots.length; j++) {
+              const other = this.bots[j];
+              if (other === bot) continue;
+              const ox = bot.group.position.x - other.group.position.x;
+              const oz = bot.group.position.z - other.group.position.z;
+              const dSq = ox * ox + oz * oz;
+              const sepRadius = 2.4;
+              if (dSq < sepRadius * sepRadius && dSq > 0.0001) {
+                const d = Math.sqrt(dSq);
+                const weight = (sepRadius - d) / sepRadius;
+                _botSeparation.x += (ox / d) * weight;
+                _botSeparation.z += (oz / d) * weight;
+              }
+            }
+
+            if (_botSeparation.lengthSq() > 0.0001) {
+              _botToTarget.addScaledVector(_botSeparation, 0.75).normalize();
+            }
+
             // Steer away from walls/obstacles (mutates _botAvoidDir with 0 allocations)
             this.calculateObstacleAvoidance(bot.group.position, _botToTarget, _botAvoidDir);
             _botToTarget.addScaledVector(_botAvoidDir, 0.45).normalize();
@@ -328,6 +350,41 @@ export class EvilSanthomiteManager {
         }
       }
     });
+
+    // 4b. Hard inter-bot physical collision resolution (strictly prevents glitching/overlapping)
+    if (isHost && this.bots.length > 1) {
+      const botRadius = 0.75;
+      const minSepDist = botRadius * 2;
+      const minSepDistSq = minSepDist * minSepDist;
+
+      for (let i = 0; i < this.bots.length; i++) {
+        for (let j = i + 1; j < this.bots.length; j++) {
+          const b1 = this.bots[i];
+          const b2 = this.bots[j];
+          const dx = b1.group.position.x - b2.group.position.x;
+          const dz = b1.group.position.z - b2.group.position.z;
+          const dSq = dx * dx + dz * dz;
+
+          if (dSq < minSepDistSq && dSq > 0.00001) {
+            const d = Math.sqrt(dSq);
+            const overlap = minSepDist - d;
+            const nx = dx / d;
+            const nz = dz / d;
+            const halfPush = overlap * 0.5;
+
+            b1.group.position.x += nx * halfPush;
+            b1.group.position.z += nz * halfPush;
+            b2.group.position.x -= nx * halfPush;
+            b2.group.position.z -= nz * halfPush;
+
+            if (this.level && this.level.resolveSphereCollision) {
+              this.level.resolveSphereCollision(b1.group.position, 0.55);
+              this.level.resolveSphereCollision(b2.group.position, 0.55);
+            }
+          }
+        }
+      }
+    }
 
     this.closestDistance = minDistToLocal;
     this.updateTerrorAudio(deltaTime, minDistToLocal);

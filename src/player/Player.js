@@ -70,18 +70,106 @@ export class Player {
     this.hasPhotocopy = false;
     this.isLookingBehind = false;
 
-    // Held Photocopy 3D Viewmodel (attached to camera in hands)
+    // Held Photocopy 3D Viewmodel (held in hands like a weapon)
+    this.photocopyRig = new THREE.Group();
+    this.photocopyRig.position.set(0.02, -0.16, -0.36);
+    this.photocopyRig.rotation.set(-0.32, 0.04, -0.02);
+    this.photocopyRig.visible = false;
+
     const photoTex = loadTexture(ASSET_PATHS.items.photocopy, 1, 1, '#ffffff', '#dddddd');
-    const photoGeo = new THREE.PlaneGeometry(0.24, 0.32);
     const photoMat = new THREE.MeshBasicMaterial({
       map: photoTex,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
     });
-    this.photocopyMesh = new THREE.Mesh(photoGeo, photoMat);
-    this.photocopyMesh.position.set(0.26, -0.22, -0.42);
-    this.photocopyMesh.rotation.set(-0.35, -0.25, 0.12);
-    this.photocopyMesh.visible = false;
-    this.camera.add(this.photocopyMesh);
+    const paperBackMat = new THREE.MeshBasicMaterial({
+      color: 0xf5f6fa,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const sleeveMat = new THREE.MeshBasicMaterial({
+      color: 0x1e293b,
+      depthTest: false,
+      depthWrite: false
+    });
+    const cuffMat = new THREE.MeshBasicMaterial({
+      color: 0x0f172a,
+      depthTest: false,
+      depthWrite: false
+    });
+    const skinMat = new THREE.MeshBasicMaterial({
+      color: 0xb57c55,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    const paperWidth = 0.28;
+    const paperHeight = 0.38;
+    const paperMesh = new THREE.Mesh(new THREE.PlaneGeometry(paperWidth, paperHeight), photoMat);
+    paperMesh.renderOrder = 998;
+    this.photocopyRig.add(paperMesh);
+
+    const backPaper = new THREE.Mesh(new THREE.PlaneGeometry(paperWidth + 0.004, paperHeight + 0.004), paperBackMat);
+    backPaper.position.z = -0.001;
+    backPaper.renderOrder = 997;
+    this.photocopyRig.add(backPaper);
+
+    // Right Arm & Hand gripping right edge of paper
+    const rArmGroup = new THREE.Group();
+    const rSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.046, 0.24, 8), sleeveMat);
+    rSleeve.rotation.set(0.4, 0, -0.45);
+    rSleeve.position.set(paperWidth * 0.5 + 0.08, -0.15, 0.07);
+    rSleeve.renderOrder = 998;
+    rArmGroup.add(rSleeve);
+
+    const rCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.025, 8), cuffMat);
+    rCuff.rotation.set(0.4, 0, -0.45);
+    rCuff.position.set(paperWidth * 0.5 + 0.045, -0.07, 0.035);
+    rCuff.renderOrder = 998;
+    rArmGroup.add(rCuff);
+
+    const rThumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.048, 0.016), skinMat);
+    rThumb.position.set(paperWidth * 0.5 - 0.006, -0.035, 0.01);
+    rThumb.rotation.set(0, 0, -0.2);
+    rThumb.renderOrder = 999;
+    rArmGroup.add(rThumb);
+
+    const rFingers = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.065, 0.016), skinMat);
+    rFingers.position.set(paperWidth * 0.5 + 0.014, -0.035, -0.01);
+    rFingers.renderOrder = 998;
+    rArmGroup.add(rFingers);
+    this.photocopyRig.add(rArmGroup);
+
+    // Left Arm & Hand gripping left edge of paper
+    const lArmGroup = new THREE.Group();
+    const lSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.046, 0.24, 8), sleeveMat);
+    lSleeve.rotation.set(0.4, 0, 0.45);
+    lSleeve.position.set(-paperWidth * 0.5 - 0.08, -0.15, 0.07);
+    lSleeve.renderOrder = 998;
+    lArmGroup.add(lSleeve);
+
+    const lCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.025, 8), cuffMat);
+    lCuff.rotation.set(0.4, 0, 0.45);
+    lCuff.position.set(-paperWidth * 0.5 - 0.045, -0.07, 0.035);
+    lCuff.renderOrder = 998;
+    lArmGroup.add(lCuff);
+
+    const lThumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.048, 0.016), skinMat);
+    lThumb.position.set(-paperWidth * 0.5 + 0.006, -0.035, 0.01);
+    lThumb.rotation.set(0, 0, 0.2);
+    lThumb.renderOrder = 999;
+    lArmGroup.add(lThumb);
+
+    const lFingers = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.065, 0.016), skinMat);
+    lFingers.position.set(-paperWidth * 0.5 - 0.014, -0.035, -0.01);
+    lFingers.renderOrder = 998;
+    lArmGroup.add(lFingers);
+    this.photocopyRig.add(lArmGroup);
+
+    this.photocopyMesh = this.photocopyRig;
+    this.camera.add(this.photocopyRig);
 
     // Damage flash timer
     this.damageFlashTimer = 0;
@@ -157,6 +245,7 @@ export class Player {
     this.health = this.maxHealth;
     this.isDead = false;
     this.hasPhotocopy = false;
+    if (this.photocopyRig) this.photocopyRig.visible = false;
     this.updateCameraTransform();
   }
 
@@ -462,7 +551,8 @@ export class Player {
     if (this.photocopyMesh) {
       this.photocopyMesh.visible = !!this.hasPhotocopy;
       if (this.hasPhotocopy) {
-        this.photocopyMesh.position.y = -0.22 + Math.sin(this.bobTimer * 1.2) * 0.015;
+        this.photocopyMesh.position.y = -0.16 + Math.sin(this.bobTimer * 1.2) * 0.015;
+        this.photocopyMesh.position.x = 0.02 + Math.cos(this.bobTimer * 0.6) * 0.008;
       }
     }
   }
