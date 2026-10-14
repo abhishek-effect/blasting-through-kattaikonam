@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Fix wardrobe scale, rotate chairs towards tables, and prevent wall clipping for bookshelves and whiteboards';
+const commitMsg = 'Deploy: In-game voting phase, host tie-breaker, bot separation & collision, library rotation, and grouped lobby UI';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
