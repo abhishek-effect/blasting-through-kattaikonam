@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Evade survive vs escape voting, photocopy quest & elevator ride sequence, rear-view look behind, persistent threat tracker, bot scaling & dynamic key rooms, revive mechanics, and performance optimizations';
+const commitMsg = 'Deploy: Fix wardrobe scale, rotate chairs towards tables, and prevent wall clipping for bookshelves and whiteboards';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
