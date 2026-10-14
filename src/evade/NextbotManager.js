@@ -268,22 +268,28 @@ export class EvilSanthomiteManager {
       bot.mesh.position.y = Math.sin(bot.bobTimer) * 0.08;
 
       // 4. Host authoritative chase navigation
-      if (isHost && livingTargets.length > 0) {
+      if (isHost) {
         // Find closest target using squared distance
         let closestTarget = null;
-        let closestDistSq = Infinity;
-        const bx = bot.group.position.x;
-        const bz = bot.group.position.z;
+        if (livingTargets.length > 0) {
+          let closestDistSq = Infinity;
+          const bx = bot.group.position.x;
+          const bz = bot.group.position.z;
 
-        for (let i = 0; i < livingTargets.length; i++) {
-          const t = livingTargets[i];
-          const dx = bx - t.position.x;
-          const dz = bz - t.position.z;
-          const dSq = dx * dx + dz * dz;
-          if (dSq < closestDistSq) {
-            closestDistSq = dSq;
-            closestTarget = t;
+          for (let i = 0; i < livingTargets.length; i++) {
+            const t = livingTargets[i];
+            const dx = bx - t.position.x;
+            const dz = bz - t.position.z;
+            const dSq = dx * dx + dz * dz;
+            if (dSq < closestDistSq) {
+              closestDistSq = dSq;
+              closestTarget = t;
+            }
           }
+        } else {
+          // If no living targets currently available (e.g. all downed or disconnected), patrol smoothly
+          const fallbackPt = this.spawnPoints[0] || new THREE.Vector3(31, 0, 48);
+          closestTarget = { position: fallbackPt };
         }
 
         if (closestTarget) {
@@ -484,6 +490,15 @@ export class EvilSanthomiteManager {
         this.bots.splice(i, 1);
       }
     }
+  }
+
+  onPlayerRemoved(playerId) {
+    this.bots.forEach((bot) => {
+      bot.cooldownTimers.delete(playerId);
+      if (bot.target && bot.target.id === playerId) {
+        bot.target = null;
+      }
+    });
   }
 }
 

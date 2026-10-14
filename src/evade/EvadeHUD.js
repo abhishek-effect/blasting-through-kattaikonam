@@ -52,13 +52,8 @@ export class EvadeHUD {
         <span id="evade-survive-timer-text">SURVIVE: 02:00</span>
       </div>
 
-      <!-- Directional Evil Santhomite Threat Indicator (centered, similar to damage indicator) -->
-      <div id="evade-threat-indicator-container" class="evade-threat-indicator-container">
-        <div id="evade-threat-indicator-item" class="evade-threat-indicator-item">
-          <img src="./images/evade-location-indicator.png" alt="Threat Direction" class="threat-indicator-arrow" />
-          <div id="evade-threat-indicator-dist" class="threat-indicator-dist">-- m</div>
-        </div>
-      </div>
+      <!-- Directional Evil Santhomites Threat Indicator Container (each bot gets their own arrow) -->
+      <div id="evade-threat-indicator-container" class="evade-threat-indicator-container"></div>
 
       <!-- Photocopy Acquired In-Hand Status -->
       <div id="evade-photocopy-badge" class="evade-photocopy-badge hidden">
@@ -72,18 +67,37 @@ export class EvadeHUD {
         <div id="evade-roster-list" class="roster-list"></div>
       </div>
 
+      <!-- Generous Evade Stamina Bar at bottom of screen -->
+      <div id="evade-stamina-container" class="evade-stamina-container">
+        <div class="stamina-header-row">
+          <span class="stamina-icon">⚡</span>
+          <span class="stamina-title">STAMINA</span>
+          <span id="evade-stamina-val" class="stamina-val">100%</span>
+        </div>
+        <div class="stamina-track">
+          <div id="evade-stamina-fill" class="stamina-fill"></div>
+        </div>
+      </div>
+
       <!-- Downed Warning & Bleedout Timer (Center Screen) -->
       <div id="evade-downed-alert" class="evade-downed-alert hidden">
         <div class="downed-title">⚠️ YOU ARE DOWNED!</div>
-        <div class="downed-subtitle">Wait for a teammate to revive you</div>
+        <div class="downed-subtitle">Wait for a teammate to revive or carry you</div>
         <div id="evade-bleedout-bar-track">
           <div id="evade-bleedout-bar-fill"></div>
         </div>
       </div>
 
-      <!-- Proximity Revive Hold Indicator -->
+      <!-- Carried Notification (when local downed player is carried by teammate) -->
+      <div id="evade-carried-banner" class="evade-carried-banner hidden">
+        <span class="carried-icon">🏃</span>
+        <span id="evade-carried-text" class="carried-text">BEING CARRIED BY TEAMMATE... HOLD ON!</span>
+      </div>
+
+      <!-- Proximity Revive & Carry Hold Indicator -->
       <div id="evade-revive-prompt" class="evade-revive-prompt hidden">
         <div class="revive-label">HOLD [E] TO REVIVE</div>
+        <div id="evade-carry-label" class="carry-label">PRESS [F] TO CARRY</div>
         <div id="evade-revive-target-name" class="revive-target">Teammate</div>
         <div class="revive-progress-track">
           <div id="evade-revive-progress-fill"></div>
@@ -157,9 +171,19 @@ export class EvadeHUD {
     this.surviveBadgeEl = document.getElementById('evade-survive-timer-badge');
     this.surviveTimerTextEl = document.getElementById('evade-survive-timer-text');
     this.threatIndicatorContainer = document.getElementById('evade-threat-indicator-container');
-    this.threatIndicatorItem = document.getElementById('evade-threat-indicator-item');
-    this.threatIndicatorDist = document.getElementById('evade-threat-indicator-dist');
+    this.threatIndicatorMap = new Map();
     this.photocopyBadgeEl = document.getElementById('evade-photocopy-badge');
+
+    // Stamina Bar Elements
+    this.staminaContainer = document.getElementById('evade-stamina-container');
+    this.staminaFill = document.getElementById('evade-stamina-fill');
+    this.staminaVal = document.getElementById('evade-stamina-val');
+    this._lastStaminaPct = -1;
+
+    // Carrying & Carried Elements
+    this.carryLabelEl = document.getElementById('evade-carry-label');
+    this.carriedBannerEl = document.getElementById('evade-carried-banner');
+    this.carriedTextEl = document.getElementById('evade-carried-text');
 
     this.rosterListEl = document.getElementById('evade-roster-list');
     this.downedAlertEl = document.getElementById('evade-downed-alert');
@@ -189,6 +213,18 @@ export class EvadeHUD {
     this.votingCountSurvive = document.getElementById('voting-count-survive');
     this.votingResultBanner = document.getElementById('voting-result-banner');
     this.btnVoteConfirm = document.getElementById('btn-vote-confirm');
+
+    if (this.carryLabelEl) {
+      this.carryLabelEl.style.pointerEvents = 'auto';
+      this.carryLabelEl.style.cursor = 'pointer';
+      const onCarry = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.onCarryRequested) this.onCarryRequested();
+      };
+      this.carryLabelEl.addEventListener('click', onCarry);
+      this.carryLabelEl.addEventListener('touchstart', onCarry, { passive: false });
+    }
   }
 
   show() {
@@ -206,6 +242,7 @@ export class EvadeHUD {
     if (this.escapedScreenEl) this.escapedScreenEl.classList.add('hidden');
     if (this.downedAlertEl) this.downedAlertEl.classList.add('hidden');
     if (this.revivePromptEl) this.revivePromptEl.classList.add('hidden');
+    if (this.carriedBannerEl) this.carriedBannerEl.classList.add('hidden');
   }
 
   setObjective(text) {
@@ -272,18 +309,54 @@ export class EvadeHUD {
     }
   }
 
-  showRevivePrompt(targetName, progress = 0) {
+  showRevivePrompt(targetName, progress = 0, isCarrying = false) {
     if (!this.revivePromptEl) return;
     this.revivePromptEl.classList.remove('hidden');
     if (this.reviveTargetEl && targetName !== this._lastReviveName) {
       this._lastReviveName = targetName;
       this.reviveTargetEl.textContent = targetName;
     }
+    if (this.carryLabelEl) {
+      this.carryLabelEl.textContent = isCarrying ? 'PRESS [F] TO DROP' : 'PRESS [F] TO CARRY';
+    }
     if (this.reviveFillEl) {
       const rounded = Math.round(Math.min(100, progress * 100));
       if (rounded !== this._lastRevivePct) {
         this._lastRevivePct = rounded;
         this.reviveFillEl.style.width = `${rounded}%`;
+      }
+    }
+  }
+
+  setCarriedStatus(isCarried, carrierName = 'Teammate') {
+    if (!this.carriedBannerEl) return;
+    if (isCarried) {
+      this.carriedBannerEl.classList.remove('hidden');
+      if (this.carriedTextEl) {
+        this.carriedTextEl.textContent = `🏃 CARRIED BY ${carrierName.toUpperCase()}! HOLD ON...`;
+      }
+    } else {
+      this.carriedBannerEl.classList.add('hidden');
+    }
+  }
+
+  updateStamina(current, max) {
+    if (!this.staminaFill || !this.staminaVal) return;
+    const pct = Math.max(0, Math.min(100, Math.round((current / max) * 100)));
+    if (pct !== this._lastStaminaPct) {
+      this._lastStaminaPct = pct;
+      this.staminaFill.style.width = `${pct}%`;
+      this.staminaVal.textContent = `${pct}%`;
+
+      if (pct <= 15) {
+        this.staminaFill.style.background = '#e74c3c';
+        if (this.staminaContainer) this.staminaContainer.classList.add('stamina-exhausted');
+      } else if (pct <= 40) {
+        this.staminaFill.style.background = '#f39c12';
+        if (this.staminaContainer) this.staminaContainer.classList.remove('stamina-exhausted');
+      } else {
+        this.staminaFill.style.background = 'linear-gradient(90deg, #27ae60, #2ecc71)';
+        if (this.staminaContainer) this.staminaContainer.classList.remove('stamina-exhausted');
       }
     }
   }
@@ -319,41 +392,81 @@ export class EvadeHUD {
   }
 
   /**
-   * Updates screen-centered directional Evil Santhomite threat indicator (similar to damage indicator)
-   * @param {number} angleDeg Relative angle in degrees (-180 to 180)
-   * @param {number} distance Distance in meters to closest threat
-   * @param {string} threatName Name of closest threat
+   * Updates screen-centered directional indicators for all active Evil Santhomites.
+   * Each bot gets its own arrow pointing accurately to its location!
+   * @param {Array<{ id: string, angleDeg: number, distance: number, name: string }>} threatsList
    */
-  updateThreatTracker(angleDeg, distance, threatName = 'Evil Santhomite') {
-    if (!this.threatIndicatorItem || !this.threatIndicatorDist) return;
+  updateThreatTrackers(threatsList = []) {
+    if (!this.threatIndicatorContainer) return;
 
-    const roundedAngle = Math.round(angleDeg);
-    const roundedDist = Math.round(distance * 10) / 10;
+    const currentIds = new Set();
+    for (let i = 0; i < threatsList.length; i++) {
+      const t = threatsList[i];
+      const botKey = t.id || `bot_${i}`;
+      currentIds.add(botKey);
 
-    if (roundedAngle !== this._lastTrackerAngle) {
-      this._lastTrackerAngle = roundedAngle;
-      this.threatIndicatorItem.style.transform = `rotate(${roundedAngle}deg)`;
-    }
+      let entry = this.threatIndicatorMap.get(botKey);
+      if (!entry) {
+        const item = document.createElement('div');
+        item.className = 'evade-threat-indicator-item';
+        item.innerHTML = `
+          <img src="./images/evade-location-indicator.png" alt="Threat Direction" class="threat-indicator-arrow" />
+          <div class="threat-indicator-dist">-- m</div>
+        `;
+        this.threatIndicatorContainer.appendChild(item);
+        entry = {
+          item,
+          distEl: item.querySelector('.threat-indicator-dist'),
+          lastAngle: -999,
+          lastDist: -999
+        };
+        this.threatIndicatorMap.set(botKey, entry);
+      }
 
-    if (roundedDist !== this._lastTrackerDist) {
-      this._lastTrackerDist = roundedDist;
-      this.threatIndicatorDist.textContent = `${roundedDist.toFixed(1)}m`;
+      const roundedAngle = Math.round(t.angleDeg);
+      const roundedDist = Math.round(t.distance * 10) / 10;
 
-      // Proximity color and opacity similar to damage indicator
-      if (roundedDist < 12) {
-        this.threatIndicatorItem.style.opacity = '1';
-        this.threatIndicatorDist.style.color = '#ff3838';
-        this.threatIndicatorItem.classList.add('threat-imminent');
-      } else if (roundedDist < 25) {
-        this.threatIndicatorItem.style.opacity = '0.85';
-        this.threatIndicatorDist.style.color = '#ff9f1a';
-        this.threatIndicatorItem.classList.remove('threat-imminent');
-      } else {
-        this.threatIndicatorItem.style.opacity = '0.55';
-        this.threatIndicatorDist.style.color = '#f1c40f';
-        this.threatIndicatorItem.classList.remove('threat-imminent');
+      if (roundedAngle !== entry.lastAngle) {
+        entry.lastAngle = roundedAngle;
+        entry.item.style.transform = `rotate(${roundedAngle}deg)`;
+      }
+
+      if (roundedDist !== entry.lastDist) {
+        entry.lastDist = roundedDist;
+        entry.distEl.textContent = `${roundedDist.toFixed(1)}m`;
+
+        if (roundedDist < 12) {
+          entry.item.style.opacity = '1';
+          entry.distEl.style.color = '#ff3838';
+          entry.item.classList.add('threat-imminent');
+        } else if (roundedDist < 25) {
+          entry.item.style.opacity = '0.85';
+          entry.distEl.style.color = '#ff9f1a';
+          entry.item.classList.remove('threat-imminent');
+        } else {
+          entry.item.style.opacity = '0.55';
+          entry.distEl.style.color = '#f1c40f';
+          entry.item.classList.remove('threat-imminent');
+        }
       }
     }
+
+    // Clean up indicators for bots that are no longer active
+    for (const [id, entry] of this.threatIndicatorMap.entries()) {
+      if (!currentIds.has(id)) {
+        if (entry.item && entry.item.parentNode) {
+          entry.item.parentNode.removeChild(entry.item);
+        }
+        this.threatIndicatorMap.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Single-bot backward compatibility wrapper
+   */
+  updateThreatTracker(angleDeg, distance, threatName = 'Evil Santhomite') {
+    this.updateThreatTrackers([{ id: 'default', angleDeg, distance, name: threatName }]);
   }
 
   setSurvivalTimer(secondsRemaining) {

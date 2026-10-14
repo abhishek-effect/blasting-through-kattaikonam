@@ -27,6 +27,9 @@ export const MSG_TYPES = {
   DOOR_UNLOCKED: 'DOOR_UNLOCKED',
   PLAYER_DOWNED: 'PLAYER_DOWNED',
   PLAYER_REVIVED: 'PLAYER_REVIVED',
+  PLAYER_CARRIED: 'PLAYER_CARRIED',
+  PLAYER_DROPPED: 'PLAYER_DROPPED',
+  PLAYER_LEFT: 'PLAYER_LEFT',
   PLAYER_ESCAPED: 'PLAYER_ESCAPED',
   PLAYER_OOFED: 'PLAYER_OOFED',
   PHOTOCOPY_ACQUIRED: 'PHOTOCOPY_ACQUIRED'
@@ -540,8 +543,12 @@ export class NetworkManager {
         case MSG_TYPES.DOOR_UNLOCKED:
         case MSG_TYPES.PLAYER_DOWNED:
         case MSG_TYPES.PLAYER_REVIVED:
+        case MSG_TYPES.PLAYER_CARRIED:
+        case MSG_TYPES.PLAYER_DROPPED:
+        case MSG_TYPES.PLAYER_LEFT:
         case MSG_TYPES.PLAYER_ESCAPED:
         case MSG_TYPES.PLAYER_OOFED:
+        case MSG_TYPES.PHOTOCOPY_ACQUIRED:
           if (this.onGameplayEvent) {
             this.onGameplayEvent(data);
           }
@@ -550,10 +557,15 @@ export class NetworkManager {
     });
 
     conn.on('close', () => {
-      console.warn('[NetworkManager] Lost connection to host.');
+      console.warn('[NetworkManager] Lost connection to host. Migrating host authority...');
       this.isConnected = false;
+      this.isHost = true;
+      this.hostConn = null;
       if (this.onPlayerDisconnected) {
-        this.onPlayerDisconnected('Host');
+        this.onPlayerDisconnected('Host', 'Host', true);
+      }
+      if (this.onHostMigrated) {
+        this.onHostMigrated(this.localId, this.localPlayerName);
       }
     });
   }
@@ -570,10 +582,27 @@ export class NetworkManager {
 
     if (disconnectedPlayer) {
       this.broadcastLobbyUpdate();
+      if (this.isGameRunning) {
+        this.broadcast({
+          type: MSG_TYPES.PLAYER_LEFT,
+          id: disconnectedPlayer.id,
+          name: disconnectedPlayer.name,
+          isHost: !!disconnectedPlayer.isHost
+        });
+      }
       if (this.onPlayerDisconnected) {
-        this.onPlayerDisconnected(disconnectedPlayer.id, disconnectedPlayer.name);
+        this.onPlayerDisconnected(disconnectedPlayer.id, disconnectedPlayer.name, !!disconnectedPlayer.isHost);
       }
     }
+  }
+
+  leaveRoom() {
+    this.sendEvent(MSG_TYPES.PLAYER_LEFT, {
+      id: this.localId,
+      name: this.localPlayerName,
+      isHost: this.isHost
+    });
+    this.disconnect();
   }
 
   broadcastLobbyUpdate() {

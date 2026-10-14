@@ -58,10 +58,13 @@ export class EvadeGame {
     // Map of connected 3D remote players: Map<id, RemotePlayer>
     this.remotePlayers = new Map();
 
-    // Revive state
+    // Revive & Carry state
     this.revivingTarget = null;
     this.reviveHoldTimer = 0;
     this.reviveDuration = 2.5;
+    this.carriedPlayerId = null;
+    this.isCarried = false;
+    this.carrierId = null;
 
     // Flashlight
     this.flashlight = new THREE.SpotLight(0xffffff, 4.0, 32, Math.PI / 5, 0.45, 1.2);
@@ -198,6 +201,40 @@ export class EvadeGame {
         if (event.targetId === this.network.localId) {
           this.reviveLocalPlayer();
         }
+      } else if (event.type === MSG_TYPES.PLAYER_CARRIED) {
+        if (event.carriedId === this.network.localId) {
+          this.isCarried = true;
+          this.carrierId = event.carrierId;
+          const carrier = this.remotePlayers.get(event.carrierId);
+          this.hud.setCarriedStatus(true, carrier ? carrier.name : (event.carrierName || 'Teammate'));
+        } else {
+          const rp = this.remotePlayers.get(event.carriedId);
+          if (rp) {
+            rp.isBeingCarried = true;
+            rp.carriedById = event.carrierId;
+          }
+        }
+      } else if (event.type === MSG_TYPES.PLAYER_DROPPED) {
+        if (event.carriedId === this.network.localId) {
+          this.isCarried = false;
+          this.carrierId = null;
+          this.hud.setCarriedStatus(false);
+          if (event.dropPos) {
+            this.player.position.set(event.dropPos.x, event.dropPos.y || 1.65, event.dropPos.z);
+            this.player.updateCameraTransform();
+          }
+        } else {
+          const rp = this.remotePlayers.get(event.carriedId);
+          if (rp) {
+            rp.isBeingCarried = false;
+            rp.carriedById = null;
+            if (event.dropPos) {
+              rp.targetPos.set(event.dropPos.x, (event.dropPos.y || 1.65) - 1.65, event.dropPos.z);
+            }
+          }
+        }
+      } else if (event.type === MSG_TYPES.PLAYER_LEFT) {
+        this.handlePlayerLeft(event.id, event.name, !!event.isHost);
       } else if (event.type === MSG_TYPES.PLAYER_OOFED) {
         this.checkAllPlayersDefeated();
       } else if (event.type === MSG_TYPES.PHOTOCOPY_ACQUIRED) {
@@ -213,13 +250,58 @@ export class EvadeGame {
       }
     };
 
-    this.network.onPlayerDisconnected = (pid, name) => {
-      const rp = this.remotePlayers.get(pid);
-      if (rp) {
-        rp.destroy();
-        this.remotePlayers.delete(pid);
+    this.network.onPlayerDisconnected = (pid, name, wasHost = false) => {
+      this.handlePlayerLeft(pid, name, wasHost);
+    };
+
+    this.network.onHostMigrated = (newHostId, newHostName) => {
+      this.nextbots.isHost = true;
+      if (this.hud && this.hud.showNotification) {
+        this.hud.showNotification('👑 You are now the Host!', 4.0);
       }
     };
+
+    if (this.hud) {
+      this.hud.onCarryRequested = () => {
+        if (this.input) {
+          this.input.carryRequested = true;
+        }
+      };
+    }
+  }
+
+  handlePlayerLeft(pid, name, wasHost = false) {
+    const rp = this.remotePlayers.get(pid);
+    const displayName = name || (rp ? rp.name : 'A survivor');
+    if (this.hud && this.hud.showNotification) {
+      this.hud.showNotification(`🚪 ${displayName} left the room.`, 3.5);
+    }
+
+    if (this.carriedPlayerId === pid) {
+      this.carriedPlayerId = null;
+    }
+    if (this.carrierId === pid) {
+      this.isCarried = false;
+      this.carrierId = null;
+      if (this.hud) this.hud.setCarriedStatus(false);
+    }
+
+    if (rp) {
+      rp.destroy();
+      this.remotePlayers.delete(pid);
+    }
+
+    if (this.nextbots) {
+      this.nextbots.onPlayerRemoved(pid);
+    }
+
+    if (wasHost) {
+      this.nextbots.isHost = true;
+      this.network.isHost = true;
+      if (this.hud && this.hud.showNotification) {
+        this.hud.showNotification('👑 Host left. You are now the Host!', 4.0);
+      }
+    }
   }
 
   /**
@@ -433,6 +515,32 @@ export class EvadeGame {
     if (!this.isMatchRunning) return;
 
     // 2. Downed / Bleedout State handling
+    this.player.isDowned = this.isLocalDowned;
+
+    // If local player is being carried by a teammate, attach to carrier
+    if (this.isCarried && this.carrierId) {
+      const carrier = this.remotePlayers.get(this.carrierId);
+      if (carrier && carrier.currentPos) {
+        this.player.position.set(carrier.currentPos.x, 1.65, carrier.currentPos.z);
+        this.player.updateCameraTransform();
+      }
+    }
+
+    // If local player is carrying a teammate, attach carried teammate in front
+    if (this.carriedPlayerId) {
+      const carriedRp = this.remotePlayers.get(this.carriedPlayerId);
+      if (carriedRp) {
+        const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
+        carriedRp.targetPos.set(
+          this.player.position.x + forward.x * 0.85,
+          this.player.position.y,
+          this.player.position.z + forward.z * 0.85
+        );
+        carriedRp.targetYaw = this.player.yaw;
+        carriedRp.isBeingCarried = true;
+      }
+    }
+
     if (this.isLocalDowned) {
       this.bleedoutTimer -= deltaTime;
       this.hud.setDowned(true, this.bleedoutTimer / 45.0);
@@ -478,10 +586,14 @@ export class EvadeGame {
       this.network.isHost
     );
 
-    // 3b. Update Persistent Threat Tracker Arrow & Rearview UI
+    // 3b. Update Persistent Threat Tracker Arrows, Rearview UI & Stamina
     this.updateThreatTracker();
     this.hud.setRearView(!!this.player.isLookingBehind);
     this.hud.setPhotocopyStatus(!!this.player.hasPhotocopy);
+    if (this.player.getStamina && this.hud && this.hud.updateStamina) {
+      const st = this.player.getStamina();
+      this.hud.updateStamina(st.current, st.max);
+    }
 
     // 4. Update Key Progression & Seminar Hall Gathering
     if (this.subMode === 'escape') {
@@ -578,6 +690,9 @@ export class EvadeGame {
   }
 
   downLocalPlayer() {
+    if (this.carriedPlayerId) {
+      this.dropCarriedPlayer();
+    }
     this.isLocalDowned = true;
     this.bleedoutTimer = 45.0;
 
@@ -600,18 +715,100 @@ export class EvadeGame {
     }
   }
 
+  carryDownedPlayer(rp) {
+    if (!rp || !rp.isDowned || this.carriedPlayerId || this.isLocalDowned) return;
+    this.carriedPlayerId = rp.id;
+    rp.isBeingCarried = true;
+    this.network.sendEvent(MSG_TYPES.PLAYER_CARRIED, {
+      carrierId: this.network.localId,
+      carrierName: this.network.localPlayerName,
+      carriedId: rp.id
+    });
+    if (this.hud && this.hud.showNotification) {
+      this.hud.showNotification(`Carrying ${rp.name}! Move to safe area and press [F] to drop.`, 3.0);
+    }
+  }
+
+  dropCarriedPlayer() {
+    if (!this.carriedPlayerId) return;
+    const dropId = this.carriedPlayerId;
+    this.carriedPlayerId = null;
+
+    const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.yaw);
+    const dropPos = {
+      x: Number((this.player.position.x + forward.x * 0.85).toFixed(2)),
+      y: Number(this.player.position.y.toFixed(2)),
+      z: Number((this.player.position.z + forward.z * 0.85).toFixed(2))
+    };
+
+    const carriedRp = this.remotePlayers.get(dropId);
+    if (carriedRp) {
+      carriedRp.isBeingCarried = false;
+      carriedRp.targetPos.set(dropPos.x, dropPos.y - 1.65, dropPos.z);
+    }
+
+    this.network.sendEvent(MSG_TYPES.PLAYER_DROPPED, {
+      carrierId: this.network.localId,
+      carriedId: dropId,
+      dropPos
+    });
+
+    if (this.hud && this.hud.showNotification) {
+      this.hud.showNotification('Teammate dropped.', 2.0);
+    }
+  }
+
   updateReviveMechanic(deltaTime) {
     if (this.isLocalDowned || this.isLocalEscaped) {
       this.hud.hideRevivePrompt();
       return;
     }
 
-    // Find closest downed teammate
+    const wantsCarry = this.input.checkAndConsumeCarry && this.input.checkAndConsumeCarry();
+
+    // 1. If currently carrying a teammate
+    if (this.carriedPlayerId) {
+      const carriedRp = this.remotePlayers.get(this.carriedPlayerId);
+      if (!carriedRp || !carriedRp.isDowned) {
+        this.carriedPlayerId = null;
+      } else {
+        if (wantsCarry) {
+          this.dropCarriedPlayer();
+          return;
+        }
+
+        // Reviving while carrying
+        if (this.input.keys && this.input.keys['KeyE']) {
+          this.reviveHoldTimer += deltaTime;
+          const progress = Math.min(1.0, this.reviveHoldTimer / this.reviveDuration);
+          this.hud.showRevivePrompt(carriedRp.name, progress, true);
+
+          if (this.reviveHoldTimer >= this.reviveDuration) {
+            this.reviveHoldTimer = 0;
+            this.dropCarriedPlayer();
+            carriedRp.isDowned = false;
+            carriedRp.health = 55;
+            carriedRp.updateNameTag();
+
+            this.network.sendEvent(MSG_TYPES.PLAYER_REVIVED, {
+              reviverId: this.network.localId,
+              targetId: carriedRp.id
+            });
+          }
+        } else {
+          this.reviveHoldTimer = 0;
+          this.hud.showRevivePrompt(carriedRp.name, 0, true);
+        }
+        return;
+      }
+    }
+
+    // 2. Not currently carrying: look for nearest downed teammate
     let nearestDowned = null;
     let nearestDist = 3.2;
 
     for (const rp of this.remotePlayers.values()) {
-      if (rp.isDowned) {
+      if (rp.isDowned && !rp.isBeingCarried) {
         const d = this.player.position.distanceTo(rp.group.position);
         if (d < nearestDist) {
           nearestDist = d;
@@ -621,15 +818,18 @@ export class EvadeGame {
     }
 
     if (nearestDowned) {
+      if (wantsCarry) {
+        this.carryDownedPlayer(nearestDowned);
+        return;
+      }
+
       // Show revive prompt
       if (this.input.keys && this.input.keys['KeyE']) {
-        // Holding E to revive
         this.reviveHoldTimer += deltaTime;
         const progress = Math.min(1.0, this.reviveHoldTimer / this.reviveDuration);
-        this.hud.showRevivePrompt(nearestDowned.name, progress);
+        this.hud.showRevivePrompt(nearestDowned.name, progress, false);
 
         if (this.reviveHoldTimer >= this.reviveDuration) {
-          // Revived teammate!
           this.reviveHoldTimer = 0;
           nearestDowned.isDowned = false;
           nearestDowned.health = 55;
@@ -642,7 +842,7 @@ export class EvadeGame {
         }
       } else {
         this.reviveHoldTimer = 0;
-        this.hud.showRevivePrompt(nearestDowned.name, 0);
+        this.hud.showRevivePrompt(nearestDowned.name, 0, false);
       }
     } else {
       this.reviveHoldTimer = 0;
@@ -651,39 +851,40 @@ export class EvadeGame {
   }
 
   updateThreatTracker() {
-    if (!this.hud || !this.nextbots || !this.nextbots.bots.length) return;
+    if (!this.hud || !this.nextbots) return;
+    if (!this.nextbots.bots || this.nextbots.bots.length === 0) {
+      if (this.hud.updateThreatTrackers) {
+        this.hud.updateThreatTrackers([]);
+      }
+      return;
+    }
 
-    let nearestBot = null;
-    let minDist = Infinity;
+    const viewYaw = this.player.yaw + (this.player.isLookingBehind ? Math.PI : 0);
+    const threats = [];
 
     for (let i = 0; i < this.nextbots.bots.length; i++) {
       const b = this.nextbots.bots[i];
       if (b && b.group) {
-        const d = Math.hypot(
-          b.group.position.x - this.player.position.x,
-          b.group.position.z - this.player.position.z
-        );
-        if (d < minDist) {
-          minDist = d;
-          nearestBot = b;
-        }
+        const dx = b.group.position.x - this.player.position.x;
+        const dz = b.group.position.z - this.player.position.z;
+        const dist = Math.hypot(dx, dz);
+        const worldAngle = Math.atan2(dx, -dz);
+        let rel = worldAngle - viewYaw;
+        while (rel > Math.PI) rel -= Math.PI * 2;
+        while (rel < -Math.PI) rel += Math.PI * 2;
+        const deg = (rel * 180) / Math.PI;
+
+        threats.push({
+          id: b.id || `bot_${i}`,
+          angleDeg: deg,
+          distance: dist,
+          name: b.name || (b.type ? b.type.name : 'Evil Santhomite')
+        });
       }
     }
 
-    if (nearestBot && nearestBot.group) {
-      const dx = nearestBot.group.position.x - this.player.position.x;
-      const dz = nearestBot.group.position.z - this.player.position.z;
-      // In Three.js world coordinates: forward (yaw=0) is -Z, right is +X.
-      const worldAngle = Math.atan2(dx, -dz);
-      // Current camera view yaw (including 180° flip if rear view is active)
-      const viewYaw = this.player.yaw + (this.player.isLookingBehind ? Math.PI : 0);
-      let rel = worldAngle - viewYaw;
-      while (rel > Math.PI) rel -= Math.PI * 2;
-      while (rel < -Math.PI) rel += Math.PI * 2;
-      const deg = (rel * 180) / Math.PI;
-
-      const threatName = nearestBot.type ? nearestBot.type.name : 'Evil Santhomite';
-      this.hud.updateThreatTracker(deg, minDist, threatName);
+    if (this.hud.updateThreatTrackers) {
+      this.hud.updateThreatTrackers(threats);
     }
   }
 
@@ -836,6 +1037,16 @@ export class EvadeGame {
     }
   }
 
+  leaveRoom() {
+    if (this.carriedPlayerId) {
+      this.dropCarriedPlayer();
+    }
+    if (this.network) {
+      this.network.leaveRoom();
+    }
+    this.stopAndExitToMenu();
+  }
+
   stopAndExitToMenu() {
     this.stop();
     this.gameState.hasActiveSession = false;
@@ -843,6 +1054,13 @@ export class EvadeGame {
   }
 
   stop() {
+    if (this.carriedPlayerId) {
+      this.dropCarriedPlayer();
+    }
+    this.carriedPlayerId = null;
+    this.isCarried = false;
+    this.carrierId = null;
+
     this.isActive = false;
     this.isVotingPhase = false;
     this.isMatchRunning = false;

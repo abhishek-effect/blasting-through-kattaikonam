@@ -1844,6 +1844,14 @@ html, body {
   letter-spacing: 1px;
 }
 
+.carry-label {
+  font-size: 12px;
+  color: #f39c12;
+  font-weight: 900;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
 .revive-target {
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px;
@@ -1865,6 +1873,110 @@ html, body {
   height: 100%;
   background: #2ecc71;
   transition: width 0.05s linear;
+}
+
+/* Carried Status Banner */
+.evade-carried-banner {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(243, 156, 18, 0.92);
+  border: 2px solid #f1c40f;
+  border-radius: 8px;
+  padding: 10px 24px;
+  box-shadow: 0 0 20px rgba(241, 196, 15, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Share Tech Mono', monospace, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  z-index: 100;
+  animation: carryPulse 0.8s infinite alternate ease-in-out;
+}
+
+.evade-carried-banner.hidden {
+  display: none !important;
+}
+
+@keyframes carryPulse {
+  0% { transform: translateX(-50%) scale(1.0); }
+  100% { transform: translateX(-50%) scale(1.05); }
+}
+
+/* Generous Evade Stamina Bar at bottom of screen */
+.evade-stamina-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  background: rgba(12, 16, 26, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: 'Share Tech Mono', monospace, sans-serif;
+  pointer-events: none;
+}
+
+.stamina-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.stamina-icon {
+  font-size: 12px;
+  color: #f1c40f;
+}
+
+.stamina-title {
+  color: #ddd;
+  margin-left: -50px;
+}
+
+.stamina-val {
+  color: #2ecc71;
+  font-size: 12px;
+}
+
+.stamina-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.stamina-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #27ae60, #2ecc71);
+  transition: width 0.08s ease-out, background 0.2s ease;
+  border-radius: 3px;
+}
+
+.evade-stamina-container.stamina-exhausted {
+  border-color: #e74c3c;
+  box-shadow: 0 0 14px rgba(231, 76, 60, 0.6);
+  animation: exhaustShake 0.3s infinite alternate ease-in-out;
+}
+
+@keyframes exhaustShake {
+  0% { transform: translateX(-50%) translateY(0); }
+  100% { transform: translateX(-50%) translateY(-2px); }
 }
 
 /* Fullscreen End Screens */

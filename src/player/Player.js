@@ -61,10 +61,13 @@ export class Player {
     this.bobIntensity = 0.045;
     this.bobSpeed = 10;
 
-    // Health
+    // Health & Stamina
     this.maxHealth = 100;
     this.health = 100;
     this.isDead = false;
+    this.isDowned = false;
+    this.maxStamina = 100;
+    this.stamina = 100;
 
     // Progression Hook: Photocopy requirement for elevator
     this.hasPhotocopy = false;
@@ -243,7 +246,9 @@ export class Player {
     this.slideRoll = 0;
     this.currentSlideRoll = 0;
     this.health = this.maxHealth;
+    this.stamina = this.maxStamina;
     this.isDead = false;
+    this.isDowned = false;
     this.hasPhotocopy = false;
     if (this.photocopyRig) this.photocopyRig.visible = false;
     this.updateCameraTransform();
@@ -315,7 +320,7 @@ export class Player {
     _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
 
     // Check Slide Activation ('Ctrl' key)
-    const wantsSlide = (this.input.checkAndConsumeSlide && this.input.checkAndConsumeSlide());
+    const wantsSlide = !this.isDowned && this.stamina > 0 && (this.input.checkAndConsumeSlide && this.input.checkAndConsumeSlide());
     if (
       wantsSlide &&
       this.isGrounded &&
@@ -345,7 +350,7 @@ export class Player {
     }
 
     // Check Crouch Activation ('C' key)
-    if (!this.isSliding) {
+    if (!this.isSliding && !this.isDowned) {
       this.isCrouching = this.input.isCrouching ? this.input.isCrouching() : false;
       if (this.input.isSprinting() && (move.x !== 0 || move.z !== 0)) {
         this.isCrouching = false;
@@ -353,6 +358,8 @@ export class Player {
           this.input.setCrouching(false);
         }
       }
+    } else if (this.isDowned) {
+      this.isCrouching = false;
     }
 
     // 3. Movement Physics (Slide vs Normal Walking/Sprinting/Crouching)
@@ -360,12 +367,16 @@ export class Player {
     if (this.isSliding) {
       this.slideTimer += deltaTime;
       const slideProgress = Math.min(1.0, this.slideTimer / this.slideDuration);
-      // Stays slightly faster than sprinting (sprintSpeed = 7.5) throughout the slide
+      // Stays slightly faster than sprinting (sprintSpeed = 7.5 or 8.5) throughout the slide
       const currentSlideSpeed = THREE.MathUtils.lerp(
         this.initialSlideSpeed,
         8.0,
         Math.sin(slideProgress * Math.PI * 0.5)
       );
+
+      // Drain energy based on slide speed relative to sprint speed
+      const slideDrainRate = 5.0 * (currentSlideSpeed / Math.max(1.0, this.sprintSpeed));
+      this.stamina = Math.max(0, this.stamina - slideDrainRate * deltaTime);
 
       this.velocity.x = this.slideDirection.x * currentSlideSpeed;
       this.velocity.z = this.slideDirection.z * currentSlideSpeed;
@@ -381,25 +392,57 @@ export class Player {
         this.velocity.z = this.slideDirection.z * (currentSlideSpeed * 1.15);
         this.isGrounded = false;
         this.isSliding = false;
+        this.isCrouching = false;
+        if (this.input.setCrouching) this.input.setCrouching(false);
         this.slideRoll = 0;
         this.slideCooldown = 5.0; // 5-second cooldown
         if (this.audio && this.audio.playJump) {
           this.audio.playJump();
         }
-      } else if (this.slideTimer >= this.slideDuration) {
+      } else if (this.slideTimer >= this.slideDuration || this.stamina <= 0) {
+        // After 5s slide (or when stamina depletes), stop slide, make player stand up, and apply 5s cooldown
         this.isSliding = false;
+        this.isCrouching = false;
+        if (this.input.setCrouching) {
+          this.input.setCrouching(false);
+        }
         this.slideRoll = 0;
         this.slideCooldown = 5.0; // 5-second cooldown
-        if (this.input.isCrouching && this.input.isCrouching()) {
-          this.isCrouching = true;
-        }
       }
     } else {
       this.slideRoll = 0;
-      const isSprinting = this.input.isSprinting();
-      const currentSpeed = this.isCrouching
-        ? this.crouchSpeed
-        : (isSprinting ? this.sprintSpeed : this.walkSpeed);
+
+      _moveDir.set(0, 0, 0)
+        .addScaledVector(_right, move.x)
+        .addScaledVector(_forward, -move.z);
+
+      isMoving = _moveDir.lengthSq() > 0.001;
+      if (isMoving) {
+        _moveDir.normalize();
+      }
+
+      // Stamina drain and restoration logic
+      let isSprinting = false;
+      if (!this.isDowned && !this.isCrouching && this.input.isSprinting() && isMoving && this.stamina > 0) {
+        isSprinting = true;
+        // 20 seconds of full sprinting drains stamina fully (5.0 / sec)
+        this.stamina = Math.max(0, this.stamina - 5.0 * deltaTime);
+      } else if (!this.isDowned && this.isCrouching) {
+        // 40 seconds of crouching drains stamina fully (2.5 / sec)
+        this.stamina = Math.max(0, this.stamina - 2.5 * deltaTime);
+      } else if (!this.isDowned && isMoving) {
+        // Walking restores energy (5.0 / sec)
+        this.stamina = Math.min(this.maxStamina, this.stamina + 5.0 * deltaTime);
+      } else if (!this.isDowned) {
+        // Staying still restores energy slightly faster (8.0 / sec)
+        this.stamina = Math.min(this.maxStamina, this.stamina + 8.0 * deltaTime);
+      }
+
+      const currentSpeed = this.isDowned
+        ? 1.2
+        : (this.isCrouching
+          ? this.crouchSpeed
+          : (isSprinting ? this.sprintSpeed : this.walkSpeed));
 
       _moveDir.set(0, 0, 0)
         .addScaledVector(_right, move.x)
@@ -564,5 +607,13 @@ export class Player {
     this.camera.rotation.y = visualYaw;
     this.camera.rotation.x = this.pitch;
     this.camera.rotation.z = this.currentSlideRoll;
+  }
+
+  getStamina() {
+    return {
+      current: this.stamina,
+      max: this.maxStamina,
+      percent: Math.max(0, Math.min(1.0, this.stamina / this.maxStamina))
+    };
   }
 }

@@ -477,8 +477,12 @@ export class HUD {
     if (this.btnPauseMainMenu) {
       this.btnPauseMainMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.gameState.hasActiveSession = false;
-        this.gameState.setState(STATES.MENU);
+        if (this.gameState && this.gameState.currentMode === GAME_MODES.PLAY) {
+          this.gameState.emit('leaveRoom');
+        } else {
+          this.gameState.hasActiveSession = false;
+          this.gameState.setState(STATES.MENU);
+        }
       });
     }
 
@@ -908,7 +912,40 @@ Coded by Gemini 3.8 Flash`;
       }
       if (this.overlaySubtitle) {
         const modeName = this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ? 'SHOOT SHOOT SHOOT' : 'PLAY';
-        this.overlaySubtitle.textContent = `MODE: ${modeName} - Adjust sensitivity & controls`;
+        this.overlaySubtitle.textContent = `MODE: ${modeName}`;
+      }
+
+      // Online mode: display ONLY 2 options: Resume Game and Leave Room
+      if (this.gameState.currentMode === GAME_MODES.PLAY) {
+        if (this.btnPauseResume) {
+          this.btnPauseResume.style.display = 'block';
+          this.btnPauseResume.textContent = '▶ RESUME GAME';
+        }
+        if (this.btnPauseHowToPlay) {
+          this.btnPauseHowToPlay.style.display = 'none';
+        }
+        if (this.btnPauseOptions) {
+          this.btnPauseOptions.style.display = 'none';
+        }
+        if (this.btnPauseMainMenu) {
+          this.btnPauseMainMenu.style.display = 'block';
+          this.btnPauseMainMenu.textContent = '🚪 LEAVE ROOM';
+        }
+      } else {
+        if (this.btnPauseResume) {
+          this.btnPauseResume.style.display = 'block';
+          this.btnPauseResume.textContent = '▶ RESUME GAME';
+        }
+        if (this.btnPauseHowToPlay) {
+          this.btnPauseHowToPlay.style.display = 'block';
+        }
+        if (this.btnPauseOptions) {
+          this.btnPauseOptions.style.display = 'block';
+        }
+        if (this.btnPauseMainMenu) {
+          this.btnPauseMainMenu.style.display = 'block';
+          this.btnPauseMainMenu.textContent = '🏠 MAIN MENU';
+        }
       }
       this.updateMobilePauseLabel();
     } else if (state === STATES.GAME_OVER) {

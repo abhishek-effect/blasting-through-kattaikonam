@@ -77,6 +77,7 @@ export class InputManager {
     this.reloadRequested = false;
     this.grenadeRequested = false;
     this.interactRequested = false;
+    this.carryRequested = false;
     this.jumpRequested = false;
     this.requestedSlot = null; // 0, 1, or 2
 
@@ -141,6 +142,8 @@ export class InputManager {
         this.grenadeRequested = true;
       } else if (e.code === 'KeyE') {
         this.interactRequested = true;
+      } else if (e.code === 'KeyF') {
+        this.carryRequested = true;
       } else if (e.code === 'Digit1' || e.code === 'Numpad1') {
         this.requestedSlot = 0;
       } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
@@ -527,6 +530,14 @@ export class InputManager {
   checkAndConsumeInteract() {
     if (this.interactRequested) {
       this.interactRequested = false;
+      return true;
+    }
+    return false;
+  }
+
+  checkAndConsumeCarry() {
+    if (this.carryRequested) {
+      this.carryRequested = false;
       return true;
     }
     return false;

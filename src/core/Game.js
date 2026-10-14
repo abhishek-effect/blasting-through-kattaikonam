@@ -325,6 +325,15 @@ export class Game {
       this.launchMode(mode);
     });
 
+    this.gameState.on('leaveRoom', () => {
+      if (this.evadeGame && this.evadeGame.isActive) {
+        this.evadeGame.leaveRoom();
+      } else {
+        this.gameState.hasActiveSession = false;
+        this.gameState.setState(STATES.MENU);
+      }
+    });
+
     this.gameState.on('stateChange', ({ newState }) => {
       if (newState === STATES.PLAYING) {
         if (!this.evadeGame || !this.evadeGame.isActive) {
