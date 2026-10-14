@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: In-game voting phase, host tie-breaker, bot separation & collision, library rotation, and grouped lobby UI';
+const commitMsg = 'Deploy: Carrying downed players, individual bot threat indicators, stamina bar & mechanics, slide cooldown & standup, seamless P2P room leaving';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
