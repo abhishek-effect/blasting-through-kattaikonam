@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Carrying downed players, individual bot threat indicators, stamina bar & mechanics, slide cooldown & standup, seamless P2P room leaving';
+const commitMsg = 'Deploy: Shoot Shoot Shoot mode questline, security keypad puzzle, holdable quest items, Sijinil & Boss fights, bladexvoid Evade BGM, and campus optimizations';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

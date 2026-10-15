@@ -31,6 +31,10 @@ export const ASSET_PATHS = {
   items: {
     grenade: assetUrl('/images/grenade.avif'),
     photocopy: assetUrl('/images/photocopy.jpg'),
+    penDrive: assetUrl('/images/pen-drive.png'),
+    key: assetUrl('/images/key.webp'),
+    vernier: assetUrl('/images/vernier.png'),
+    keypad: assetUrl('/images/security-keypad.jpg'),
   },
   ui: {
     blastingTitle: assetUrl('/images/blasting.png'),
@@ -52,6 +56,7 @@ export const ASSET_PATHS = {
   },
   audio: {
     metalBgm: assetUrl('/audio/metal-bgm.mp3'),
+    bladeVoidBgm: assetUrl('/audio/bladexvoid.mp3'),
     grenade: assetUrl('/audio/grenade.mp3'),
     shoot: assetUrl('/audio/shoot.mp3'),
     reload: assetUrl('/audio/gun-reload.mp3'),
@@ -71,6 +76,11 @@ export const ASSET_PATHS = {
     obj: assetUrl('/images/mappu.obj'),
     mtl: assetUrl('/images/mappu.mtl'),
     map: assetUrl('/images/mappu.obj'),
+    bookshelf: assetUrl('/models/Bookshelf.glb'),
+    wardrobe: assetUrl('/models/wardrobe.fbx'),
+    whiteboard: assetUrl('/models/whiteboard.obj'),
+    desktopComputer: assetUrl('/models/desktop_computer.glb'),
+    microscope: assetUrl('/models/microscope.glb'),
   }
 };
 
@@ -420,6 +430,10 @@ export async function preloadAllAssets(onProgress = null) {
   if (ASSET_PATHS.items) {
     if (ASSET_PATHS.items.grenade) urlsToPreload.add(ASSET_PATHS.items.grenade);
     if (ASSET_PATHS.items.photocopy) urlsToPreload.add(ASSET_PATHS.items.photocopy);
+    if (ASSET_PATHS.items.penDrive) urlsToPreload.add(ASSET_PATHS.items.penDrive);
+    if (ASSET_PATHS.items.key) urlsToPreload.add(ASSET_PATHS.items.key);
+    if (ASSET_PATHS.items.vernier) urlsToPreload.add(ASSET_PATHS.items.vernier);
+    if (ASSET_PATHS.items.keypad) urlsToPreload.add(ASSET_PATHS.items.keypad);
   }
 
   // 3. UI images (blasting title display, favicon, damage indicator, evade indicator)

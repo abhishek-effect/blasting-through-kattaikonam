@@ -223,7 +223,7 @@ export const level1Data = {
       allowedTypes: ['all'],
       minCount: 3,
       maxCount: 5,
-      isActive: true,
+      isActive: false, // Inactive: Seminar Hall is exclusively reserved for the Boss Fight
       difficulty: 4,
     },
   ],

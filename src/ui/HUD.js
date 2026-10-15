@@ -71,7 +71,7 @@ export class HUD {
     this._lastGrenades = -1;
     this._lastMaxGrenades = -1;
     this._lastActiveSlot = -1;
-    this._lastSlotAmmo = ['', '', ''];
+    this._lastSlotAmmo = ['', '', '', ''];
     this._lastReloadMsg = '';
     this._lastReloadDisplay = 'none';
     this._isKillFlashActive = false;
@@ -89,11 +89,13 @@ export class HUD {
       document.getElementById('hud-slot-1'),
       document.getElementById('hud-slot-2'),
       document.getElementById('hud-slot-3'),
+      document.getElementById('hud-slot-4'),
     ];
     this.slotAmmoEls = [
       document.getElementById('slot-1-ammo'),
       document.getElementById('slot-2-ammo'),
       document.getElementById('slot-3-ammo'),
+      document.getElementById('slot-4-ammo'),
     ];
 
     // Interaction Prompt
@@ -222,7 +224,7 @@ export class HUD {
     this.rosterPreviewEl.innerHTML = '';
 
     const types = ASSET_PATHS.enemies.types;
-    const keys = Object.keys(types);
+    const keys = Object.keys(types).filter((k) => !k.toLowerCase().includes('boss'));
 
     if (keys.length === 0) {
       this.rosterPreviewEl.innerHTML = '<span style="font-size:11px;color:#888;">No enemies registered</span>';
@@ -1189,6 +1191,16 @@ Coded by Gemini 3.8 Flash`;
         if (a3 !== this._lastSlotAmmo[2]) {
           this._lastSlotAmmo[2] = a3;
           this.slotAmmoEls[2].textContent = a3;
+        }
+      }
+
+      // Update slot 4 item status (Quest item: Physics Key / Vernier Caliper)
+      if (player.slots[3] && this.slotAmmoEls[3]) {
+        const item = player.slots[3];
+        const a4 = item.name ? 'READY' : 'EQUIPPED';
+        if (a4 !== this._lastSlotAmmo[3]) {
+          this._lastSlotAmmo[3] = a4;
+          this.slotAmmoEls[3].textContent = a4;
         }
       }
 

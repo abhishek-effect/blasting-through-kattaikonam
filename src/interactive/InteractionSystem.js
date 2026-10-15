@@ -57,7 +57,9 @@ export class InteractionSystem {
             subtitle: 'Unlock seminar hall by obtaining its key!',
             isLocked: true
           };
-        } else if (kills < gate.requiresKills) {
+        } else if (gate.customPrompt && !gate.isUnlocked) {
+          this.activePrompt = gate.customPrompt;
+        } else if (!gate.isUnlocked && kills < gate.requiresKills) {
           this.activePrompt = {
             title: 'SEMINAR HALL: SECURITY LOCKDOWN',
             subtitle: `Eliminate 20 campus enemies to enter (${kills}/${gate.requiresKills} Kills)`,

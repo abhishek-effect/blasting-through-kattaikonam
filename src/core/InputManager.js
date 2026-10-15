@@ -150,6 +150,8 @@ export class InputManager {
         this.requestedSlot = 1;
       } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
         this.requestedSlot = 2;
+      } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        this.requestedSlot = 3;
       } else if (e.code === 'KeyC') {
         this.crouchKeyDownTime = performance.now();
         this.crouchActive = !this.crouchActive;

@@ -25,6 +25,7 @@ import { LaserManager } from '../interactive/LaserObstacle.js';
 import { HUD } from '../ui/HUD.js';
 import { ASSET_PATHS, preloadAllAssets } from '../config/assets.js';
 import { EvadeGame } from '../evade/EvadeGame.js';
+import { ShootProgression } from './ShootProgression.js';
 
 export class Game {
   constructor() {
@@ -120,6 +121,10 @@ export class Game {
     );
 
     this.clock = new THREE.Clock();
+
+    // Progression & Objectives Subsystem (Shoot Shoot Shoot Mode)
+    window.__game = this;
+    this.shootProgression = new ShootProgression(this);
 
     // 3. Setup Listeners
     this.initListeners();
@@ -240,6 +245,15 @@ export class Game {
       if (this.pistol.mesh) this.pistol.mesh.visible = true;
       if (this.medkit.mesh) this.medkit.mesh.visible = true;
 
+      if (this.shootProgression) {
+        if (this.shootProgression.keyItem && this.shootProgression.keyItem.viewmodelGroup) {
+          this.shootProgression.keyItem.viewmodelGroup.visible = true;
+        }
+        if (this.shootProgression.vernierItem && this.shootProgression.vernierItem.viewmodelGroup) {
+          this.shootProgression.vernierItem.viewmodelGroup.visible = true;
+        }
+      }
+
       if (this.grenadeManager && this.grenadeManager.explosionPool) {
         this.grenadeManager.explosionPool.forEach((item) => {
           item.sphere.visible = true;
@@ -253,6 +267,15 @@ export class Game {
       this.renderer.compile(this.scene, this.camera);
 
       // Restore initial slot visibility
+      if (this.shootProgression) {
+        if (this.shootProgression.keyItem && this.shootProgression.keyItem.viewmodelGroup) {
+          this.shootProgression.keyItem.viewmodelGroup.visible = false;
+        }
+        if (this.shootProgression.vernierItem && this.shootProgression.vernierItem.viewmodelGroup) {
+          this.shootProgression.vernierItem.viewmodelGroup.visible = false;
+        }
+      }
+
       if (this.grenadeManager && this.grenadeManager.explosionPool) {
         this.grenadeManager.explosionPool.forEach((item) => {
           item.sphere.visible = false;
@@ -338,13 +361,13 @@ export class Game {
       if (newState === STATES.PLAYING) {
         if (!this.evadeGame || !this.evadeGame.isActive) {
           this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+        } else {
+          this.audio.playBGM(ASSET_PATHS.audio.bladeVoidBgm, 0.45);
         }
       } else if (newState === STATES.GAME_OVER || newState === STATES.VICTORY) {
         this.audio.stopBGM();
       } else if (newState === STATES.PAUSED) {
-        if (!this.evadeGame || !this.evadeGame.isActive) {
-          this.audio.pauseBGM();
-        }
+        this.audio.pauseBGM();
       } else if (newState === STATES.MENU) {
         this.audio.pauseBGM();
         if (this.evadeGame && this.evadeGame.isActive) {
@@ -444,6 +467,10 @@ export class Game {
       this.laserManager.initLasers(level1Data.lasers || []);
     }
 
+    if (this.shootProgression) {
+      this.shootProgression.reset();
+    }
+
     this.gameState.reset(this.enemySpawner.getEnemies().length);
     this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
     this.input.requestPointerLock();
@@ -528,6 +555,14 @@ export class Game {
                 this.hud.showNotification(res.message);
               }
             }
+          } else if (activeItem.type === 'quest_item') {
+            // Quest Items (Physics Key, Vernier Caliper): inspect / use hint
+            if (this.input.checkAndConsumeTrigger()) {
+              const res = activeItem.shoot();
+              if (res && res.message) {
+                this.hud.showNotification(res.message);
+              }
+            }
           }
         }
 
@@ -562,7 +597,9 @@ export class Game {
         if (this.level && this.level.update) {
           this.level.update(deltaTime, this.player.position);
         }
-        this.interactionSystem.update(this.player, this.input);
+        if (this.shootProgression) {
+          this.shootProgression.update(deltaTime, this.player, this.input);
+        }
       }
 
     // 9. Update HUD

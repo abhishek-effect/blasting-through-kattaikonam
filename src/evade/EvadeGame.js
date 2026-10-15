@@ -474,9 +474,9 @@ export class EvadeGame {
     this.gameState.setState(STATES.PLAYING);
     this.input.requestPointerLock();
 
-    // Start high-energy chase music
+    // Start high-energy chase music (bladexvoid for Evade mode)
     if (this.audio) {
-      this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.4);
+      this.audio.playBGM(ASSET_PATHS.audio.bladeVoidBgm, 0.45);
     }
   }
 

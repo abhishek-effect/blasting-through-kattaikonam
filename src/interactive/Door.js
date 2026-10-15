@@ -193,6 +193,10 @@ export class Door {
   getPromptInfo(kills = 0) {
     const isEvade = typeof document !== 'undefined' && document.body.classList.contains('evade-mode');
 
+    if (this.customLockedPrompt && this.isLocked) {
+      return this.customLockedPrompt;
+    }
+
     if (this.isLocked) {
       if (isEvade) {
         if (this.id === 'door_seminar_gate' || this.name.includes('SEMINAR')) {

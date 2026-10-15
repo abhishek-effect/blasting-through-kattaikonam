@@ -1069,6 +1069,312 @@ export class LevelGenerator {
     } catch (e) {
       console.warn('[LevelGenerator] OBJLoader whiteboard error:', e);
     }
+
+    // 4. COMPUTER LAB WORKSTATIONS (4 Desktops on CS Lab tables at X: 0..14, Z: 50..64)
+    const computerConfigs = [
+      // Front row tables (Z: 53.0) - facing South (+Z) towards chairs at Z: 53.8
+      { id: 'cs_pc_1', x: 4.5, y: 0.82, z: 53.0, rotY: 0 },
+      { id: 'cs_pc_2', x: 9.5, y: 0.82, z: 53.0, rotY: 0 },
+      // Back row tables (Z: 61.0) - facing North (-Z) towards chairs at Z: 60.2
+      { id: 'cs_pc_3', x: 4.5, y: 0.82, z: 61.0, rotY: Math.PI },
+      { id: 'cs_pc_4', x: 9.5, y: 0.82, z: 61.0, rotY: Math.PI },
+    ];
+
+    // Shared materials for procedural computer fallback
+    const pcCaseMat = new THREE.MeshStandardMaterial({
+      color: 0x1e242b,
+      roughness: 0.4,
+      metalness: 0.3
+    });
+    const pcScreenMat = new THREE.MeshStandardMaterial({
+      color: 0x0f1c2e,
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: 0x08203e,
+      emissiveIntensity: 0.6
+    });
+    const pcKeyMat = new THREE.MeshStandardMaterial({
+      color: 0x2d3436,
+      roughness: 0.5,
+      metalness: 0.2
+    });
+
+    computerConfigs.forEach((cfg) => {
+      const pcGroup = new THREE.Group();
+      pcGroup.position.set(cfg.x, cfg.y, cfg.z);
+      pcGroup.rotation.y = cfg.rotY;
+
+      // Monitor Stand Base
+      const baseGeo = new THREE.BoxGeometry(0.20, 0.015, 0.16);
+      baseGeo.translate(0, 0.008, -0.12);
+      pcGroup.add(new THREE.Mesh(baseGeo, pcCaseMat));
+
+      // Monitor Stand Neck
+      const neckGeo = new THREE.BoxGeometry(0.04, 0.16, 0.03);
+      neckGeo.translate(0, 0.09, -0.14);
+      pcGroup.add(new THREE.Mesh(neckGeo, pcCaseMat));
+
+      // Monitor Bezel
+      const bezelGeo = new THREE.BoxGeometry(0.52, 0.32, 0.025);
+      bezelGeo.translate(0, 0.26, -0.12);
+      pcGroup.add(new THREE.Mesh(bezelGeo, pcCaseMat));
+
+      // Monitor Screen Face
+      const screenGeo = new THREE.BoxGeometry(0.48, 0.28, 0.005);
+      screenGeo.translate(0, 0.26, -0.105);
+      pcGroup.add(new THREE.Mesh(screenGeo, pcScreenMat));
+
+      // Keyboard Body
+      const kbGeo = new THREE.BoxGeometry(0.38, 0.015, 0.14);
+      kbGeo.translate(-0.06, 0.008, 0.12);
+      pcGroup.add(new THREE.Mesh(kbGeo, pcCaseMat));
+
+      // Keyboard Keybed
+      const keybedGeo = new THREE.BoxGeometry(0.36, 0.006, 0.12);
+      keybedGeo.translate(-0.06, 0.018, 0.12);
+      pcGroup.add(new THREE.Mesh(keybedGeo, pcKeyMat));
+
+      // Mouse
+      const mouseGeo = new THREE.BoxGeometry(0.06, 0.025, 0.10);
+      mouseGeo.translate(0.20, 0.013, 0.12);
+      pcGroup.add(new THREE.Mesh(mouseGeo, pcCaseMat));
+
+      this.scene.add(pcGroup);
+      this.propsList.push(pcGroup);
+      cfg._procMesh = pcGroup;
+
+      // AABB Collider for table-top computer (protects jumping players from clipping)
+      const pcBox = new THREE.Box3();
+      pcBox.min.set(cfg.x - 0.33, cfg.y, cfg.z - 0.22);
+      pcBox.max.set(cfg.x + 0.33, cfg.y + 0.45, cfg.z + 0.22);
+      this.colliders.push(pcBox);
+    });
+
+    // Asynchronously load 3D desktop_computer.glb
+    try {
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        ASSET_PATHS.models.desktopComputer || assetUrl('/models/desktop_computer.glb'),
+        (gltf) => {
+          const template = gltf.scene;
+          const rawBox = new THREE.Box3().setFromObject(template);
+          const rawCenter = rawBox.getCenter(new THREE.Vector3());
+          const rawMinY = rawBox.min.y;
+          const targetScale = 0.65; // Scaled to realistic human workstation proportions
+
+          computerConfigs.forEach((cfg) => {
+            const clone = template.clone(true);
+            clone.scale.setScalar(targetScale);
+            // Center in X and Z, align bottom Y flush to table top
+            clone.position.set(-rawCenter.x * targetScale, -rawMinY * targetScale, -rawCenter.z * targetScale);
+
+            clone.traverse((c) => {
+              if (c.isMesh) {
+                c.castShadow = true;
+                c.receiveShadow = true;
+              }
+            });
+
+            const rig = new THREE.Group();
+            rig.position.set(cfg.x, cfg.y, cfg.z);
+            rig.rotation.y = cfg.rotY;
+            rig.add(clone);
+
+            if (cfg._procMesh) {
+              cfg._procMesh.visible = false;
+            }
+            this.scene.add(rig);
+            this.propsList.push(rig);
+          });
+        },
+        undefined,
+        (err) => {
+          console.warn('[LevelGenerator] desktop_computer.glb load skipped, procedural active:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[LevelGenerator] GLTFLoader computer error:', e);
+    }
+
+    // 5. BIOLOGY LAB MICROSCOPES (4 Compound Microscopes on Bio Lab tables at X: 0..14, Z: 68..82)
+    const microscopeConfigs = [
+      // Front row tables (Z: 71.0) - oculars facing South (+Z) towards chairs at Z: 71.8
+      { id: 'bio_scope_1', x: 4.5, y: 0.82, z: 71.0, rotY: 0 },
+      { id: 'bio_scope_2', x: 9.5, y: 0.82, z: 71.0, rotY: 0 },
+      // Back row tables (Z: 79.0) - oculars facing North (-Z) towards chairs at Z: 78.2
+      { id: 'bio_scope_3', x: 4.5, y: 0.82, z: 79.0, rotY: Math.PI },
+      { id: 'bio_scope_4', x: 9.5, y: 0.82, z: 79.0, rotY: Math.PI },
+    ];
+
+    // Shared materials for procedural microscope fallback & lab accessories
+    const scopeEnamelMat = new THREE.MeshStandardMaterial({
+      color: 0x1f2329,
+      roughness: 0.25,
+      metalness: 0.8
+    });
+    const scopeChromeMat = new THREE.MeshStandardMaterial({
+      color: 0xd8d8d8,
+      roughness: 0.15,
+      metalness: 0.95
+    });
+    const scopeBrassMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.25,
+      metalness: 0.85
+    });
+    const glassSlideMat = new THREE.MeshStandardMaterial({
+      color: 0xa8e6cf,
+      roughness: 0.1,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.75
+    });
+    const slideTrayMat = new THREE.MeshStandardMaterial({
+      color: 0x3d3d3d,
+      roughness: 0.5,
+      metalness: 0.1
+    });
+
+    microscopeConfigs.forEach((cfg) => {
+      const scopeGroup = new THREE.Group();
+      scopeGroup.position.set(cfg.x, cfg.y, cfg.z);
+      scopeGroup.rotation.y = cfg.rotY;
+
+      // Heavy Horseshoe / Rectangular Base
+      const baseGeo = new THREE.BoxGeometry(0.16, 0.025, 0.22);
+      baseGeo.translate(0, 0.0125, 0);
+      scopeGroup.add(new THREE.Mesh(baseGeo, scopeEnamelMat));
+
+      // Vertical Curved Arm / Pillar
+      const armGeo = new THREE.BoxGeometry(0.04, 0.26, 0.06);
+      armGeo.translate(0, 0.14, -0.07);
+      scopeGroup.add(new THREE.Mesh(armGeo, scopeEnamelMat));
+
+      // Specimen Stage Plate
+      const stageGeo = new THREE.BoxGeometry(0.12, 0.012, 0.12);
+      stageGeo.translate(0, 0.15, 0.01);
+      scopeGroup.add(new THREE.Mesh(stageGeo, scopeEnamelMat));
+
+      // Specimen Glass Slide on Stage
+      const slideGeo = new THREE.BoxGeometry(0.06, 0.003, 0.025);
+      slideGeo.translate(0, 0.158, 0.01);
+      scopeGroup.add(new THREE.Mesh(slideGeo, glassSlideMat));
+
+      // Substage Condenser & Light Source
+      const lightGeo = new THREE.CylinderGeometry(0.025, 0.03, 0.03, 16);
+      lightGeo.translate(0, 0.04, 0.01);
+      scopeGroup.add(new THREE.Mesh(lightGeo, scopeChromeMat));
+
+      // Revolving Nosepiece Turret
+      const turretGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.015, 16);
+      turretGeo.translate(0, 0.23, 0.01);
+      scopeGroup.add(new THREE.Mesh(turretGeo, scopeBrassMat));
+
+      // 3 Objective Lenses pointing downwards
+      const objOffsets = [[0, 0.018], [-0.015, -0.01], [0.015, -0.01]];
+      objOffsets.forEach(([ox, oz]) => {
+        const objGeo = new THREE.CylinderGeometry(0.006, 0.007, 0.035, 12);
+        objGeo.translate(ox, 0.205, 0.01 + oz);
+        scopeGroup.add(new THREE.Mesh(objGeo, scopeChromeMat));
+      });
+
+      // Body Tube & Angled Binocular Eyepieces pointing towards student (+Z)
+      const tubeGeo = new THREE.CylinderGeometry(0.018, 0.02, 0.10, 16);
+      tubeGeo.rotateX(0.45);
+      tubeGeo.translate(0, 0.29, 0.01);
+      scopeGroup.add(new THREE.Mesh(tubeGeo, scopeEnamelMat));
+
+      [-0.018, 0.018].forEach((ex) => {
+        const eyeGeo = new THREE.CylinderGeometry(0.008, 0.009, 0.05, 12);
+        eyeGeo.rotateX(0.45);
+        eyeGeo.translate(ex, 0.35, 0.035);
+        scopeGroup.add(new THREE.Mesh(eyeGeo, scopeChromeMat));
+      });
+
+      // Focus Adjustment Knobs (coarse & fine)
+      [-0.032, 0.032].forEach((kx) => {
+        const knobGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.025, 16);
+        knobGeo.rotateZ(Math.PI / 2);
+        knobGeo.translate(kx, 0.12, -0.07);
+        scopeGroup.add(new THREE.Mesh(knobGeo, scopeBrassMat));
+      });
+
+      // Side Lab Accessory: Specimen Slide Tray beside the microscope
+      const trayGeo = new THREE.BoxGeometry(0.14, 0.015, 0.09);
+      trayGeo.translate(0.32, 0.008, 0.02);
+      scopeGroup.add(new THREE.Mesh(trayGeo, slideTrayMat));
+
+      // Glass slide inside tray
+      const traySlide = new THREE.BoxGeometry(0.05, 0.003, 0.02);
+      traySlide.translate(0.32, 0.018, 0.02);
+      scopeGroup.add(new THREE.Mesh(traySlide, glassSlideMat));
+
+      this.scene.add(scopeGroup);
+      this.propsList.push(scopeGroup);
+      cfg._procMesh = scopeGroup;
+
+      // AABB Collider for table-top microscope (protects jumping players)
+      const scopeBox = new THREE.Box3();
+      scopeBox.min.set(cfg.x - 0.20, cfg.y, cfg.z - 0.18);
+      scopeBox.max.set(cfg.x + 0.20, cfg.y + 0.42, cfg.z + 0.18);
+      this.colliders.push(scopeBox);
+    });
+
+    // Asynchronously load 3D microscope.glb
+    try {
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        ASSET_PATHS.models.microscope || assetUrl('/models/microscope.glb'),
+        (gltf) => {
+          const template = gltf.scene;
+          const rawBox = new THREE.Box3().setFromObject(template);
+          const rawCenter = rawBox.getCenter(new THREE.Vector3());
+          const rawMinY = rawBox.min.y;
+          const targetScale = 0.25; // Human-scale lab compound microscope (~40cm tall)
+
+          microscopeConfigs.forEach((cfg) => {
+            const clone = template.clone(true);
+            clone.scale.setScalar(targetScale);
+            // Center in X and Z, align bottom Y flush to table top
+            clone.position.set(-rawCenter.x * targetScale, -rawMinY * targetScale, -rawCenter.z * targetScale);
+
+            clone.traverse((c) => {
+              if (c.isMesh) {
+                c.castShadow = true;
+                c.receiveShadow = true;
+              }
+            });
+
+            // Container rig with optional lab accessories
+            const rig = new THREE.Group();
+            rig.position.set(cfg.x, cfg.y, cfg.z);
+            rig.rotation.y = cfg.rotY;
+            rig.add(clone);
+
+            // Keep the specimen slide tray beside the 3D microscope for rich lab details
+            const trayGeo = new THREE.BoxGeometry(0.14, 0.015, 0.09);
+            trayGeo.translate(0.32, 0.008, 0.02);
+            rig.add(new THREE.Mesh(trayGeo, slideTrayMat));
+
+            const traySlide = new THREE.BoxGeometry(0.05, 0.003, 0.02);
+            traySlide.translate(0.32, 0.018, 0.02);
+            rig.add(new THREE.Mesh(traySlide, glassSlideMat));
+
+            if (cfg._procMesh) {
+              cfg._procMesh.visible = false;
+            }
+            this.scene.add(rig);
+            this.propsList.push(rig);
+          });
+        },
+        undefined,
+        (err) => {
+          console.warn('[LevelGenerator] microscope.glb load skipped, procedural active:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[LevelGenerator] GLTFLoader microscope error:', e);
+    }
   }
 
   /**

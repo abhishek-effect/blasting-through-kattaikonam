@@ -2699,4 +2699,490 @@ body.evade-mode #btn-mobile-fire {
   transform: translateY(-1px);
 }
 
+/* --- Shoot Shoot Shoot Mode: Wave Banner --- */
+#wave-banner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(180, 20, 20, 0.92);
+  border: 3px solid #ff4757;
+  border-radius: 6px;
+  padding: 10px 24px;
+  text-align: center;
+  box-shadow: 0 0 25px rgba(255, 71, 87, 0.8), inset 0 0 10px rgba(0, 0, 0, 0.5);
+  z-index: 80;
+  pointer-events: none;
+  animation: pulse-wave 1.5s infinite alternate;
+}
+
+@keyframes pulse-wave {
+  from { transform: translateX(-50%) scale(1); box-shadow: 0 0 20px rgba(255, 71, 87, 0.6); }
+  to { transform: translateX(-50%) scale(1.03); box-shadow: 0 0 35px rgba(255, 71, 87, 1); }
+}
+
+#wave-banner-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0 #000;
+}
+
+#wave-banner-sub {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fffa65;
+  letter-spacing: 1px;
+  margin-top: 3px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* --- Boss HUD & Health Bar --- */
+#boss-hud {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  max-width: 90vw;
+  background: rgba(15, 15, 22, 0.92);
+  border: 2px solid #e74c3c;
+  border-radius: 6px;
+  padding: 8px 14px;
+  box-shadow: 0 0 25px rgba(231, 76, 60, 0.7);
+  z-index: 82;
+  pointer-events: none;
+}
+
+.boss-hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.boss-name {
+  font-size: 14px;
+  font-weight: 900;
+  color: #ff4757;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.boss-hp-val {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fffa65;
+}
+
+.boss-bar-track {
+  width: 100%;
+  height: 12px;
+  background: #2f1010;
+  border: 1px solid #111;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.boss-hp-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c, #ff4757);
+  box-shadow: 0 0 10px #ff4757;
+  transition: width 0.15s ease-out;
+}
+
+/* --- Hold [E] Action Progress Overlay --- */
+#action-progress-container {
+  position: absolute;
+  top: 62%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(14, 18, 26, 0.92);
+  border: 2px solid #00d2d3;
+  border-radius: 6px;
+  padding: 10px 20px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0, 210, 211, 0.6);
+  z-index: 85;
+  pointer-events: none;
+  min-width: 240px;
+}
+
+#action-progress-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #00d2d3;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.action-progress-track {
+  width: 100%;
+  height: 10px;
+  background: #111e28;
+  border: 1px solid #005f73;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#action-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #10ac84, #00d2d3);
+  box-shadow: 0 0 8px #00d2d3;
+  transition: width 0.05s linear;
+}
+
+#action-progress-percent {
+  font-size: 11px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+/* --- Security Keypad Modal --- */
+#security-keypad-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 150;
+}
+
+.keypad-panel {
+  background: #121820;
+  border: 3px solid #2980b9;
+  border-radius: 8px;
+  box-shadow: 0 0 35px rgba(41, 128, 185, 0.6), inset 0 0 15px rgba(0, 0, 0, 0.8);
+  width: 580px;
+  max-width: 95vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.keypad-header {
+  background: #1b2636;
+  border-bottom: 2px solid #2980b9;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.keypad-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #3498db;
+  letter-spacing: 2px;
+}
+
+.keypad-subtitle {
+  font-size: 11px;
+  color: #95a5a6;
+  letter-spacing: 1px;
+}
+
+.keypad-close-btn {
+  background: #c0392b;
+  border: 1px solid #e74c3c;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.keypad-close-btn:hover {
+  background: #e74c3c;
+  transform: scale(1.05);
+}
+
+.keypad-body {
+  display: flex;
+  padding: 14px;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.keypad-img-container {
+  width: 140px;
+  flex-shrink: 0;
+  border: 1px solid #2980b9;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0f15;
+}
+
+.keypad-preview-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.keypad-interface {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keypad-status-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: bold;
+  color: #f1c40f;
+}
+
+.keypad-cooldown-text {
+  color: #e74c3c;
+  animation: blink 0.8s infinite;
+}
+
+#keypad-slots-container {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.keypad-digit-slot {
+  width: 48px;
+  height: 52px;
+  background: #0d131a;
+  border: 2px solid #34495e;
+  border-radius: 4px;
+  color: #ecf0f1;
+  font-size: 26px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.keypad-digit-slot.filled {
+  border-color: #3498db;
+  color: #3498db;
+  text-shadow: 0 0 8px #3498db;
+}
+
+.keypad-digit-slot.correct-pos {
+  background: #27ae60 !important;
+  border-color: #2ecc71 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 15px #2ecc71;
+}
+
+.keypad-msg {
+  font-size: 11px;
+  text-align: center;
+  min-height: 20px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.keypad-msg.type-normal { color: #bdc3c7; }
+.keypad-msg.type-warning { color: #f39c12; }
+.keypad-msg.type-error { color: #e74c3c; }
+.keypad-msg.type-success { color: #2ecc71; }
+
+.keypad-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.keypad-num-btn, .keypad-action-btn {
+  background: #1b2636;
+  border: 1px solid #34495e;
+  color: #ecf0f1;
+  font-size: 18px;
+  font-weight: bold;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.keypad-num-btn:hover {
+  background: #2c3e50;
+  border-color: #3498db;
+  color: #3498db;
+}
+
+.keypad-num-btn:active, .keypad-action-btn:active {
+  transform: translateY(1px);
+}
+
+.keypad-action-btn {
+  background: #2c3e50;
+  color: #e67e22;
+  font-size: 14px;
+}
+
+.keypad-submit-btn {
+  background: #27ae60;
+  border: 1px solid #2ecc71;
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+  box-shadow: 0 0 15px rgba(39, 174, 96, 0.4);
+}
+
+.keypad-submit-btn:hover {
+  background: #2ecc71;
+  box-shadow: 0 0 20px rgba(46, 204, 113, 0.7);
+}
+
+.keypad-history-section {
+  margin-top: 6px;
+  border-top: 1px solid #2c3e50;
+  padding-top: 6px;
+}
+
+.keypad-history-title {
+  font-size: 9px;
+  font-weight: bold;
+  color: #7f8c8d;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.keypad-history-list {
+  max-height: 90px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.keypad-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d131a;
+  padding: 3px 6px;
+  border-radius: 3px;
+  border: 1px solid #1b2636;
+}
+
+.keypad-history-digits {
+  display: flex;
+  gap: 4px;
+}
+
+.keypad-hist-box {
+  width: 20px;
+  height: 22px;
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.hist-green {
+  background: #27ae60;
+  color: #fff;
+  box-shadow: 0 0 5px rgba(39, 174, 96, 0.8);
+}
+
+.hist-yellow {
+  background: #e67e22;
+  color: #fff;
+}
+
+.hist-grey {
+  background: #2c3e50;
+  color: #7f8c8d;
+}
+
+.keypad-history-note {
+  font-size: 10px;
+  color: #ecf0f1;
+}
+
+/* --- Ending Cutscene Overlay --- */
+#ending-cutscene-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 1.2s ease-in-out;
+}
+
+#ending-blasting-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#ending-blasting-img {
+  max-width: 520px;
+  width: 80vw;
+  height: auto;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 1.2s ease, transform 1.2s ease;
+  filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.6));
+}
+
+#ending-blasting-img.visible {
+  opacity: 1;
+  transform: scale(1.0);
+}
+
+#ending-credits-text {
+  font-family: 'Georgia', serif;
+  font-size: 24px;
+  font-weight: bold;
+  color: #f5f6fa;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-top: 24px;
+  opacity: 0;
+  transition: opacity 1.5s ease-in;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+}
+
+#ending-credits-text.visible {
+  opacity: 1;
+}
+
+#ending-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+
 
