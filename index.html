@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Blasting Through Kattaikonam - Retro FPS</title>
   <link rel="icon" type="image/png" href="./favicon.png" />
-  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-DzY1eVxm.js"></script>
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-DmSmhFj3.js"></script>
   <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-BjboqPVj.js">
-  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-Cekoxh2m.css">
+  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-LmTCcOyq.css">
 </head>
 <body>
   <div id="game-container">
@@ -58,6 +58,95 @@
     <!-- Temporary notification banner -->
     <div id="hud-notification"></div>
 
+    <!-- Wave Announcement Banner -->
+    <div id="wave-banner" class="hidden">
+      <div id="wave-banner-title">COMPUTER LAB WAVE!</div>
+      <div id="wave-banner-sub">DEFEAT 10 ENEMIES (0 / 10)</div>
+    </div>
+
+    <!-- Boss Health Bar -->
+    <div id="boss-hud" class="hidden">
+      <div class="boss-hud-header">
+        <span class="boss-icon">💀</span>
+        <span id="boss-name" class="boss-name">CHIEF OVERSEER</span>
+        <span id="boss-hp-val" class="boss-hp-val">100%</span>
+      </div>
+      <div class="boss-bar-track">
+        <div id="boss-hp-fill" class="boss-hp-fill"></div>
+      </div>
+    </div>
+
+    <!-- Hold [E] Action Progress Overlay -->
+    <div id="action-progress-container" class="hidden">
+      <div id="action-progress-label">HACKING COMPUTER TERMINAL...</div>
+      <div class="action-progress-track">
+        <div id="action-progress-fill"></div>
+      </div>
+      <div id="action-progress-percent">0%</div>
+    </div>
+
+    <!-- Security Keypad Modal -->
+    <div id="security-keypad-modal" class="hidden">
+      <div class="keypad-panel">
+        <div class="keypad-header">
+          <div class="keypad-title">SECURITY ACCESS TERMINAL</div>
+          <div class="keypad-subtitle">COMPUTER LAB ENTRANCE</div>
+          <button id="keypad-btn-close" class="keypad-close-btn">&times;</button>
+        </div>
+        <div class="keypad-body">
+          <div class="keypad-img-container">
+            <img src="/blasting-through-kattaikonam/assets/security-keypad-CSP5AJyg.jpg" alt="Security Keypad" class="keypad-preview-img" />
+          </div>
+          <div class="keypad-interface">
+            <div class="keypad-status-row">
+              <span id="keypad-tries-left">ATTEMPTS: 5 / 5</span>
+              <span id="keypad-timer" class="keypad-cooldown-text hidden">LOCKOUT: 30s</span>
+            </div>
+            <div id="keypad-slots-container">
+              <div class="keypad-digit-slot" data-slot="0">_</div>
+              <div class="keypad-digit-slot" data-slot="1">_</div>
+              <div class="keypad-digit-slot" data-slot="2">_</div>
+              <div class="keypad-digit-slot" data-slot="3">_</div>
+            </div>
+            <div id="keypad-feedback-msg" class="keypad-msg">ENTER 4-DIGIT ACCESS CODE</div>
+            <div class="keypad-buttons-grid">
+              <button class="keypad-num-btn" data-val="1">1</button>
+              <button class="keypad-num-btn" data-val="2">2</button>
+              <button class="keypad-num-btn" data-val="3">3</button>
+              <button class="keypad-num-btn" data-val="4">4</button>
+              <button class="keypad-num-btn" data-val="5">5</button>
+              <button class="keypad-num-btn" data-val="6">6</button>
+              <button class="keypad-num-btn" data-val="7">7</button>
+              <button class="keypad-num-btn" data-val="8">8</button>
+              <button class="keypad-num-btn" data-val="9">9</button>
+              <button class="keypad-action-btn" id="keypad-btn-clear">CLR</button>
+              <button class="keypad-num-btn" data-val="0">0</button>
+              <button class="keypad-action-btn" id="keypad-btn-back">⌫</button>
+            </div>
+            <button id="keypad-btn-submit" class="keypad-submit-btn">ENTER / SUBMIT</button>
+            <div class="keypad-history-section">
+              <div class="keypad-history-title">ATTEMPT LOG (GREEN = CORRECT POS, YELLOW = IN CODE)</div>
+              <div id="keypad-history-list" class="keypad-history-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ending Cutscene Overlay -->
+    <div id="ending-cutscene-overlay" class="hidden">
+      <div id="ending-blasting-container">
+        <img id="ending-blasting-img" src="/blasting-through-kattaikonam/assets/blasting-DxHQrS3N.png" alt="Blasting Through Kattaikonam" />
+      </div>
+      <div id="ending-credits-text" class="hidden">
+        With Love, IIT Chanthavila Computer Entertainment.
+      </div>
+      <div id="ending-actions" class="hidden">
+        <button id="ending-btn-restart" class="menu-btn primary-btn">▶ PLAY AGAIN</button>
+        <button id="ending-btn-menu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
+      </div>
+    </div>
+
     <!-- Heads-Up Display (HUD) -->
     <div id="hud">
       <!-- 1. Health Panel -->
@@ -98,6 +187,16 @@
           <div class="slot-info">
             <span class="slot-name">MEDKIT</span>
             <span id="slot-3-ammo" class="slot-ammo">x2 (READY)</span>
+          </div>
+        </div>
+
+        <!-- Slot 4: Quest Item (Key / Vernier) -->
+        <div id="hud-slot-4" class="inventory-slot hidden">
+          <div class="slot-key">4</div>
+          <img id="slot-4-icon" src="/blasting-through-kattaikonam/assets/key-CU8cMyzf.webp" alt="Item" class="slot-icon" />
+          <div class="slot-info">
+            <span id="slot-4-name" class="slot-name">KEY</span>
+            <span id="slot-4-ammo" class="slot-ammo">READY</span>
           </div>
         </div>
       </div>
