@@ -498,7 +498,7 @@ export class Game {
         this.shootProgression.loadCheckpointState(checkpointData);
       }
 
-      this.gameState.reset(this.enemySpawner.getEnemies().length);
+      this.gameState.reset(0);
       this.gameState.setState(STATES.PLAYING);
       this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
       this.input.requestPointerLock();
@@ -537,7 +537,7 @@ export class Game {
       this.shootProgression.reset();
     }
 
-    this.gameState.reset(this.enemySpawner.getEnemies().length);
+    this.gameState.reset(0);
     this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
     this.input.requestPointerLock();
   }

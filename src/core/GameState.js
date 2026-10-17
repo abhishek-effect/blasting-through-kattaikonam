@@ -59,9 +59,6 @@ export class GameState {
     this.kills++;
     this.score += 100;
     this.emit('kill', { kills: this.kills, score: this.score, total: this.totalEnemies });
-    if (this.totalEnemies > 0 && this.kills >= this.totalEnemies) {
-      this.setState(STATES.VICTORY);
-    }
   }
 
   reset(totalEnemies = 0) {

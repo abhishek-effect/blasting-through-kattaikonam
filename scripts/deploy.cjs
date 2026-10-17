@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Fix photocopy enemy bug, persistent retry from last checkpoint across menus, and 3-second on-screen countdown before checkpoint wave starts';
+const commitMsg = 'Deploy: Fix premature Campus Cleared game over on 5 wave kills, allowing waves and campus progression to complete';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
