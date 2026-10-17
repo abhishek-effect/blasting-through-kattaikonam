@@ -140,6 +140,14 @@ function deriveStats(name) {
  * Register any photo into the active enemy roster
  */
 export function registerEnemyType(id, name, spriteUrl, stats = {}) {
+  const check = (str) => (str || '').toLowerCase();
+  if (
+    check(id).includes('photocopy') ||
+    check(name).includes('photocopy') ||
+    check(spriteUrl).includes('photocopy')
+  ) {
+    return;
+  }
   const defaultStats = deriveStats(name);
   ASSET_PATHS.enemies.types[id] = {
     id,
@@ -157,6 +165,7 @@ export function registerEnemyType(id, name, spriteUrl, stats = {}) {
 if (Array.isArray(discoveredEnemyFiles)) {
   discoveredEnemyFiles.forEach((fileName) => {
     const id = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+    if (id.includes('photocopy')) return;
     const prettyName = id
       .replace(/[_-]/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -174,7 +183,17 @@ export function loadCustomEnemiesFromStorage() {
     if (!raw) return;
     const items = JSON.parse(raw);
     if (Array.isArray(items)) {
-      items.forEach((item) => {
+      const sanitized = items.filter((item) => {
+        if (!item) return false;
+        const id = (item.id || '').toLowerCase();
+        const name = (item.name || '').toLowerCase();
+        const sprite = (item.sprite || '').toLowerCase();
+        return !id.includes('photocopy') && !name.includes('photocopy') && !sprite.includes('photocopy');
+      });
+      if (sanitized.length !== items.length) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+      }
+      sanitized.forEach((item) => {
         if (item && item.id && item.sprite) {
           registerEnemyType(item.id, item.name || 'Uploaded Enemy', item.sprite, { isCustom: true });
         }

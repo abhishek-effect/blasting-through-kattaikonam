@@ -919,13 +919,23 @@ export class ShootProgression {
       this.player.hasPenDrive = this.player.penDriveCount > 0;
     }
 
-    // Launch appropriate wave or boss encounter
-    if (cp.checkpointId === 'computer_lab_wave') {
-      this.startComputerLabWave(false);
-    } else if (cp.checkpointId === 'physics_lab_wave') {
-      this.startPhysicsLabWave(false);
-    } else if (cp.checkpointId === 'seminar_hall_unlocked') {
-      this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
+    // Launch appropriate wave or boss encounter after on-screen 3.. 2.. 1.. GO countdown
+    const launchWaveEncounter = () => {
+      if (cp.checkpointId === 'computer_lab_wave') {
+        this.startComputerLabWave(false);
+      } else if (cp.checkpointId === 'physics_lab_wave') {
+        this.startPhysicsLabWave(false);
+      } else if (cp.checkpointId === 'seminar_hall_unlocked') {
+        this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
+      }
+    };
+
+    if (this.hud && typeof this.hud.startCheckpointCountdown === 'function') {
+      this.hud.startCheckpointCountdown(() => {
+        launchWaveEncounter();
+      });
+    } else {
+      launchWaveEncounter();
     }
   }
 }

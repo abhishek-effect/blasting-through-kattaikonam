@@ -23,7 +23,7 @@ function enemyDiscoveryPlugin() {
             try {
               const files = fs.readdirSync(dir);
               for (const f of files) {
-                if (/\.(png|jpe?g|webp|avif)$/i.test(f)) {
+                if (/\.(png|jpe?g|webp|avif)$/i.test(f) && !/photocopy|pendrive|vernier|keypad/i.test(f)) {
                   found.add(f);
                 }
               }

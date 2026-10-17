@@ -3200,5 +3200,88 @@ body.evade-mode #btn-mobile-fire {
   margin-top: 32px;
 }
 
+/* Checkpoint Respawn Countdown (3.. 2.. 1.. GO!) */
+#checkpoint-countdown-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 250;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.8) 100%);
+  transition: opacity 0.3s ease;
+}
+
+#checkpoint-countdown-overlay.hidden {
+  display: none !important;
+}
+
+#checkpoint-countdown-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  user-select: none;
+}
+
+#checkpoint-countdown-number {
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  font-size: 140px;
+  font-weight: 900;
+  color: #f1c40f;
+  text-shadow: 0 0 35px rgba(241, 196, 15, 0.9), 0 0 70px rgba(230, 126, 34, 0.8), 4px 4px 0px #000;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+
+#checkpoint-countdown-number.countdown-pop {
+  animation: countdownPop 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#checkpoint-countdown-sub {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  color: #00cec9;
+  text-shadow: 0 0 15px rgba(0, 206, 201, 0.8), 2px 2px 0px #000;
+  margin-top: 18px;
+  text-transform: uppercase;
+}
+
+@keyframes countdownPop {
+  0% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.0);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(1.0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+}
+
+@media (max-width: 768px) {
+  #checkpoint-countdown-number {
+    font-size: 90px;
+  }
+  #checkpoint-countdown-sub {
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+}
+
 
 

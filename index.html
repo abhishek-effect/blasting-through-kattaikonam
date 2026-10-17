@@ -268,6 +268,14 @@
       </div>
     </div>
 
+    <!-- Checkpoint Respawn Countdown (3.. 2.. 1.. GO!) -->
+    <div id="checkpoint-countdown-overlay" class="hidden">
+      <div id="checkpoint-countdown-box">
+        <div id="checkpoint-countdown-number">3</div>
+        <div id="checkpoint-countdown-sub">GET READY...</div>
+      </div>
+    </div>
+
     <!-- Screen Overlay (Main Menu, Pause, Options, Credits, Game Over, Victory) -->
     <div id="game-overlay" class="hidden">
       <!-- Title Header: blasting.png logo display (NOT favicon) -->
@@ -280,6 +288,7 @@
       <!-- 1. Main Menu Buttons View -->
       <div id="main-menu-view" class="menu-view">
         <div class="menu-buttons-list">
+          <button id="btn-menu-checkpoint" class="menu-btn checkpoint-btn hidden">💾 CONTINUE FROM CHECKPOINT</button>
           <button id="btn-menu-play" class="menu-btn play-btn">▶ PLAY</button>
           <button id="btn-menu-shoot" class="menu-btn shoot-btn">💥 SHOOT SHOOT SHOOT</button>
           <button id="btn-menu-howtoplay" class="menu-btn">📖 HOW TO PLAY</button>
@@ -292,6 +301,7 @@
       <div id="pause-menu-view" class="menu-view hidden">
         <div class="menu-buttons-list">
           <button id="btn-pause-resume" class="menu-btn primary-btn">▶ RESUME GAME</button>
+          <button id="btn-pause-checkpoint" class="menu-btn checkpoint-btn hidden">💾 RETRY FROM LAST CHECKPOINT</button>
           <button id="btn-pause-howtoplay" class="menu-btn">📖 HOW TO PLAY</button>
           <button id="btn-pause-options" class="menu-btn">⚙ OPTIONS</button>
           <button id="btn-pause-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>

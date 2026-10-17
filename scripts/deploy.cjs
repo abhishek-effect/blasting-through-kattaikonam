@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Checkpoints in localStorage with Try Again option, 10s keypad cooldown, 1 pen drive per computer fix, stop AK47 Sijinil after hacking 3 PCs, and zero-lag pickup/equip performance optimizations';
+const commitMsg = 'Deploy: Fix photocopy enemy bug, persistent retry from last checkpoint across menus, and 3-second on-screen countdown before checkpoint wave starts';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

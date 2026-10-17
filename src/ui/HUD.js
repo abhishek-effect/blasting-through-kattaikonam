@@ -124,6 +124,7 @@ export class HUD {
     this.creditsView = document.getElementById('credits-view');
 
     // Main Menu Buttons (PLAY, SHOOT SHOOT SHOOT, HOW TO PLAY)
+    this.btnMenuCheckpoint = document.getElementById('btn-menu-checkpoint');
     this.btnMenuPlay = document.getElementById('btn-menu-play');
     this.btnMenuShoot = document.getElementById('btn-menu-shoot');
     this.btnMenuHowToPlay = document.getElementById('btn-menu-howtoplay');
@@ -132,6 +133,7 @@ export class HUD {
 
     // Pause Menu Buttons
     this.btnPauseResume = document.getElementById('btn-pause-resume');
+    this.btnPauseCheckpoint = document.getElementById('btn-pause-checkpoint');
     this.btnPauseHowToPlay = document.getElementById('btn-pause-howtoplay');
     this.btnPauseOptions = document.getElementById('btn-pause-options');
     this.btnPauseMainMenu = document.getElementById('btn-pause-mainmenu');
@@ -143,6 +145,12 @@ export class HUD {
     this.btnGameoverRestart = document.getElementById('btn-gameover-restart');
     this.btnGameoverCheckpoint = document.getElementById('btn-gameover-checkpoint');
     this.btnGameoverMainMenu = document.getElementById('btn-gameover-mainmenu');
+
+    // Checkpoint Countdown Overlay Elements
+    this.countdownOverlay = document.getElementById('checkpoint-countdown-overlay');
+    this.countdownNumber = document.getElementById('checkpoint-countdown-number');
+    this.countdownSub = document.getElementById('checkpoint-countdown-sub');
+    this._countdownTimeouts = [];
 
     // Options Controls, Fullscreen & Audio Toggles
     this.sliderSens = document.getElementById('slider-sensitivity');
@@ -450,6 +458,35 @@ export class HUD {
       });
     }
 
+    // Checkpoint Buttons
+    if (this.btnMenuCheckpoint) {
+      this.btnMenuCheckpoint.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        if (this.audio) this.audio.ensureContext();
+        this.input.requestPointerLock();
+        this.requestFullscreen();
+        this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
+        this.gameState.emit('restartGame', { fromCheckpoint: true });
+      });
+    }
+
+    if (this.btnPauseCheckpoint) {
+      this.btnPauseCheckpoint.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        if (this.audio) this.audio.ensureContext();
+        this.input.requestPointerLock();
+        this.requestFullscreen();
+        this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
+        this.gameState.emit('restartGame', { fromCheckpoint: true });
+      });
+    }
+
     // 2. Pause Menu Buttons
     if (this.btnPauseResume) {
       this.btnPauseResume.addEventListener('click', (e) => {
@@ -500,9 +537,13 @@ export class HUD {
     // 4. Game Over / Victory Buttons
     if (this.btnGameoverCheckpoint) {
       this.btnGameoverCheckpoint.addEventListener('click', (e) => {
-        e.stopPropagation();
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
+        this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
         this.gameState.emit('restartGame', { fromCheckpoint: true });
       });
     }
@@ -600,7 +641,16 @@ export class HUD {
           this.requestFullscreen();
           this.gameState.setState(STATES.PLAYING);
           this.input.requestPointerLock();
-        } else if (this.gameState.current === STATES.GAME_OVER || this.gameState.current === STATES.VICTORY) {
+        } else if (this.gameState.current === STATES.GAME_OVER) {
+          this.requestFullscreen();
+          const cp = this.getSavedCheckpoint();
+          if (cp) {
+            this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
+            this.gameState.emit('restartGame', { fromCheckpoint: true });
+          } else {
+            this.gameState.emit('restartGame');
+          }
+        } else if (this.gameState.current === STATES.VICTORY) {
           this.requestFullscreen();
           this.gameState.emit('restartGame');
         }
@@ -840,7 +890,92 @@ Coded by Gemini 3.8 Flash`;
     }, 250);
   }
 
+  getSavedCheckpoint() {
+    try {
+      const raw = localStorage.getItem('kattaikonam_checkpoint');
+      if (raw) {
+        const cp = JSON.parse(raw);
+        if (cp && (cp.checkpointName || cp.checkpointId)) {
+          return cp;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  clearCheckpointCountdown() {
+    if (this._countdownTimeouts && this._countdownTimeouts.length > 0) {
+      this._countdownTimeouts.forEach((t) => clearTimeout(t));
+      this._countdownTimeouts = [];
+    }
+    if (this.countdownOverlay) {
+      this.countdownOverlay.classList.add('hidden');
+    }
+  }
+
+  startCheckpointCountdown(onFinished) {
+    this.clearCheckpointCountdown();
+    this._countdownTimeouts = [];
+
+    if (!this.countdownOverlay || !this.countdownNumber) {
+      if (typeof onFinished === 'function') onFinished();
+      return;
+    }
+
+    this.countdownOverlay.classList.remove('hidden');
+
+    const updateStep = (text, sub, isGo = false) => {
+      if (!this.countdownNumber) return;
+      this.countdownNumber.textContent = text;
+      if (this.countdownSub) this.countdownSub.textContent = sub;
+
+      // Re-trigger CSS pop animation
+      this.countdownNumber.classList.remove('countdown-pop');
+      void this.countdownNumber.offsetWidth; // Force reflow
+      this.countdownNumber.classList.add('countdown-pop');
+
+      if (isGo) {
+        this.countdownNumber.style.color = '#2ecc71';
+        this.countdownNumber.style.textShadow = '0 0 40px rgba(46, 204, 113, 0.9), 0 0 80px rgba(39, 174, 96, 0.8), 4px 4px 0px #000';
+      } else {
+        this.countdownNumber.style.color = '#f1c40f';
+        this.countdownNumber.style.textShadow = '0 0 35px rgba(241, 196, 15, 0.9), 0 0 70px rgba(230, 126, 34, 0.8), 4px 4px 0px #000';
+      }
+
+      if (this.audio && this.audio.playCountdownBeep) {
+        this.audio.playCountdownBeep(isGo);
+      }
+    };
+
+    // 3
+    updateStep('3', 'GET READY...', false);
+
+    // 2 (at 1000ms)
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('2', 'STEADY...', false);
+    }, 1000));
+
+    // 1 (at 2000ms)
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('1', 'LOCK & LOAD!', false);
+    }, 2000));
+
+    // GO! (at 3000ms)
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('GO!', 'SURVIVE THE WAVE!', true);
+    }, 3000));
+
+    // Complete (at 3800ms)
+    this._countdownTimeouts.push(setTimeout(() => {
+      this.countdownOverlay.classList.add('hidden');
+      if (typeof onFinished === 'function') {
+        onFinished();
+      }
+    }, 3800));
+  }
+
   hideAllViews() {
+    this.clearCheckpointCountdown();
     if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
     if (this.pauseMenuView) this.pauseMenuView.classList.add('hidden');
     if (this.gameoverMenuView) this.gameoverMenuView.classList.add('hidden');
@@ -887,6 +1022,15 @@ Coded by Gemini 3.8 Flash`;
       if (this.overlaySubtitle) {
         this.overlaySubtitle.textContent = 'GROUND FLOOR';
       }
+      const cp = this.getSavedCheckpoint();
+      if (this.btnMenuCheckpoint) {
+        if (cp && cp.checkpointName) {
+          this.btnMenuCheckpoint.textContent = `💾 CONTINUE FROM CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
+          this.btnMenuCheckpoint.classList.remove('hidden');
+        } else {
+          this.btnMenuCheckpoint.classList.add('hidden');
+        }
+      }
       if (this.btnMenuPlay) {
         if (
           this.gameState.hasActiveSession &&
@@ -925,6 +1069,19 @@ Coded by Gemini 3.8 Flash`;
       if (this.overlaySubtitle) {
         const modeName = this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ? 'SHOOT SHOOT SHOOT' : 'PLAY';
         this.overlaySubtitle.textContent = `MODE: ${modeName}`;
+      }
+
+      // Checkpoint Retry button in Pause Menu
+      const cp = this.getSavedCheckpoint();
+      if (this.btnPauseCheckpoint) {
+        if (cp && cp.checkpointName && this.gameState.currentMode !== GAME_MODES.PLAY) {
+          this.btnPauseCheckpoint.style.display = 'block';
+          this.btnPauseCheckpoint.textContent = `💾 RETRY FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
+          this.btnPauseCheckpoint.classList.remove('hidden');
+        } else {
+          this.btnPauseCheckpoint.style.display = 'none';
+          this.btnPauseCheckpoint.classList.add('hidden');
+        }
       }
 
       // Online mode: display ONLY 2 options: Resume Game and Leave Room
@@ -975,24 +1132,18 @@ Coded by Gemini 3.8 Flash`;
         this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
       }
       if (this.btnGameoverCheckpoint) {
-        let hasCp = false;
-        try {
-          const raw = localStorage.getItem('kattaikonam_checkpoint');
-          if (raw) {
-            const cp = JSON.parse(raw);
-            if (cp && cp.checkpointName) {
-              hasCp = true;
-              this.btnGameoverCheckpoint.textContent = `💾 TRY AGAIN FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
-              this.btnGameoverCheckpoint.classList.remove('hidden');
-            }
-          }
-        } catch (e) {}
-        if (!hasCp) {
+        const cp = this.getSavedCheckpoint();
+        if (cp && cp.checkpointName) {
+          this.btnGameoverCheckpoint.textContent = `💾 TRY AGAIN FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
+          this.btnGameoverCheckpoint.classList.remove('hidden');
+        } else {
           this.btnGameoverCheckpoint.classList.add('hidden');
         }
       }
     } else if (state === STATES.VICTORY) {
       if (this.btnGameoverCheckpoint) this.btnGameoverCheckpoint.classList.add('hidden');
+      if (this.btnMenuCheckpoint) this.btnMenuCheckpoint.classList.add('hidden');
+      if (this.btnPauseCheckpoint) this.btnPauseCheckpoint.classList.add('hidden');
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {

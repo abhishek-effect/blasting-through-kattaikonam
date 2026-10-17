@@ -80,14 +80,14 @@ export class EnemySpawner {
       return s.endsWith('.png') || s.startsWith('data:image/png') || s.startsWith('data:');
     };
 
-    let pngKeys = Object.keys(roster).filter((k) => isPngSprite(roster[k]) && !isBossEnemy(k, roster[k]));
+    let pngKeys = Object.keys(roster).filter((k) => isPngSprite(roster[k]) && !isBossEnemy(k, roster[k]) && !k.toLowerCase().includes('photocopy'));
     if (pngKeys.length === 0) {
-      pngKeys = Object.keys(roster).filter((k) => !isBossEnemy(k, roster[k]));
+      pngKeys = Object.keys(roster).filter((k) => !isBossEnemy(k, roster[k]) && !k.toLowerCase().includes('photocopy'));
     }
 
     for (let i = 0; i < zone.count; i++) {
       let validTypes = (zone.allowedTypes && !zone.allowedTypes.includes('all'))
-        ? zone.allowedTypes.filter((t) => roster[t] && isPngSprite(roster[t]) && !isBossEnemy(t, roster[t]))
+        ? zone.allowedTypes.filter((t) => roster[t] && isPngSprite(roster[t]) && !isBossEnemy(t, roster[t]) && !t.toLowerCase().includes('photocopy'))
         : pngKeys;
 
       if (validTypes.length === 0) {
@@ -141,6 +141,7 @@ export class EnemySpawner {
       const item = roster[k];
       if (!item || !item.sprite) return false;
       if (isBossEnemy(k, item)) return false;
+      if (k.toLowerCase().includes('photocopy') || (item.name && item.name.toLowerCase().includes('photocopy'))) return false;
       const s = item.sprite.toLowerCase();
       return s.endsWith('.jpg') || s.endsWith('.jpeg') || (!s.endsWith('.png') && !s.includes('.png'));
     });
@@ -149,7 +150,7 @@ export class EnemySpawner {
   spawnJpgEnemy(spawnX, spawnZ) {
     const jpgKeys = this.getJpgEnemyKeys();
     const roster = ASSET_PATHS.enemies.types;
-    const fallbackKeys = Object.keys(roster).filter((k) => !isBossEnemy(k, roster[k]));
+    const fallbackKeys = Object.keys(roster).filter((k) => !isBossEnemy(k, roster[k]) && !k.toLowerCase().includes('photocopy'));
     const typeKey = jpgKeys.length > 0
       ? jpgKeys[Math.floor(Math.random() * jpgKeys.length)]
       : (fallbackKeys.length > 0 ? fallbackKeys[0] : Object.keys(roster)[0]);
