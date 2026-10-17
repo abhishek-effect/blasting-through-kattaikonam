@@ -975,7 +975,6 @@ Coded by Gemini 3.8 Flash`;
   }
 
   hideAllViews() {
-    this.clearCheckpointCountdown();
     if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
     if (this.pauseMenuView) this.pauseMenuView.classList.add('hidden');
     if (this.gameoverMenuView) this.gameoverMenuView.classList.add('hidden');
@@ -1016,6 +1015,7 @@ Coded by Gemini 3.8 Flash`;
     this.hideAllViews();
 
     if (state === STATES.MENU) {
+      this.clearCheckpointCountdown();
       if (this.mainMenuView) this.mainMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
@@ -1118,6 +1118,7 @@ Coded by Gemini 3.8 Flash`;
       }
       this.updateMobilePauseLabel();
     } else if (state === STATES.GAME_OVER) {
+      this.clearCheckpointCountdown();
       this.triggerScreenShake(500);
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');

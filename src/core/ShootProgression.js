@@ -154,8 +154,18 @@ export class ShootProgression {
         this.updateWaveBanner();
 
         if (this.currentWave.kills >= this.currentWave.target) {
-          const waveName = this.currentWave.type === 'computer_lab' ? 'Computer Lab Wave' : 'Physics Lab Wave';
-          this.hud.showNotification(`🎉 ${waveName.toUpperCase()} CLEARED!`, 4.0);
+          if (this.currentWave.type === 'computer_lab') {
+            this.isLibraryUnlocked = true;
+            const libDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_library') : null;
+            if (libDoor) {
+              libDoor.isLocked = false;
+              libDoor.customLockedPrompt = null;
+              libDoor.setOpen(true);
+            }
+            this.hud.showNotification('🎉 COMPUTER LAB WAVE CLEARED! CAMPUS LIBRARY OPENED!', 5.0);
+          } else {
+            this.hud.showNotification('🎉 PHYSICS LAB WAVE CLEARED!', 4.5);
+          }
           this.currentWave = null;
           this.hideWaveBanner();
         } else {
@@ -251,7 +261,7 @@ export class ShootProgression {
         door.isLocked = true;
         door.customLockedPrompt = {
           title: 'CAMPUS LIBRARY: LOCKED',
-          subtitle: 'Hack 3 computers in the Computer Lab to unlock',
+          subtitle: 'Hack 3 computers and clear Computer Lab Wave to unlock',
           isLocked: true
         };
       } else if (door.id === 'door_phy_lab') {
@@ -312,7 +322,7 @@ export class ShootProgression {
     this.hud.showNotification('💥 COMPUTER LAB WAVE INCOMING! Defeat 10 enemies!', 4.5);
 
     if (shouldSave) {
-      this.saveCheckpoint('computer_lab_wave', 'Computer Lab Wave', { x: 8.0, y: 1.65, z: 57.0 });
+      this.saveCheckpoint('computer_lab_wave', 'Computer Lab Wave', { x: 8.0, y: 1.65, z: 57.0, yaw: -Math.PI / 2 });
     }
 
     // Spawn 5 JPG enemies outside Computer Lab in hallway (X: 20..35, Z: 50..65)
@@ -333,7 +343,7 @@ export class ShootProgression {
     this.hud.showNotification('💥 PHYSICS LAB WAVE INCOMING! Defeat 10 enemies!', 4.5);
 
     if (shouldSave) {
-      this.saveCheckpoint('physics_lab_wave', 'Physics Lab Wave', { x: 31.0, y: 1.65, z: 18.0 });
+      this.saveCheckpoint('physics_lab_wave', 'Physics Lab Wave', { x: 47.0, y: 1.65, z: 9.5, yaw: Math.PI });
     }
 
     // Spawn 5 JPG enemies near Physics Lab North corridor (X: 40..60, Z: 18..26)
@@ -440,6 +450,15 @@ export class ShootProgression {
   update(deltaTime, player, input) {
     if (!player || player.isDead) return;
 
+    // Periodic wave enemy replenish check (every 1.5s)
+    if (this.currentWave) {
+      this._waveReplenishTimer = (this._waveReplenishTimer || 0) + deltaTime;
+      if (this._waveReplenishTimer >= 1.5) {
+        this._waveReplenishTimer = 0;
+        this.replenishWaveEnemies();
+      }
+    }
+
     // 1. Update sub-managers
     if (this.roomPickups) {
       this.roomPickups.update(deltaTime, player, this.game.grenadeManager, this.game.rifle, this.game.pistol);
@@ -506,15 +525,8 @@ export class ShootProgression {
       const drivesLeft = this.player ? (this.player.penDriveCount || 0) : 0;
       this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/3) | Pen Drives: ${drivesLeft}`, 3.5);
 
-      if (this.hackedComputersCount === 3 && !this.isLibraryUnlocked) {
-        this.isLibraryUnlocked = true;
-        const libDoor = this.level.doors.find((d) => d.id === 'door_library');
-        if (libDoor) {
-          libDoor.isLocked = false;
-          libDoor.customLockedPrompt = null;
-          libDoor.setOpen(true);
-        }
-        this.hud.showNotification('🔓 3 COMPUTERS HACKED! CAMPUS LIBRARY OPENED!', 4.5);
+      if (this.hackedComputersCount === 3) {
+        this.hud.showNotification('💻 3 COMPUTERS HACKED! SURVIVE THE COMPUTER LAB WAVE TO UNLOCK LIBRARY!', 5.0);
         this.startComputerLabWave(true);
       }
     } else if (action.type === 'search_shelf') {
@@ -829,6 +841,9 @@ export class ShootProgression {
       y: this.player ? this.player.position.y : 1.65,
       z: this.player ? this.player.position.z : 0
     };
+    const yaw = (spawnOverride && spawnOverride.yaw !== undefined)
+      ? spawnOverride.yaw
+      : (this.player ? this.player.yaw : 0);
 
     const cp = {
       checkpointId,
@@ -836,7 +851,7 @@ export class ShootProgression {
       timestamp: Date.now(),
       player: {
         position: { x: pos.x, y: pos.y, z: pos.z },
-        yaw: this.player ? this.player.yaw : 0,
+        yaw: yaw,
         health: 100,
         grenades: this.game.grenadeManager ? Math.max(2, this.game.grenadeManager.grenades) : 2,
         rifleAmmoInMag: this.game.rifle ? this.game.rifle.magSize : 30,
@@ -883,6 +898,27 @@ export class ShootProgression {
     this.hasFoundVernier = !!p.hasFoundVernier;
     this.lastSijinilMilestone = p.lastSijinilMilestone || 0;
 
+    // Checkpoint specific overrides to guarantee correct flow and prevent bypass
+    if (cp.checkpointId === 'computer_lab_wave') {
+      this.isComputerLabUnlocked = true;
+      this.isLibraryUnlocked = false; // Library MUST remain locked until Computer Lab wave is defeated!
+      this.hackedComputersCount = 3;
+    } else if (cp.checkpointId === 'physics_lab_wave') {
+      this.isComputerLabUnlocked = true;
+      this.isLibraryUnlocked = true;
+      this.isPhysicsLabUnlocked = true; // Physics Lab MUST be unlocked!
+      this.hackedComputersCount = 3;
+      this.hasFoundKey = true;
+    } else if (cp.checkpointId === 'seminar_hall_unlocked') {
+      this.isComputerLabUnlocked = true;
+      this.isLibraryUnlocked = true;
+      this.isPhysicsLabUnlocked = true;
+      this.isSeminarHallUnlocked = true;
+      this.hackedComputersCount = 3;
+      this.hasFoundKey = true;
+      this.hasFoundVernier = true;
+    }
+
     if (p.computers && Array.isArray(p.computers)) {
       p.computers.forEach((saved) => {
         const found = this.computers.find((c) => c.id === saved.id);
@@ -900,9 +936,12 @@ export class ShootProgression {
       if (this.isLibraryUnlocked) {
         const d = this.level.doors.find((door) => door.id === 'door_library');
         if (d) { d.isLocked = false; d.customLockedPrompt = null; d.setOpen(true); }
+      } else {
+        const d = this.level.doors.find((door) => door.id === 'door_library');
+        if (d) { d.isLocked = true; d.setOpen(false); }
       }
       if (this.isPhysicsLabUnlocked) {
-        const d = this.level.doors.find((door) => door.id === 'door_nw_lock');
+        const d = this.level.doors.find((door) => door.id === 'door_phy_lab');
         if (d) { d.isLocked = false; d.customLockedPrompt = null; d.setOpen(true); }
       }
     }
@@ -919,23 +958,17 @@ export class ShootProgression {
       this.player.hasPenDrive = this.player.penDriveCount > 0;
     }
 
-    // Launch appropriate wave or boss encounter after on-screen 3.. 2.. 1.. GO countdown
-    const launchWaveEncounter = () => {
-      if (cp.checkpointId === 'computer_lab_wave') {
-        this.startComputerLabWave(false);
-      } else if (cp.checkpointId === 'physics_lab_wave') {
-        this.startPhysicsLabWave(false);
-      } else if (cp.checkpointId === 'seminar_hall_unlocked') {
-        this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
-      }
-    };
+    // Immediately start wave encounter & banner, spawn enemies, and trigger on-screen 3.. 2.. 1.. GO countdown
+    if (cp.checkpointId === 'computer_lab_wave') {
+      this.startComputerLabWave(false);
+    } else if (cp.checkpointId === 'physics_lab_wave') {
+      this.startPhysicsLabWave(false);
+    } else if (cp.checkpointId === 'seminar_hall_unlocked') {
+      this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
+    }
 
     if (this.hud && typeof this.hud.startCheckpointCountdown === 'function') {
-      this.hud.startCheckpointCountdown(() => {
-        launchWaveEncounter();
-      });
-    } else {
-      launchWaveEncounter();
+      this.hud.startCheckpointCountdown();
     }
   }
 }

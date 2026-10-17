@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Fix premature Campus Cleared game over on 5 wave kills, allowing waves and campus progression to complete';
+const commitMsg = 'Deploy: Fix Physics Lab checkpoint lockout and Computer Lab wave retry skip';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
