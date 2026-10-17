@@ -149,6 +149,34 @@ export class AudioManager {
       doorData[i] = click + friction;
     }
     this.precomputedBuffers.set('door', doorBuf);
+
+    // 8. Precomputed zero-lag pickup chime buffer
+    const pickupLen = Math.floor(sampleRate * 0.25);
+    const pickupBuf = this.ctx.createBuffer(1, pickupLen, sampleRate);
+    const pickupData = pickupBuf.getChannelData(0);
+    for (let i = 0; i < pickupLen; i++) {
+      const t = i / sampleRate;
+      let val = 0;
+      if (t < 0.08) {
+        val = Math.sin(2 * Math.PI * 587.33 * t) * (1 - t / 0.08) * 0.30;
+      } else {
+        const dt = t - 0.08;
+        val = Math.sin(2 * Math.PI * 880.00 * dt) * Math.exp(-dt * 14.0) * 0.35;
+      }
+      pickupData[i] = val;
+    }
+    this.precomputedBuffers.set('pickup', pickupBuf);
+
+    // 9. Precomputed zero-lag enemy hit buffer
+    const hitLen = Math.floor(sampleRate * 0.08);
+    const hitBuf = this.ctx.createBuffer(1, hitLen, sampleRate);
+    const hitData = hitBuf.getChannelData(0);
+    for (let i = 0; i < hitLen; i++) {
+      const t = i / sampleRate;
+      const f = 220 - (t / 0.08) * 110;
+      hitData[i] = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 35.0) * 0.35;
+    }
+    this.precomputedBuffers.set('hit', hitBuf);
   }
 
   /**
@@ -477,48 +505,12 @@ export class AudioManager {
 
   playPickup() {
     if (this.isMuted || this.sfxMuted) return;
-    this.ensureContext();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(587.33, now);
-      osc.frequency.setValueAtTime(880.00, now + 0.08);
-
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } catch (e) {}
+    this.playPrecomputed('pickup', 0.65);
   }
 
   playEnemyHit() {
     if (this.isMuted || this.sfxMuted) return;
-    this.ensureContext();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.linearRampToValueAtTime(110, now + 0.07);
-
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
-
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now);
-      osc.stop(now + 0.07);
-    } catch (e) {}
+    this.playPrecomputed('hit', 0.55);
   }
 
   playEnemyDeath() {

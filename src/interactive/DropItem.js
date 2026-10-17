@@ -41,9 +41,20 @@ export class DropItemManager {
     sprite.scale.set(0.55, 0.55, 1);
     group.add(sprite);
 
-    // Glowing point light
-    const light = new THREE.PointLight(lightColor, 1.6, 3.5);
-    group.add(light);
+    // Glowing beacon ring underneath (zero point lights, zero shader recompilation lag)
+    const beaconGeo = new THREE.RingGeometry(0.18, 0.32, 16);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: lightColor,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+    beacon.rotation.x = -Math.PI / 2;
+    beacon.position.y = -0.25;
+    group.add(beacon);
 
     this.scene.add(group);
 
@@ -75,6 +86,7 @@ export class DropItemManager {
       const dist = Math.hypot(player.position.x - drop.position.x, player.position.z - drop.position.z);
       if (dist <= 1.8) {
         drop.collected = true;
+        drop.group.visible = false;
         this.scene.remove(drop.group);
         this.drops.splice(i, 1);
 

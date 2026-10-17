@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Shoot Shoot Shoot mode questline, security keypad puzzle, holdable quest items, Sijinil & Boss fights, bladexvoid Evade BGM, and campus optimizations';
+const commitMsg = 'Deploy: Checkpoints in localStorage with Try Again option, 10s keypad cooldown, 1 pen drive per computer fix, stop AK47 Sijinil after hacking 3 PCs, and zero-lag pickup/equip performance optimizations';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();

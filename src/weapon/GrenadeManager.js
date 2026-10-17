@@ -310,6 +310,7 @@ export class GrenadeManager {
           if (this.grenades < this.maxGrenades) {
             this.grenades++;
             this.audio.playPickup();
+            pickup.group.visible = false;
             this.scene.remove(pickup.group);
             this.pickups.splice(i, 1);
             if (player.onPickupNotification) {

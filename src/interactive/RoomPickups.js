@@ -99,10 +99,20 @@ export class RoomPickups {
         group.add(new THREE.Mesh(trimGeo, trimMat));
       }
 
-      // Point Light glow
-      const pl = new THREE.PointLight(lightColor, 1.2, 3.5);
-      pl.position.set(0, 0.1, 0);
-      group.add(pl);
+      // Glowing beacon ring underneath (zero point lights, zero shader recompilation lag)
+      const beaconGeo = new THREE.RingGeometry(0.18, 0.32, 16);
+      const beaconMat = new THREE.MeshBasicMaterial({
+        color: lightColor,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.75,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.rotation.x = -Math.PI / 2;
+      beacon.position.y = -0.35;
+      group.add(beacon);
 
       this.scene.add(group);
 
@@ -179,6 +189,7 @@ export class RoomPickups {
 
         if (collected) {
           p.collected = true;
+          p.group.visible = false;
           this.scene.remove(p.group);
         }
       }

@@ -341,7 +341,8 @@ export class Game {
 
     this.gameState.on('restartGame', (data) => {
       const mode = (data && data.mode) ? data.mode : this.gameState.currentMode;
-      this.restart(mode);
+      const fromCheckpoint = !!(data && data.fromCheckpoint);
+      this.restart(mode, fromCheckpoint);
     });
 
     this.gameState.on('startMode', ({ mode }) => {
@@ -419,7 +420,7 @@ export class Game {
     }
   }
 
-  restart(mode = null) {
+  restart(mode = null, fromCheckpoint = false) {
     if (mode) {
       this.gameState.currentMode = mode;
     }
@@ -438,6 +439,71 @@ export class Game {
     }
     if (this.player.setWeaponsVisible) {
       this.player.setWeaponsVisible(true);
+    }
+
+    let checkpointData = null;
+    if (fromCheckpoint) {
+      try {
+        const raw = localStorage.getItem('kattaikonam_checkpoint');
+        if (raw) checkpointData = JSON.parse(raw);
+      } catch (e) {
+        console.warn('[Game] Could not parse checkpoint data:', e);
+      }
+    }
+
+    if (checkpointData && checkpointData.player) {
+      const cpPos = new THREE.Vector3(
+        checkpointData.player.position.x,
+        this.player.standHeight,
+        checkpointData.player.position.z
+      );
+      this.player.reset(cpPos, checkpointData.player.yaw || 0);
+      this.player.health = 100;
+      this.player.penDriveCount = checkpointData.player.penDriveCount || 0;
+      this.player.hasPenDrive = this.player.penDriveCount > 0;
+
+      this.rifle.reset();
+      this.rifle.ammoInMag = checkpointData.player.rifleAmmoInMag || 30;
+      this.rifle.reserveAmmo = Math.max(60, checkpointData.player.rifleReserveAmmo || 90);
+
+      this.pistol.reset();
+      this.pistol.ammoInMag = checkpointData.player.pistolAmmoInMag || 12;
+      this.pistol.reserveAmmo = Math.max(24, checkpointData.player.pistolReserveAmmo || 36);
+
+      this.medkit.reset();
+      this.medkit.count = Math.max(2, checkpointData.player.medkitCount || 2);
+
+      this.grenadeManager.reset();
+      this.grenadeManager.grenades = Math.max(2, checkpointData.player.grenades || 2);
+
+      this.player.switchSlot(0);
+
+      if (this.level && this.level.resetSeminarGate) {
+        this.level.resetSeminarGate();
+      }
+      if (this.level && this.level.doors) {
+        this.level.doors.forEach((d) => {
+          d.setOpen(false);
+          d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
+        });
+      }
+
+      this.enemySpawner.clear();
+      if (this.laserManager) {
+        this.laserManager.initLasers(level1Data.lasers || []);
+      }
+
+      if (this.shootProgression) {
+        this.shootProgression.reset();
+        this.shootProgression.loadCheckpointState(checkpointData);
+      }
+
+      this.gameState.reset(this.enemySpawner.getEnemies().length);
+      this.gameState.setState(STATES.PLAYING);
+      this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+      this.input.requestPointerLock();
+      this.hud.showNotification(`💾 RESUMED FROM CHECKPOINT: ${checkpointData.checkpointName.toUpperCase()}!`, 4.5);
+      return;
     }
 
     const startPos = new THREE.Vector3(

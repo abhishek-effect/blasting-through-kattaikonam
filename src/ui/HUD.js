@@ -141,6 +141,7 @@ export class HUD {
 
     // Game Over Buttons
     this.btnGameoverRestart = document.getElementById('btn-gameover-restart');
+    this.btnGameoverCheckpoint = document.getElementById('btn-gameover-checkpoint');
     this.btnGameoverMainMenu = document.getElementById('btn-gameover-mainmenu');
 
     // Options Controls, Fullscreen & Audio Toggles
@@ -497,12 +498,21 @@ export class HUD {
     }
 
     // 4. Game Over / Victory Buttons
+    if (this.btnGameoverCheckpoint) {
+      this.btnGameoverCheckpoint.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.requestFullscreen();
+        if (this.audio) this.audio.ensureContext();
+        this.gameState.emit('restartGame', { fromCheckpoint: true });
+      });
+    }
+
     if (this.btnGameoverRestart) {
       this.btnGameoverRestart.addEventListener('click', (e) => {
         e.stopPropagation();
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
-        this.gameState.emit('restartGame');
+        this.gameState.emit('restartGame', { fromCheckpoint: false });
       });
     }
 
@@ -964,7 +974,25 @@ Coded by Gemini 3.8 Flash`;
       if (this.btnGameoverRestart) {
         this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
       }
+      if (this.btnGameoverCheckpoint) {
+        let hasCp = false;
+        try {
+          const raw = localStorage.getItem('kattaikonam_checkpoint');
+          if (raw) {
+            const cp = JSON.parse(raw);
+            if (cp && cp.checkpointName) {
+              hasCp = true;
+              this.btnGameoverCheckpoint.textContent = `💾 TRY AGAIN FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
+              this.btnGameoverCheckpoint.classList.remove('hidden');
+            }
+          }
+        } catch (e) {}
+        if (!hasCp) {
+          this.btnGameoverCheckpoint.classList.add('hidden');
+        }
+      }
     } else if (state === STATES.VICTORY) {
+      if (this.btnGameoverCheckpoint) this.btnGameoverCheckpoint.classList.add('hidden');
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {

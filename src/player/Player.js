@@ -71,6 +71,8 @@ export class Player {
 
     // Progression Hook: Photocopy requirement for elevator
     this.hasPhotocopy = false;
+    this.hasPenDrive = false;
+    this.penDriveCount = 0;
     this.isLookingBehind = false;
 
     // Held Photocopy 3D Viewmodel (held in hands like a weapon)
@@ -250,6 +252,8 @@ export class Player {
     this.isDead = false;
     this.isDowned = false;
     this.hasPhotocopy = false;
+    this.hasPenDrive = false;
+    this.penDriveCount = 0;
     if (this.photocopyRig) this.photocopyRig.visible = false;
     this.updateCameraTransform();
   }

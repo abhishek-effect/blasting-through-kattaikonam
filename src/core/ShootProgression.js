@@ -127,9 +127,9 @@ export class ShootProgression {
     this.enemySpawner.onEnemyDropItem = (type, pos) => {
       this.dropItems.spawnDrop(type, pos, (collectedType) => {
         if (collectedType === 'pendrive') {
-          this.player.hasPenDrive = true;
           this.player.penDriveCount = (this.player.penDriveCount || 0) + 1;
-          this.hud.showNotification('💾 PEN DRIVE ACQUIRED! Hold [E] at Computer Lab PCs to hack.');
+          this.player.hasPenDrive = true;
+          this.hud.showNotification(`💾 PEN DRIVE ACQUIRED (x${this.player.penDriveCount})! Hold [E] at Computer Lab PC to hack.`, 4.0);
         } else if (collectedType === 'photocopy') {
           this.player.hasPhotocopy = true;
           this.hud.showNotification('📄 PHOTOCOPY OBTAINED! Escape via the Elevator!');
@@ -139,11 +139,13 @@ export class ShootProgression {
 
     // Kill listener for Sijinil milestones and Wave counters
     this.enemySpawner.onEnemyKilled = (enemy, totalKills) => {
-      // 1. Sijinil milestone: Spawns every 5 kills
+      // 1. Sijinil milestone: Spawns every 5 kills (only if player hasn't hacked all 3 computers yet)
       const milestone = Math.floor(totalKills / 5) * 5;
       if (milestone > 0 && milestone > this.lastSijinilMilestone) {
         this.lastSijinilMilestone = milestone;
-        this.spawnSijinilWave();
+        if (this.hackedComputersCount < 3) {
+          this.spawnSijinilWave();
+        }
       }
 
       // 2. Active wave progression (10 kills each)
@@ -292,6 +294,7 @@ export class ShootProgression {
   }
 
   spawnSijinilWave() {
+    if (this.hackedComputersCount >= 3) return;
     this.hud.showNotification('⚠️ SIJINIL HAS SPAWNED ON CAMPUS! (5 KILLS)', 4.0);
     // Spawn Sijinil in central corridor near black tiles
     const spawnX = 31.0 + (Math.random() - 0.5) * 6;
@@ -299,7 +302,7 @@ export class ShootProgression {
     this.enemySpawner.spawnSijinil(spawnX, spawnZ);
   }
 
-  startComputerLabWave() {
+  startComputerLabWave(shouldSave = true) {
     this.currentWave = {
       type: 'computer_lab',
       kills: 0,
@@ -307,6 +310,10 @@ export class ShootProgression {
     };
     this.showWaveBanner('COMPUTER LAB WAVE!', 'DEFEAT 10 ENEMIES (0 / 10)');
     this.hud.showNotification('💥 COMPUTER LAB WAVE INCOMING! Defeat 10 enemies!', 4.5);
+
+    if (shouldSave) {
+      this.saveCheckpoint('computer_lab_wave', 'Computer Lab Wave', { x: 8.0, y: 1.65, z: 57.0 });
+    }
 
     // Spawn 5 JPG enemies outside Computer Lab in hallway (X: 20..35, Z: 50..65)
     for (let i = 0; i < 5; i++) {
@@ -316,7 +323,7 @@ export class ShootProgression {
     }
   }
 
-  startPhysicsLabWave() {
+  startPhysicsLabWave(shouldSave = true) {
     this.currentWave = {
       type: 'physics_lab',
       kills: 0,
@@ -324,6 +331,10 @@ export class ShootProgression {
     };
     this.showWaveBanner('PHYSICS LAB WAVE!', 'DEFEAT 10 ENEMIES (0 / 10)');
     this.hud.showNotification('💥 PHYSICS LAB WAVE INCOMING! Defeat 10 enemies!', 4.5);
+
+    if (shouldSave) {
+      this.saveCheckpoint('physics_lab_wave', 'Physics Lab Wave', { x: 31.0, y: 1.65, z: 18.0 });
+    }
 
     // Spawn 5 JPG enemies near Physics Lab North corridor (X: 40..60, Z: 18..26)
     for (let i = 0; i < 5; i++) {
@@ -483,10 +494,17 @@ export class ShootProgression {
       pc.isHacked = true;
       this.hackedComputersCount++;
 
+      // Consume 1 pen drive per computer
+      if (this.player) {
+        this.player.penDriveCount = Math.max(0, (this.player.penDriveCount || 1) - 1);
+        this.player.hasPenDrive = this.player.penDriveCount > 0;
+      }
+
       if (this.audio && this.audio.playComboSound) {
         this.audio.playComboSound(2);
       }
-      this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/3)`, 3.5);
+      const drivesLeft = this.player ? (this.player.penDriveCount || 0) : 0;
+      this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/3) | Pen Drives: ${drivesLeft}`, 3.5);
 
       if (this.hackedComputersCount === 3 && !this.isLibraryUnlocked) {
         this.isLibraryUnlocked = true;
@@ -497,7 +515,7 @@ export class ShootProgression {
           libDoor.setOpen(true);
         }
         this.hud.showNotification('🔓 3 COMPUTERS HACKED! CAMPUS LIBRARY OPENED!', 4.5);
-        this.startComputerLabWave();
+        this.startComputerLabWave(true);
       }
     } else if (action.type === 'search_shelf') {
       this.hasFoundKey = true;
@@ -547,16 +565,17 @@ export class ShootProgression {
         const dist = Math.hypot(player.position.x - pc.x, player.position.z - pc.z);
         if (dist <= 2.2) {
           promptFound = true;
-          if (!player.hasPenDrive) {
+          const driveCount = (player && player.penDriveCount) || 0;
+          if (driveCount <= 0) {
             this.hud.updateInteractionPrompt({
               title: 'WORKSTATION TERMINAL',
-              subtitle: 'Pen drive required to hack computer',
+              subtitle: 'Pen drive required to hack computer (Defeat Sijinil)',
               isLocked: true
             });
           } else {
             this.hud.updateInteractionPrompt({
               title: 'WORKSTATION TERMINAL',
-              subtitle: 'Hold [E] to Hack Computer',
+              subtitle: `Hold [E] to Hack Computer (${driveCount} Pen Drive${driveCount > 1 ? 's' : ''})`,
               isLocked: false
             });
 
@@ -671,7 +690,8 @@ export class ShootProgression {
             this.isSeminarHallUnlocked = true;
             this.level.unlockSeminarGate();
             this.removeHoldableItem(); // Consumes Vernier Caliper
-            this.hud.showNotification('🔓 SEMINAR HALL UNLOCKED! ENTER AUDITORIUM!', 4.5);
+            this.saveCheckpoint('seminar_hall_unlocked', 'Seminar Hall Unlocked', { x: 54.0, y: 1.65, z: 46.5 });
+            this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM!', 4.5);
           }
         }
         return;
@@ -801,5 +821,111 @@ export class ShootProgression {
         }
       }, 1000);
     }, 2800);
+  }
+
+  saveCheckpoint(checkpointId, checkpointName, spawnOverride = null) {
+    const pos = spawnOverride || {
+      x: this.player ? this.player.position.x : 0,
+      y: this.player ? this.player.position.y : 1.65,
+      z: this.player ? this.player.position.z : 0
+    };
+
+    const cp = {
+      checkpointId,
+      checkpointName,
+      timestamp: Date.now(),
+      player: {
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        yaw: this.player ? this.player.yaw : 0,
+        health: 100,
+        grenades: this.game.grenadeManager ? Math.max(2, this.game.grenadeManager.grenades) : 2,
+        rifleAmmoInMag: this.game.rifle ? this.game.rifle.magSize : 30,
+        rifleReserveAmmo: this.game.rifle ? Math.max(60, this.game.rifle.reserveAmmo) : 90,
+        pistolAmmoInMag: this.game.pistol ? this.game.pistol.magSize : 12,
+        pistolReserveAmmo: this.game.pistol ? Math.max(24, this.game.pistol.reserveAmmo) : 36,
+        medkitCount: this.game.medkit ? Math.max(2, this.game.medkit.count) : 2,
+        penDriveCount: (this.player && this.player.penDriveCount) || 0
+      },
+      progression: {
+        isComputerLabUnlocked: this.isComputerLabUnlocked,
+        isLibraryUnlocked: this.isLibraryUnlocked,
+        isPhysicsLabUnlocked: this.isPhysicsLabUnlocked,
+        isSeminarHallUnlocked: this.isSeminarHallUnlocked,
+        hackedComputersCount: this.hackedComputersCount,
+        computers: this.computers.map((c) => ({ id: c.id, x: c.x, z: c.z, isHacked: c.isHacked })),
+        hasFoundKey: this.hasFoundKey,
+        hasFoundVernier: this.hasFoundVernier,
+        lastSijinilMilestone: this.lastSijinilMilestone
+      }
+    };
+
+    try {
+      localStorage.setItem('kattaikonam_checkpoint', JSON.stringify(cp));
+      this.hud.showNotification(`💾 CHECKPOINT REACHED: ${checkpointName.toUpperCase()}!`, 4.5);
+      if (this.audio && this.audio.playComboSound) {
+        this.audio.playComboSound(1);
+      }
+    } catch (err) {
+      console.warn('[ShootProgression] Failed to save checkpoint to localStorage:', err);
+    }
+  }
+
+  loadCheckpointState(cp) {
+    if (!cp || !cp.progression) return;
+    const p = cp.progression;
+
+    this.isComputerLabUnlocked = !!p.isComputerLabUnlocked;
+    this.isLibraryUnlocked = !!p.isLibraryUnlocked;
+    this.isPhysicsLabUnlocked = !!p.isPhysicsLabUnlocked;
+    this.isSeminarHallUnlocked = !!p.isSeminarHallUnlocked;
+    this.hackedComputersCount = p.hackedComputersCount || 0;
+    this.hasFoundKey = !!p.hasFoundKey;
+    this.hasFoundVernier = !!p.hasFoundVernier;
+    this.lastSijinilMilestone = p.lastSijinilMilestone || 0;
+
+    if (p.computers && Array.isArray(p.computers)) {
+      p.computers.forEach((saved) => {
+        const found = this.computers.find((c) => c.id === saved.id);
+        if (found) found.isHacked = !!saved.isHacked;
+      });
+    }
+
+    // Apply door unlock states
+    if (this.level && this.level.doors) {
+      if (this.isComputerLabUnlocked) {
+        const d = this.level.doors.find((door) => door.id === 'door_computer_lab');
+        if (d) { d.isLocked = false; d.customLockedPrompt = null; d.setOpen(true); }
+        if (this.keypad) this.keypad.isUnlocked = true;
+      }
+      if (this.isLibraryUnlocked) {
+        const d = this.level.doors.find((door) => door.id === 'door_library');
+        if (d) { d.isLocked = false; d.customLockedPrompt = null; d.setOpen(true); }
+      }
+      if (this.isPhysicsLabUnlocked) {
+        const d = this.level.doors.find((door) => door.id === 'door_nw_lock');
+        if (d) { d.isLocked = false; d.customLockedPrompt = null; d.setOpen(true); }
+      }
+    }
+
+    if (this.isSeminarHallUnlocked) {
+      if (this.level && this.level.unlockSeminarGate) {
+        this.level.unlockSeminarGate();
+      }
+    }
+
+    // Restore player inventory status
+    if (this.player && cp.player) {
+      this.player.penDriveCount = cp.player.penDriveCount || 0;
+      this.player.hasPenDrive = this.player.penDriveCount > 0;
+    }
+
+    // Launch appropriate wave or boss encounter
+    if (cp.checkpointId === 'computer_lab_wave') {
+      this.startComputerLabWave(false);
+    } else if (cp.checkpointId === 'physics_lab_wave') {
+      this.startPhysicsLabWave(false);
+    } else if (cp.checkpointId === 'seminar_hall_unlocked') {
+      this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
+    }
   }
 }

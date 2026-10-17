@@ -22,7 +22,7 @@ export class SecurityKeypad {
     this.secretCode = this.generateSecretCode();
     this.maxTries = 5;
     this.triesRemaining = 5;
-    this.cooldownSeconds = 30;
+    this.cooldownSeconds = 10;
     this.cooldownTimer = 0;
     this.cooldownInterval = null;
 
@@ -234,7 +234,7 @@ export class SecurityKeypad {
 
   startCooldown() {
     this.cooldownTimer = this.cooldownSeconds;
-    this.setFeedback(`SECURITY LOCKOUT: 0 TRIES LEFT. 30s COOLDOWN ACTIVE.`, 'error');
+    this.setFeedback(`SECURITY LOCKOUT: 0 TRIES LEFT. 10s COOLDOWN ACTIVE.`, 'error');
     this.updateDisplay();
 
     if (this.cooldownInterval) clearInterval(this.cooldownInterval);

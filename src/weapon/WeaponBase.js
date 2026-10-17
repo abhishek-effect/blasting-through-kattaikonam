@@ -128,10 +128,11 @@ export class WeaponBase {
     this.muzzleFlash.visible = false;
     this.viewmodelPivot.add(this.muzzleFlash);
 
-    // 5. Muzzle Flash Point Light
+    // 5. Muzzle Flash Point Light (Attached to camera with visible=true and intensity=0 to prevent shader recompilation when switching slots)
     this.flashLight = new THREE.PointLight(0xffaa22, 0, 8);
-    this.flashLight.position.copy(this.muzzleOffset);
-    this.viewmodelPivot.add(this.flashLight);
+    this.flashLight.position.copy(this.restPosition).add(this.muzzleOffset);
+    this.flashLight.visible = true;
+    this.camera.add(this.flashLight);
   }
 
   buildImpactParticleSystem() {
@@ -425,6 +426,9 @@ export class WeaponBase {
   }
 
   destroy() {
+    if (this.flashLight && this.camera) {
+      this.camera.remove(this.flashLight);
+    }
     this.camera.remove(this.viewmodelGroup);
     this.impactParticles.forEach((p) => this.scene.remove(p.mesh));
   }

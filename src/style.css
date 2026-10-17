@@ -990,6 +990,22 @@ html, body {
   color: #a3f7bf;
 }
 
+.menu-btn.checkpoint-btn {
+  background: linear-gradient(135deg, #0984e3, #00cec9);
+  border-color: #74b9ff;
+  color: #fff;
+  letter-spacing: 1.5px;
+  box-shadow: 0 4px 15px rgba(9, 132, 227, 0.45);
+}
+
+.menu-btn.checkpoint-btn:hover:not(.disabled) {
+  background: linear-gradient(135deg, #00cec9, #0984e3);
+  border-color: #81ecec;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 206, 201, 0.75);
+}
+
 .menu-btn.disabled {
   opacity: 0.35;
   cursor: not-allowed;
