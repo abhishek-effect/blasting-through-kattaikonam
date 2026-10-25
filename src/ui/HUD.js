@@ -538,9 +538,16 @@ export class HUD {
         e.preventDefault();
       }
       const rawName = (this.survivalNameInput ? this.survivalNameInput.value : '').trim();
-      if (!rawName) {
+      if (!rawName || rawName.length < 2) {
         if (this.survivalNameError) {
-          this.survivalNameError.textContent = 'Please enter a codename / player name.';
+          this.survivalNameError.textContent = 'Name must be at least 2 characters long.';
+          this.survivalNameError.classList.remove('hidden');
+        }
+        return;
+      }
+      if (rawName.length > 20) {
+        if (this.survivalNameError) {
+          this.survivalNameError.textContent = 'Name cannot exceed 20 characters.';
           this.survivalNameError.classList.remove('hidden');
         }
         return;
@@ -552,12 +559,21 @@ export class HUD {
       }
       if (this.survivalNameError) {
         this.survivalNameError.classList.add('hidden');
+        this.survivalNameError.textContent = '';
       }
 
-      const validation = await supabaseService.validatePlayerName(rawName);
-      if (!validation.valid) {
+      let validation;
+      try {
+        validation = await supabaseService.validatePlayerName(rawName);
+      } catch (err) {
+        console.warn('[HUD] Validation error caught:', err);
+        validation = { allowed: true, valid: true };
+      }
+
+      const isAllowed = Boolean(validation && (validation.allowed === true || validation.valid === true));
+      if (!isAllowed) {
         if (this.survivalNameError) {
-          this.survivalNameError.textContent = validation.error;
+          this.survivalNameError.textContent = validation?.reason || validation?.error || 'That codename is already taken. Please choose another.';
           this.survivalNameError.classList.remove('hidden');
         }
         if (this.btnSurvivalNameConfirm) {
@@ -577,6 +593,10 @@ export class HUD {
       }
 
       this.closeSurvivalNameModal();
+      this.hideAllViews();
+      if (this.screenOverlay) {
+        this.screenOverlay.classList.add('hidden');
+      }
       this.requestFullscreen();
       this.input.requestPointerLock();
       if (this.audio) this.audio.ensureContext();
@@ -1949,7 +1969,8 @@ Coded by Gemini 3.8 Flash`;
 
       if (this.leaderboardTableBody) {
         this.leaderboardTableBody.innerHTML = scores.map((entry, index) => {
-          const isCurrentPlayer = storedName && entry.player_name && storedName.toLowerCase() === entry.player_name.toLowerCase();
+          const entryName = entry.name || entry.player_name || 'Anonymous';
+          const isCurrentPlayer = storedName && entryName && storedName.toLowerCase() === entryName.toLowerCase();
           const rank = index + 1;
           const rankMedal = rank === 1 ? '🥇 ' : (rank === 2 ? '🥈 ' : (rank === 3 ? '🥉 ' : ''));
           const scoreFormatted = (entry.score || 0).toLocaleString();
@@ -1959,7 +1980,7 @@ Coded by Gemini 3.8 Flash`;
           return `
             <tr class="${rowClass}">
               <td style="font-weight: bold;">${rankMedal}#${rank}</td>
-              <td style="font-weight: 600;">${this.escapeHtml(entry.player_name || 'Anonymous')}</td>
+              <td style="font-weight: 600;">${this.escapeHtml(entryName)}</td>
               <td style="color: #f1c40f; font-weight: bold;">${scoreFormatted}</td>
               <td style="color: #e67e22;">W${wave}</td>
             </tr>

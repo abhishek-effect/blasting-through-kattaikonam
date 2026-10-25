@@ -92,37 +92,55 @@ export class SupabaseService {
   async validatePlayerName(candidateName) {
     const trimmed = (candidateName || '').trim();
     if (!trimmed || trimmed.length < 2) {
-      return { allowed: false, reason: 'Name must be at least 2 characters long.' };
+      return {
+        allowed: false,
+        valid: false,
+        reason: 'Name must be at least 2 characters long.',
+        error: 'Name must be at least 2 characters long.'
+      };
     }
     if (trimmed.length > 20) {
-      return { allowed: false, reason: 'Name cannot exceed 20 characters.' };
+      return {
+        allowed: false,
+        valid: false,
+        reason: 'Name cannot exceed 20 characters.',
+        error: 'Name cannot exceed 20 characters.'
+      };
     }
 
     const storedName = this.getStoredPlayerName();
     // If the entered name matches the name already saved in localStorage for this user, allow it!
     if (storedName && storedName.toLowerCase() === trimmed.toLowerCase()) {
-      return { allowed: true };
+      return { allowed: true, valid: true };
     }
 
     // Otherwise check if name already exists in Supabase
     if (this.isConfigured) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
         const queryUrl = `${this.url}/rest/v1/high_scores?name=ilike.${encodeURIComponent(trimmed)}&select=name`;
         const res = await fetch(queryUrl, {
           method: 'GET',
           headers: this.getHeaders(),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (res.ok) {
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0) {
             return {
               allowed: false,
-              reason: `The name "${trimmed}" is already claimed on the global leaderboard. Please choose a different name.`
+              valid: false,
+              reason: `The name "${trimmed}" is already claimed on the global leaderboard. Please choose a different name.`,
+              error: `The name "${trimmed}" is already claimed on the global leaderboard. Please choose a different name.`
             };
           }
-          return { allowed: true };
+          return { allowed: true, valid: true };
         } else {
+          // Non-200 (e.g. 404 table not yet migrated): don't block user, fallback to local
           console.warn('[SupabaseService] Supabase check returned non-200:', res.status);
         }
       } catch (err) {
@@ -136,11 +154,13 @@ export class SupabaseService {
     if (existsLocally && storedName.toLowerCase() !== trimmed.toLowerCase()) {
       return {
         allowed: false,
-        reason: `The name "${trimmed}" is already registered. Please choose another name.`
+        valid: false,
+        reason: `The name "${trimmed}" is already registered. Please choose another name.`,
+        error: `The name "${trimmed}" is already registered. Please choose another name.`
       };
     }
 
-    return { allowed: true };
+    return { allowed: true, valid: true };
   }
 
   /**
