@@ -470,6 +470,9 @@ export class EvadeLobbyUI {
 
   show() {
     this.container.classList.remove('hidden');
+    if (document.exitPointerLock) {
+      try { document.exitPointerLock(); } catch (e) {}
+    }
     this.refreshAvailableMatches();
   }
 

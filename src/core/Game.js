@@ -60,7 +60,7 @@ export class Game {
     // 2. Instantiate Systems
     this.gameState = new GameState();
     this.audio = new AudioManager();
-    this.input = new InputManager(this.canvas, this.hudContainer);
+    this.input = new InputManager(this.canvas, this.hudContainer, this.gameState);
 
     // Build Deterministic Data-Driven Level
     this.level = new LevelGenerator(this.scene, level1Data, this.audio);
@@ -389,28 +389,33 @@ export class Game {
         } else {
           this.audio.playBGM(ASSET_PATHS.audio.bladeVoidBgm, 0.45);
         }
-      } else if (newState === STATES.GAME_OVER) {
-        this.audio.stopBGM();
-        if (this.survivalMode && this.survivalMode.isActive) {
-          this.survivalMode.onPlayerDeath();
+      } else {
+        if (this.input && this.input.releasePointerLock) {
+          this.input.releasePointerLock();
         }
-      } else if (newState === STATES.VICTORY) {
-        this.audio.stopBGM();
-      } else if (newState === STATES.PAUSED) {
-        this.audio.pauseBGM();
-      } else if (newState === STATES.MENU) {
-        this.audio.pauseBGM();
-        if (this.battleGame && this.battleGame.isActive) {
-          this.battleGame.stop();
+        if (newState === STATES.GAME_OVER) {
+          this.audio.stopBGM();
+          if (this.survivalMode && this.survivalMode.isActive) {
+            this.survivalMode.onPlayerDeath();
+          }
+        } else if (newState === STATES.VICTORY) {
+          this.audio.stopBGM();
+        } else if (newState === STATES.PAUSED) {
+          this.audio.pauseBGM();
+        } else if (newState === STATES.MENU) {
+          this.audio.pauseBGM();
+          if (this.battleGame && this.battleGame.isActive) {
+            this.battleGame.stop();
+          }
+          if (this.evadeGame && this.evadeGame.isActive) {
+            this.evadeGame.stop();
+          }
+          if (this.survivalMode) {
+            this.survivalMode.stop();
+          }
+          document.body.classList.remove('evade-mode');
+          this.gameState.hasActiveSession = false;
         }
-        if (this.evadeGame && this.evadeGame.isActive) {
-          this.evadeGame.stop();
-        }
-        if (this.survivalMode) {
-          this.survivalMode.stop();
-        }
-        document.body.classList.remove('evade-mode');
-        this.gameState.hasActiveSession = false;
       }
     });
   }

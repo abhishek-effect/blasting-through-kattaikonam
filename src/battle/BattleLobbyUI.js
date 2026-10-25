@@ -556,6 +556,9 @@ export class BattleLobbyUI {
 
   show() {
     this.container.classList.remove('hidden');
+    if (document.exitPointerLock) {
+      try { document.exitPointerLock(); } catch (e) {}
+    }
     this.renderCharacterGrid();
     this.refreshAvailableMatches();
   }

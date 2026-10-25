@@ -4,9 +4,10 @@
  * and Mobile (Virtual Joystick + Touch Look + On-screen buttons).
  */
 export class InputManager {
-  constructor(canvasElement, hudElement) {
+  constructor(canvasElement, hudElement, gameState = null) {
     this.canvas = canvasElement;
     this.hud = hudElement;
+    this.gameState = gameState;
 
     // Movement & action keys
     this.keys = {
@@ -189,16 +190,11 @@ export class InputManager {
         if (this.isPointerLocked) {
           this.isMouseDown = true;
           this.triggerJustPressed = true;
-        } else if (!this.isTouchDevice) {
-          // If player clicks while in active gameplay (no open menus/modals), re-lock mouse pointer
-          const overlay = document.getElementById('screen-overlay');
-          const isOverlayVisible = overlay && !overlay.classList.contains('hidden');
-          const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden)');
-          if (!isOverlayVisible && !hasOpenModal) {
-            this.requestPointerLock();
-            this.isMouseDown = true;
-            this.triggerJustPressed = true;
-          }
+        } else if (!this.isTouchDevice && this.isGameplayActive() && e.target === this.canvas) {
+          // If player clicks directly on active game canvas, re-lock mouse pointer
+          this.requestPointerLock();
+          this.isMouseDown = true;
+          this.triggerJustPressed = true;
         }
       }
     });
@@ -210,14 +206,54 @@ export class InputManager {
     });
   }
 
+  setGameState(gameState) {
+    this.gameState = gameState;
+  }
+
+  isGameplayActive() {
+    if (this.isTouchDevice) return false;
+    if (this.gameState && typeof this.gameState.isPlaying === 'function') {
+      if (!this.gameState.isPlaying()) return false;
+    }
+
+    const gameOverlay = document.getElementById('game-overlay');
+    if (gameOverlay && !gameOverlay.classList.contains('hidden')) return false;
+
+    const devSplash = document.getElementById('dev-splash-screen');
+    if (devSplash && !devSplash.classList.contains('hidden')) return false;
+
+    const introScreen = document.getElementById('intro-screen');
+    if (introScreen && !introScreen.classList.contains('hidden')) return false;
+
+    const endingOverlay = document.getElementById('ending-cutscene-overlay');
+    if (endingOverlay && !endingOverlay.classList.contains('hidden')) return false;
+
+    // Check for open modals or lobbies
+    const hasOpenModal = !!document.querySelector(
+      '.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden), .lobby-modal:not(.hidden), #survival-name-modal:not(.hidden), #leaderboard-modal:not(.hidden), #security-keypad-modal:not(.hidden), #voting-modal:not(.hidden), #checkpoint-countdown-overlay:not(.hidden)'
+    );
+    if (hasOpenModal) return false;
+
+    return true;
+  }
+
+  releasePointerLock() {
+    this.isPointerLocked = false;
+    this.isMouseDown = false;
+    if (document.pointerLockElement) {
+      try {
+        document.exitPointerLock();
+      } catch (e) {
+        console.debug('[InputManager] exitPointerLock error:', e);
+      }
+    }
+  }
+
   initPointerLock() {
     // Re-acquire pointer lock on canvas click/mousedown during active gameplay
     const handleCanvasActivate = (e) => {
       if (this.isTouchDevice) return;
-      const overlay = document.getElementById('screen-overlay');
-      const isOverlayVisible = overlay && !overlay.classList.contains('hidden');
-      const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden)');
-      if (!isOverlayVisible && !hasOpenModal) {
+      if (this.isGameplayActive()) {
         if (!this.isPointerLocked) {
           this.requestPointerLock();
         }
@@ -253,17 +289,18 @@ export class InputManager {
   }
 
   requestPointerLock() {
-    if (!this.isPointerLocked && !this.isTouchDevice) {
-      try {
-        const promise = this.canvas.requestPointerLock();
-        if (promise && typeof promise.catch === 'function') {
-          promise.catch((err) => {
-            console.debug('[InputManager] Pointer lock rejected:', err);
-          });
-        }
-      } catch (err) {
-        console.warn('[InputManager] Pointer lock request error:', err);
+    if (this.isPointerLocked || this.isTouchDevice) return;
+    if (!this.isGameplayActive()) return;
+
+    try {
+      const promise = this.canvas.requestPointerLock();
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch((err) => {
+          console.debug('[InputManager] Pointer lock rejected:', err);
+        });
       }
+    } catch (err) {
+      console.warn('[InputManager] Pointer lock request error:', err);
     }
   }
 

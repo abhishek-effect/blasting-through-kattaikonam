@@ -309,6 +309,9 @@ export class EvadeGame {
    */
   openLobby() {
     this.isActive = true;
+    if (this.input && this.input.releasePointerLock) {
+      this.input.releasePointerLock();
+    }
     if (this.lobby) {
       this.lobby.reset();
       this.lobby.show();

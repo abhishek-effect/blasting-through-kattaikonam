@@ -1251,6 +1251,12 @@ Coded by Gemini 3.8 Flash`;
   onStateChange(state) {
     this.updateControlsCardVisibility();
 
+    if (state !== STATES.PLAYING) {
+      if (this.input && this.input.releasePointerLock) {
+        this.input.releasePointerLock();
+      }
+    }
+
     if (state === STATES.INTRO) {
       if (this.introScreen) this.introScreen.classList.remove('hidden');
       if (this.screenOverlay) this.screenOverlay.classList.add('hidden');
@@ -1912,6 +1918,9 @@ Coded by Gemini 3.8 Flash`;
 
   openSurvivalNameModal() {
     if (!this.survivalNameModal) return;
+    if (this.input && this.input.releasePointerLock) {
+      this.input.releasePointerLock();
+    }
     this.survivalNameModal.classList.remove('hidden');
     if (this.survivalNameError) {
       this.survivalNameError.classList.add('hidden');
@@ -1935,6 +1944,9 @@ Coded by Gemini 3.8 Flash`;
 
   async openLeaderboardModal() {
     if (!this.leaderboardModal) return;
+    if (this.input && this.input.releasePointerLock) {
+      this.input.releasePointerLock();
+    }
     this.leaderboardModal.classList.remove('hidden');
 
     const storedName = supabaseService.getStoredPlayerName();

@@ -96,13 +96,13 @@ export class BattleGame {
     const base = list[index % list.length];
     const candidate = new THREE.Vector3(
       base.x + (Math.random() - 0.5) * 1.5,
-      0.9,
+      0,
       base.z + (Math.random() - 0.5) * 1.5
     );
 
     // If candidate ever falls inside Seminar Hall or any locked room, fallback to Central Atrium
     if (this.isInsideRestrictedArea(candidate.x, candidate.z)) {
-      return new THREE.Vector3(31, 0.9, 48);
+      return new THREE.Vector3(31, 0, 48);
     }
     return candidate;
   }
@@ -221,6 +221,9 @@ export class BattleGame {
     this.isActive = true;
     this.isMatchRunning = false;
     this.remotePlayers.clear();
+    if (this.input && this.input.releasePointerLock) {
+      this.input.releasePointerLock();
+    }
     this.lobby.show();
   }
 
@@ -246,17 +249,21 @@ export class BattleGame {
       const safePos = this.getSafeSpawnPosition(p.team, spIdx);
 
       if (p.id === this.network.localId) {
-        // Spawn local player at guaranteed safe corridor base
-        this.player.position.set(safePos.x, 0.9, safePos.z);
+        // Spawn local player at eye height (1.65) above floor
+        const eyeHeight = (this.player && this.player.standHeight) || 1.65;
+        this.player.position.set(safePos.x, eyeHeight, safePos.z);
         this.player.health = 100;
         this.player.maxHealth = 100;
+        if (this.player.updateCameraTransform) {
+          this.player.updateCameraTransform();
+        }
       } else {
         // Instantiate remote player with nametag shown ONLY for same-team allies
         const isFriendly = (this.network.matchMode !== '1v1') && (p.team === this.network.localTeam);
         const rp = new BattleRemotePlayer(this.scene, p, { isFriendly });
-        rp.currentPos.copy(safePos);
-        rp.targetPos.copy(safePos);
-        rp.group.position.copy(safePos);
+        rp.currentPos.set(safePos.x, 1.65, safePos.z);
+        rp.targetPos.set(safePos.x, 1.65, safePos.z);
+        rp.group.position.set(safePos.x, 0, safePos.z);
         this.remotePlayers.set(p.id, rp);
       }
 
@@ -429,7 +436,11 @@ export class BattleGame {
 
     // Teleport to safe team base (guaranteed outside locked doors & Seminar Hall)
     const safePos = this.getSafeSpawnPosition(this.network.localTeam, Math.floor(Math.random() * 4));
-    this.player.position.set(safePos.x, 0.9, safePos.z);
+    const eyeHeight = (this.player && this.player.standHeight) || 1.65;
+    this.player.position.set(safePos.x, eyeHeight, safePos.z);
+    if (this.player.updateCameraTransform) {
+      this.player.updateCameraTransform();
+    }
 
     // Broadcast respawn
     this.network.sendPlayerUpdate({

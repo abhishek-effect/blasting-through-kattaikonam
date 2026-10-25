@@ -107,6 +107,7 @@ export class BattleRemotePlayer {
     this.animTime = 0;
 
     this.buildCharacterMesh();
+    this.buildCharacterHeadPhoto();
     this.buildCharacterBadge();
     this.buildNameTag();
     this.buildMuzzleFlash();
@@ -197,6 +198,70 @@ export class BattleRemotePlayer {
         this.bodyGroup.add(modelClone);
       }
     });
+  }
+
+  /**
+   * Builds and attaches the chosen character's photo to the 3D player model head.
+   * Visible to ALL players in the arena (both teammates and enemies).
+   */
+  buildCharacterHeadPhoto() {
+    const charConfig = ASSET_PATHS.enemies.types[this.characterId];
+    const spriteUrl = (charConfig && charConfig.sprite) ? charConfig.sprite : assetUrl('/images/enemies/aahil-confront.png');
+
+    const photoTex = loadTexture(spriteUrl, 1, 1);
+    const photoMat = new THREE.MeshBasicMaterial({
+      map: photoTex,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthTest: true
+    });
+
+    this.headPhotoGroup = new THREE.Group();
+    this.headPhotoGroup.position.set(0, 1.68, 0);
+
+    const geo = new THREE.PlaneGeometry(0.48, 0.48);
+
+    // Front photo plane (facing forward +Z)
+    const front = new THREE.Mesh(geo, photoMat);
+    front.position.set(0, 0, 0.22);
+    this.headPhotoGroup.add(front);
+
+    // Back photo plane (facing backward -Z)
+    const back = new THREE.Mesh(geo, photoMat);
+    back.position.set(0, 0, -0.22);
+    back.rotation.y = Math.PI;
+    this.headPhotoGroup.add(back);
+
+    // Left photo plane
+    const left = new THREE.Mesh(geo, photoMat);
+    left.position.set(-0.22, 0, 0);
+    left.rotation.y = -Math.PI / 2;
+    this.headPhotoGroup.add(left);
+
+    // Right photo plane
+    const right = new THREE.Mesh(geo, photoMat);
+    right.position.set(0.22, 0, 0);
+    right.rotation.y = Math.PI / 2;
+    this.headPhotoGroup.add(right);
+
+    // Subtle team-colored border frame backing the photo
+    const frameMat = new THREE.MeshBasicMaterial({
+      color: this.teamColorHex,
+      side: THREE.DoubleSide,
+      depthTest: true
+    });
+    const frameGeo = new THREE.PlaneGeometry(0.50, 0.50);
+
+    const frontFrame = new THREE.Mesh(frameGeo, frameMat);
+    frontFrame.position.set(0, 0, 0.218);
+    this.headPhotoGroup.add(frontFrame);
+
+    const backFrame = new THREE.Mesh(frameGeo, frameMat);
+    backFrame.position.set(0, 0, -0.218);
+    backFrame.rotation.y = Math.PI;
+    this.headPhotoGroup.add(backFrame);
+
+    this.bodyGroup.add(this.headPhotoGroup);
   }
 
   /**
@@ -316,7 +381,8 @@ export class BattleRemotePlayer {
       this.targetPos.set(data.pos.x, data.pos.y, data.pos.z);
       if (this.currentPos.lengthSq() === 0) {
         this.currentPos.copy(this.targetPos);
-        this.group.position.copy(this.currentPos);
+        const initialFloorY = this.currentPos.y > 1.2 ? Math.max(0, this.currentPos.y - 1.65) : Math.max(0, this.currentPos.y);
+        this.group.position.set(this.currentPos.x, initialFloorY, this.currentPos.z);
       }
     }
     if (data.yaw !== undefined) {
@@ -343,7 +409,10 @@ export class BattleRemotePlayer {
     // Smooth transform interpolation
     const lerpRate = Math.min(1, deltaTime * 16.0);
     this.currentPos.lerp(this.targetPos, lerpRate);
-    this.group.position.copy(this.currentPos);
+
+    // Firmly plant feet on floor (subtract eye-height 1.65m)
+    const floorY = this.currentPos.y > 1.2 ? Math.max(0, this.currentPos.y - 1.65) : Math.max(0, this.currentPos.y);
+    this.group.position.set(this.currentPos.x, floorY, this.currentPos.z);
 
     // Yaw rotation interpolation
     let diff = this.targetYaw - this.currentYaw;
@@ -352,9 +421,9 @@ export class BattleRemotePlayer {
     this.currentYaw += diff * lerpRate;
     this.group.rotation.y = this.currentYaw;
 
-    // Update 3D Raycast Hitbox
+    // Update 3D Raycast Hitbox accurately on floor
     this.boundingBox.setFromCenterAndSize(
-      new THREE.Vector3(this.currentPos.x, this.currentPos.y + 0.92, this.currentPos.z),
+      new THREE.Vector3(this.currentPos.x, floorY + 0.92, this.currentPos.z),
       this.hitboxSize
     );
 
@@ -421,7 +490,8 @@ export class BattleRemotePlayer {
   }
 
   checkIsHeadshot(point) {
-    return point.y >= (this.currentPos.y + 1.45);
+    const floorY = this.currentPos.y > 1.2 ? Math.max(0, this.currentPos.y - 1.65) : Math.max(0, this.currentPos.y);
+    return point.y >= (floorY + 1.45);
   }
 
   takeDamage(amount, hitPoint = null, isCritical = false) {
@@ -464,7 +534,8 @@ export class BattleRemotePlayer {
     this.isDead = false;
     this.currentPos.copy(newPos);
     this.targetPos.copy(newPos);
-    this.group.position.copy(newPos);
+    const floorY = newPos.y > 1.2 ? Math.max(0, newPos.y - 1.65) : Math.max(0, newPos.y);
+    this.group.position.set(newPos.x, floorY, newPos.z);
     this.updateNameTag();
   }
 
