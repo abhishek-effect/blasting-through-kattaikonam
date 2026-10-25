@@ -199,9 +199,26 @@ export class InputManager {
       }
     });
 
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
+    const handleMouseRelease = (e) => {
+      if (!e || e.button === 0 || (e.buttons !== undefined && (e.buttons & 1) === 0)) {
         this.isMouseDown = false;
+      }
+    };
+
+    window.addEventListener('mouseup', handleMouseRelease);
+    window.addEventListener('pointerup', handleMouseRelease);
+    document.addEventListener('mouseup', handleMouseRelease);
+    document.addEventListener('pointerup', handleMouseRelease);
+
+    window.addEventListener('blur', () => {
+      this.isMouseDown = false;
+      this.triggerJustPressed = false;
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.isMouseDown = false;
+        this.triggerJustPressed = false;
       }
     });
   }
@@ -240,6 +257,7 @@ export class InputManager {
   releasePointerLock() {
     this.isPointerLocked = false;
     this.isMouseDown = false;
+    this.triggerJustPressed = false;
     if (document.pointerLockElement) {
       try {
         document.exitPointerLock();
@@ -250,29 +268,24 @@ export class InputManager {
   }
 
   initPointerLock() {
-    // Re-acquire pointer lock on canvas click/mousedown during active gameplay
-    const handleCanvasActivate = (e) => {
+    // Re-acquire pointer lock on canvas click during active gameplay
+    // NOTE: NEVER set isMouseDown here! Click fires after mouseup, which would cause permanent auto-firing.
+    const handleCanvasClick = () => {
       if (this.isTouchDevice) return;
-      if (this.isGameplayActive()) {
-        if (!this.isPointerLocked) {
-          this.requestPointerLock();
-        }
-        if (e && e.button === 0) {
-          this.isMouseDown = true;
-          this.triggerJustPressed = true;
-        }
+      if (this.isGameplayActive() && !this.isPointerLocked) {
+        this.requestPointerLock();
       }
     };
 
     if (this.canvas) {
-      this.canvas.addEventListener('click', handleCanvasActivate);
-      this.canvas.addEventListener('mousedown', handleCanvasActivate);
+      this.canvas.addEventListener('click', handleCanvasClick);
     }
 
     document.addEventListener('pointerlockchange', () => {
       this.isPointerLocked = document.pointerLockElement === this.canvas;
       if (!this.isPointerLocked) {
         this.isMouseDown = false;
+        this.triggerJustPressed = false;
       }
     });
 
@@ -284,6 +297,10 @@ export class InputManager {
       if (this.isPointerLocked) {
         this.mouseDelta.x += e.movementX;
         this.mouseDelta.y += e.movementY;
+        // Continuous safety check: if primary mouse button is released, ensure isMouseDown is immediately false
+        if (e.buttons !== undefined && (e.buttons & 1) === 0) {
+          this.isMouseDown = false;
+        }
       }
     });
   }
