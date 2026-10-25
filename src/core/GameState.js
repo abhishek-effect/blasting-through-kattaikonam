@@ -18,13 +18,19 @@ export const STATES = {
 export const GAME_MODES = {
   NONE: 'NONE',
   PLAY: 'PLAY',
-  SHOOT_SHOOT_SHOOT: 'SHOOT_SHOOT_SHOOT'
+  CONFRONT: 'CONFRONT',
+  CONFRONT_CAMPAIGN: 'CONFRONT_CAMPAIGN',
+  CONFRONT_SURVIVAL: 'CONFRONT_SURVIVAL',
+  BATTLE: 'BATTLE',
+  SHOOT_SHOOT_SHOOT: 'CONFRONT'
 };
 
 export class GameState {
   constructor() {
     this.current = STATES.INTRO;
-    this.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
+    this.currentMode = GAME_MODES.CONFRONT;
+    this.confrontSubMode = 'campaign'; // 'campaign' | 'survival'
+    this.playerName = '';
     this.score = 0;
     this.kills = 0;
     this.totalEnemies = 0;

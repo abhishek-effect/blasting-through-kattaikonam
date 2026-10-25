@@ -25,7 +25,9 @@ import { LaserManager } from '../interactive/LaserObstacle.js';
 import { HUD } from '../ui/HUD.js';
 import { ASSET_PATHS, preloadAllAssets } from '../config/assets.js';
 import { EvadeGame } from '../evade/EvadeGame.js';
+import { BattleGame } from '../battle/BattleGame.js';
 import { ShootProgression } from './ShootProgression.js';
+import { SurvivalMode } from './SurvivalMode.js';
 
 export class Game {
   constructor() {
@@ -120,11 +122,23 @@ export class Game {
       this.gameState
     );
 
+    // Battle Multiplayer Mode Subsystem
+    this.battleGame = new BattleGame(
+      this.scene,
+      this.camera,
+      this.level,
+      this.player,
+      this.input,
+      this.audio,
+      this.gameState
+    );
+
     this.clock = new THREE.Clock();
 
-    // Progression & Objectives Subsystem (Shoot Shoot Shoot Mode)
+    // Progression & Objectives Subsystem (Confront Mode)
     window.__game = this;
     this.shootProgression = new ShootProgression(this);
+    this.survivalMode = new SurvivalMode(this);
 
     // 3. Setup Listeners
     this.initListeners();
@@ -227,7 +241,10 @@ export class Game {
     this.hud.finishIntroLoading(() => {
       const urlParams = new URLSearchParams(window.location.search);
       const roomParam = urlParams.get('room');
-      if (roomParam) {
+      const battleParam = urlParams.get('battle_room');
+      if (battleParam) {
+        this.launchMode(GAME_MODES.BATTLE);
+      } else if (roomParam) {
         this.launchMode(GAME_MODES.PLAY);
       } else {
         this.gameState.setState(STATES.MENU);
@@ -345,11 +362,16 @@ export class Game {
       this.restart(mode, fromCheckpoint);
     });
 
-    this.gameState.on('startMode', ({ mode }) => {
-      this.launchMode(mode);
+    this.gameState.on('startMode', (data) => {
+      const mode = (data && data.mode) ? data.mode : (typeof data === 'string' ? data : GAME_MODES.CONFRONT);
+      const options = (typeof data === 'object') ? data : {};
+      this.launchMode(mode, options);
     });
 
     this.gameState.on('leaveRoom', () => {
+      if (this.battleGame && this.battleGame.isActive) {
+        this.battleGame.stop();
+      }
       if (this.evadeGame && this.evadeGame.isActive) {
         this.evadeGame.leaveRoom();
       } else {
@@ -360,19 +382,32 @@ export class Game {
 
     this.gameState.on('stateChange', ({ newState }) => {
       if (newState === STATES.PLAYING) {
-        if (!this.evadeGame || !this.evadeGame.isActive) {
+        if (this.battleGame && this.battleGame.isActive) {
+          this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+        } else if (!this.evadeGame || !this.evadeGame.isActive) {
           this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
         } else {
           this.audio.playBGM(ASSET_PATHS.audio.bladeVoidBgm, 0.45);
         }
-      } else if (newState === STATES.GAME_OVER || newState === STATES.VICTORY) {
+      } else if (newState === STATES.GAME_OVER) {
+        this.audio.stopBGM();
+        if (this.survivalMode && this.survivalMode.isActive) {
+          this.survivalMode.onPlayerDeath();
+        }
+      } else if (newState === STATES.VICTORY) {
         this.audio.stopBGM();
       } else if (newState === STATES.PAUSED) {
         this.audio.pauseBGM();
       } else if (newState === STATES.MENU) {
         this.audio.pauseBGM();
+        if (this.battleGame && this.battleGame.isActive) {
+          this.battleGame.stop();
+        }
         if (this.evadeGame && this.evadeGame.isActive) {
           this.evadeGame.stop();
+        }
+        if (this.survivalMode) {
+          this.survivalMode.stop();
         }
         document.body.classList.remove('evade-mode');
         this.gameState.hasActiveSession = false;
@@ -380,14 +415,20 @@ export class Game {
     });
   }
 
-  launchMode(mode) {
+  launchMode(mode, options = {}) {
     this.audio.ensureContext();
     this.gameState.currentMode = mode;
 
     if (mode === GAME_MODES.PLAY) {
       // --- PLAY (EVADE MULTIPLAYER MODE) ---
+      if (this.battleGame) {
+        this.battleGame.stop();
+      }
       if (this.evadeGame) {
         this.evadeGame.stop();
+      }
+      if (this.survivalMode) {
+        this.survivalMode.stop();
       }
       this.enemySpawner.clear();
       if (this.laserManager) {
@@ -399,25 +440,86 @@ export class Game {
       document.body.classList.add('evade-mode');
 
       this.evadeGame.openLobby();
-      this.hud.showNotification('▶ MODE: EVADE MULTIPLAYER', 3.0);
-    } else {
-      // --- SHOOT SHOOT SHOOT MODE (UNTOUCHED) ---
+      this.hud.showNotification('▶ MODE: EVADE', 3.0);
+    } else if (mode === GAME_MODES.BATTLE) {
+      // --- BATTLE (MULTIPLAYER DEATHMATCH MODE) ---
+      if (this.evadeGame) {
+        this.evadeGame.stop();
+      }
+      if (this.survivalMode) {
+        this.survivalMode.stop();
+      }
+      this.enemySpawner.clear();
+      if (this.laserManager) {
+        this.laserManager.clear();
+      }
+      if (this.player.setWeaponsVisible) {
+        this.player.setWeaponsVisible(true);
+      }
       document.body.classList.remove('evade-mode');
+
+      this.battleGame.openLobby();
+      this.hud.showNotification('⚔️ MODE: BATTLE (MULTIPLAYER)', 3.0);
+    } else {
+      // --- CONFRONT MODE (CAMPAIGN OR SURVIVAL) ---
+      document.body.classList.remove('evade-mode');
+      if (this.battleGame) {
+        this.battleGame.stop();
+      }
       if (this.evadeGame) {
         this.evadeGame.stop();
       }
       if (this.player.setWeaponsVisible) {
         this.player.setWeaponsVisible(true);
       }
-      if (this.level && this.level.doors) {
-        this.level.doors.forEach((d) => {
-          d.setOpen(false);
-          d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
-        });
+
+      const subMode = options.subMode || this.gameState.confrontSubMode || 'campaign';
+      this.gameState.confrontSubMode = subMode;
+
+      if (subMode === 'survival') {
+        this.gameState.currentMode = GAME_MODES.CONFRONT_SURVIVAL;
+        if (this.shootProgression) {
+          this.shootProgression.reset();
+        }
+        this.restartConfrontBase();
+        this.survivalMode.start(options.playerName);
+      } else {
+        this.gameState.currentMode = GAME_MODES.CONFRONT_CAMPAIGN;
+        if (this.survivalMode) {
+          this.survivalMode.stop();
+        }
+        if (this.level && this.level.doors) {
+          this.level.doors.forEach((d) => {
+            d.setOpen(false);
+            d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
+          });
+        }
+        this.restart('campaign', options.fromCheckpoint);
+        this.hud.showNotification('💥 MODE: CONFRONT (CAMPAIGN)', 3.0);
       }
-      this.restart(mode);
-      this.hud.showNotification('💥 MODE: SHOOT SHOOT SHOOT', 3.0);
     }
+  }
+
+  restartConfrontBase() {
+    const startPos = new THREE.Vector3(
+      level1Data.playerStart.x,
+      level1Data.playerStart.y,
+      level1Data.playerStart.z
+    );
+    this.player.reset(startPos);
+    this.rifle.reset();
+    this.pistol.reset();
+    this.medkit.reset();
+    this.player.switchSlot(0);
+    this.grenadeManager.reset();
+
+    if (this.laserManager) {
+      this.laserManager.clear();
+    }
+    this.enemySpawner.clear();
+    this.gameState.reset(0);
+    this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+    this.input.requestPointerLock();
   }
 
   restart(mode = null, fromCheckpoint = false) {
@@ -551,6 +653,7 @@ export class Game {
     const deltaTime = Math.min(rawDelta, 0.1);
 
     const isEvade = this.evadeGame && this.evadeGame.isActive;
+    const isBattle = this.battleGame && this.battleGame.isActive;
 
     if (isEvade) {
       // --- EVADE MULTIPLAYER MODE ---
@@ -564,8 +667,78 @@ export class Game {
         this.level.update(deltaTime, this.player.position);
       }
       this.interactionSystem.update(this.player, this.input);
+    } else if (isBattle) {
+      // --- BATTLE (MULTIPLAYER DEATHMATCH MODE) ---
+      if (this.gameState.isPlaying()) {
+        const activeItem = this.player.getActiveItem();
+
+        // 1. Check Reload Input (for weapons)
+        if (this.input.checkAndConsumeReload() && activeItem && activeItem.reload) {
+          activeItem.reload();
+        }
+
+        const targets = this.battleGame.getShootableTargets();
+
+        // 2. Check Firing / Use Input
+        if (activeItem) {
+          if (activeItem.type === 'rifle') {
+            if (this.input.isFiring() && activeItem.canShoot()) {
+              const shootResult = activeItem.shoot(targets, this.level.colliders);
+              if (shootResult.fired) {
+                this.battleGame.network.sendPlayerFire();
+              }
+              if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
+                this.hud.triggerHitmarker();
+                this.battleGame.handlePlayerHit(shootResult);
+              }
+            }
+          } else if (activeItem.type === 'pistol') {
+            if (this.input.checkAndConsumeTrigger() && activeItem.canShoot()) {
+              const shootResult = activeItem.shoot(targets, this.level.colliders);
+              if (shootResult.fired) {
+                this.battleGame.network.sendPlayerFire();
+              }
+              if (shootResult.fired && shootResult.hit && shootResult.target === 'enemy') {
+                this.hud.triggerHitmarker();
+                this.battleGame.handlePlayerHit(shootResult);
+              }
+            }
+          } else if (activeItem.type === 'medkit') {
+            if (this.input.checkAndConsumeTrigger()) {
+              const res = activeItem.use(this.player);
+              if (res.message) this.hud.showNotification(res.message);
+            }
+          }
+        }
+
+        // 3. Grenade Throw
+        if (this.input.checkAndConsumeGrenade()) {
+          const thrown = this.grenadeManager.throw(this.camera);
+          if (!thrown && this.grenadeManager.grenades <= 0) {
+            this.hud.showNotification('NO GRENADES REMAINING!');
+          }
+        }
+
+        // 4. Update Player & Camera
+        this.player.update(deltaTime);
+
+        // 5. Update Weapons & Items
+        this.rifle.update(deltaTime, this.player);
+        this.pistol.update(deltaTime, this.player);
+        this.medkit.update(deltaTime, this.player);
+
+        // 6. Grenades
+        this.grenadeManager.update(deltaTime, targets, this.player);
+
+        // 7. Update Doors
+        if (this.level && this.level.update) {
+          this.level.update(deltaTime, this.player.position);
+        }
+      }
+
+      this.battleGame.update(deltaTime);
     } else if (this.gameState.isPlaying()) {
-      // --- SHOOT SHOOT SHOOT MODE (PRESERVED UNTOUCHED) ---
+      // --- CONFRONT MODE (CAMPAIGN OR SURVIVAL) ---
         const activeItem = this.player.getActiveItem();
 
         // 1. Check Reload Input (for weapons)
@@ -663,7 +836,9 @@ export class Game {
         if (this.level && this.level.update) {
           this.level.update(deltaTime, this.player.position);
         }
-        if (this.shootProgression) {
+        if (this.survivalMode && this.survivalMode.isActive) {
+          this.survivalMode.update(deltaTime);
+        } else if (this.shootProgression) {
           this.shootProgression.update(deltaTime, this.player, this.input);
         }
       }

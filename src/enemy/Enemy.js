@@ -89,6 +89,7 @@ export class Enemy {
     // Special Boss & Sijinil identification
     this.isSijinil = !!config.isSijinil || (this.typeId && this.typeId.toLowerCase().includes('sijinil'));
     this.isBoss = !!config.isBoss || (this.typeId && this.typeId.toLowerCase().includes('boss'));
+    this.isBoss2 = !!config.isBoss2 || (this.typeId && (this.typeId.toLowerCase().includes('boss-2') || this.typeId.toLowerCase().includes('boss_2')));
 
     if (this.isSijinil) {
       this.name = 'SIJINIL';
@@ -101,16 +102,16 @@ export class Enemy {
     }
 
     if (this.isBoss) {
-      this.name = 'CHIEF OVERSEER';
-      this.maxHealth = 250; // 2.5x normal enemy HP (100 -> 250)
-      this.health = 250;
-      this.speed = 2.4;
+      this.name = this.isBoss2 ? 'CHIEF OVERSEER II' : 'CHIEF OVERSEER';
+      this.maxHealth = 500; // 5x normal enemy HP (100 -> 500)
+      this.health = 500;
+      this.speed = this.isBoss2 ? 2.5 : 2.4;
       this.targetFigureHeight = 2.45;
       this.scaleHeight = 3.1;
       this.scaleWidth = this.scaleHeight * 0.85;
       this.attackStyle = 'ranged';
-      this.rangedDamage = 16;
-      this.rangedInterval = 1.25;
+      this.rangedDamage = this.isBoss2 ? 17 : 16;
+      this.rangedInterval = this.isBoss2 ? 1.15 : 1.25;
       this.bossGrenadeTimer = 1.0;
       this.activeBossGrenades = [];
     }
@@ -166,7 +167,9 @@ export class Enemy {
       if (this.sprite) {
         this.sprite.scale.set(this.scaleWidth, this.scaleHeight, 1);
       }
-      this.position.y = this.scaleHeight / 2;
+      const bottomRatio = (metrics.bottomRatio !== undefined) ? metrics.bottomRatio : 1.0;
+      const bottomOffset = Math.max(0, (1.0 - bottomRatio) * this.scaleHeight);
+      this.position.y = (this.scaleHeight / 2) - bottomOffset;
       if (this.sprite) {
         this.sprite.position.y = this.position.y;
       }
@@ -329,7 +332,10 @@ export class Enemy {
     if (this.isSijinil && this.onDropItem) {
       this.onDropItem('pendrive', this.position.clone());
     }
-    if (this.isBoss && this.onDropItem) {
+    if (this.isBoss && !this.isBoss2 && this.onDropItem) {
+      this.onDropItem('medkit', this.position.clone());
+    }
+    if (this.isBoss2 && this.onDropItem) {
       this.onDropItem('photocopy', this.position.clone());
     }
     if (this.onDeath) {

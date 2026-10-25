@@ -18,6 +18,7 @@ import {
   saveCustomEnemyToStorage,
   removeCustomEnemy
 } from '../config/assets.js';
+import { supabaseService } from '../services/SupabaseService.js';
 
 // Pre-allocated vectors for HUD calculations & floating damage number projections (0 GC overhead)
 const _dnTempVec = new THREE.Vector3();
@@ -123,10 +124,11 @@ export class HUD {
     this.optionsView = document.getElementById('options-view');
     this.creditsView = document.getElementById('credits-view');
 
-    // Main Menu Buttons (PLAY, SHOOT SHOOT SHOOT, HOW TO PLAY)
+    // Main Menu Buttons (EVADE, CONFRONT, BATTLE, HOW TO PLAY)
     this.btnMenuCheckpoint = document.getElementById('btn-menu-checkpoint');
     this.btnMenuPlay = document.getElementById('btn-menu-play');
     this.btnMenuShoot = document.getElementById('btn-menu-shoot');
+    this.btnMenuBattle = document.getElementById('btn-menu-battle');
     this.btnMenuHowToPlay = document.getElementById('btn-menu-howtoplay');
     this.btnMenuOptions = document.getElementById('btn-menu-options');
     this.btnMenuCredits = document.getElementById('btn-menu-credits');
@@ -145,6 +147,31 @@ export class HUD {
     this.btnGameoverRestart = document.getElementById('btn-gameover-restart');
     this.btnGameoverCheckpoint = document.getElementById('btn-gameover-checkpoint');
     this.btnGameoverMainMenu = document.getElementById('btn-gameover-mainmenu');
+    this.gameoverSurvivalSummary = document.getElementById('gameover-survival-summary');
+    this.survivalGameoverStats = document.getElementById('survival-gameover-stats');
+    this.btnGameoverLeaderboard = document.getElementById('btn-gameover-leaderboard');
+
+    // Confront Mode Selection Elements
+    this.confrontModeView = document.getElementById('confront-mode-view');
+    this.btnConfrontCampaign = document.getElementById('btn-confront-campaign');
+    this.btnConfrontSurvival = document.getElementById('btn-confront-survival');
+    this.btnConfrontLeaderboard = document.getElementById('btn-confront-leaderboard');
+    this.btnConfrontBack = document.getElementById('btn-confront-back');
+
+    // Survival Name Modal Elements
+    this.survivalNameModal = document.getElementById('survival-name-modal');
+    this.survivalNameInput = document.getElementById('survival-name-input');
+    this.survivalNameError = document.getElementById('survival-name-error');
+    this.btnSurvivalNameConfirm = document.getElementById('btn-survival-name-confirm');
+    this.btnSurvivalNameCancel = document.getElementById('btn-survival-name-cancel');
+
+    // Leaderboard Modal Elements
+    this.leaderboardModal = document.getElementById('leaderboard-modal');
+    this.btnLeaderboardClose = document.getElementById('btn-leaderboard-close');
+    this.leaderboardStatus = document.getElementById('leaderboard-status');
+    this.leaderboardTableBody = document.getElementById('leaderboard-table-body');
+    this.leaderboardPlayerBadge = document.getElementById('leaderboard-player-badge');
+    this.btnLeaderboardChangeName = document.getElementById('btn-leaderboard-change-name');
 
     // Checkpoint Countdown Overlay Elements
     this.countdownOverlay = document.getElementById('checkpoint-countdown-overlay');
@@ -394,7 +421,7 @@ export class HUD {
       this.triggerKillFeedback();
     });
 
-    // 1. Main Menu Buttons (PLAY & SHOOT SHOOT SHOOT)
+    // 1. Main Menu Buttons (EVADE & CONFRONT)
     if (this.btnMenuPlay) {
       const handlePlay = (e) => {
         if (e) {
@@ -415,23 +442,224 @@ export class HUD {
         }
         if (this.audio) this.audio.ensureContext();
 
-        // Lock pointer directly in user gesture
-        this.input.requestPointerLock();
-
         if (
           this.gameState.hasActiveSession &&
-          this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT &&
+          (this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ||
+           this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN ||
+           this.gameState.currentMode === GAME_MODES.CONFRONT_SURVIVAL) &&
           !this.gameState.isGameOver() &&
           !this.gameState.isVictory()
         ) {
-          // Resume active Shoot Shoot Shoot session
+          // Resume active Confront session
+          this.input.requestPointerLock();
+          this.requestFullscreen();
           this.gameState.setState(STATES.PLAYING);
         } else {
-          // Launch Shoot Shoot Shoot gameplay mode
-          this.gameState.emit('startMode', { mode: GAME_MODES.SHOOT_SHOOT_SHOOT });
+          // Open Confront Mode Selection view
+          this.showConfrontModeView();
         }
       };
       this.btnMenuShoot.addEventListener('click', handleShoot);
+    }
+
+    if (this.btnMenuBattle) {
+      const handleBattle = (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        if (this.audio) this.audio.ensureContext();
+
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.BATTLE &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          this.input.requestPointerLock();
+          this.requestFullscreen();
+          this.gameState.setState(STATES.PLAYING);
+        } else {
+          this.gameState.emit('startMode', { mode: GAME_MODES.BATTLE });
+        }
+      };
+      this.btnMenuBattle.addEventListener('click', handleBattle);
+    }
+
+    // 1b. Confront Mode Selection Handlers
+    if (this.btnConfrontCampaign) {
+      this.btnConfrontCampaign.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        if (this.audio) this.audio.ensureContext();
+        this.input.requestPointerLock();
+        this.requestFullscreen();
+        this.gameState.emit('startMode', { mode: GAME_MODES.SHOOT_SHOOT_SHOOT, subMode: 'campaign' });
+      });
+    }
+
+    if (this.btnConfrontSurvival) {
+      this.btnConfrontSurvival.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        if (this.audio) this.audio.ensureContext();
+        this.openSurvivalNameModal();
+      });
+    }
+
+    if (this.btnConfrontLeaderboard) {
+      this.btnConfrontLeaderboard.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.openLeaderboardModal();
+      });
+    }
+
+    if (this.btnConfrontBack) {
+      this.btnConfrontBack.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.showMainMenuView();
+      });
+    }
+
+    // 1c. Survival Name Modal Handlers
+    const handleConfirmName = async (e) => {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const rawName = (this.survivalNameInput ? this.survivalNameInput.value : '').trim();
+      if (!rawName) {
+        if (this.survivalNameError) {
+          this.survivalNameError.textContent = 'Please enter a codename / player name.';
+          this.survivalNameError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (this.btnSurvivalNameConfirm) {
+        this.btnSurvivalNameConfirm.disabled = true;
+        this.btnSurvivalNameConfirm.textContent = 'VALIDATING...';
+      }
+      if (this.survivalNameError) {
+        this.survivalNameError.classList.add('hidden');
+      }
+
+      const validation = await supabaseService.validatePlayerName(rawName);
+      if (!validation.valid) {
+        if (this.survivalNameError) {
+          this.survivalNameError.textContent = validation.error;
+          this.survivalNameError.classList.remove('hidden');
+        }
+        if (this.btnSurvivalNameConfirm) {
+          this.btnSurvivalNameConfirm.disabled = false;
+          this.btnSurvivalNameConfirm.textContent = '▶ ENTER SURVIVAL';
+        }
+        return;
+      }
+
+      const confirmedName = rawName;
+      supabaseService.setStoredPlayerName(confirmedName);
+      this.gameState.playerName = confirmedName;
+
+      if (this.btnSurvivalNameConfirm) {
+        this.btnSurvivalNameConfirm.disabled = false;
+        this.btnSurvivalNameConfirm.textContent = '▶ ENTER SURVIVAL';
+      }
+
+      this.closeSurvivalNameModal();
+      this.requestFullscreen();
+      this.input.requestPointerLock();
+      if (this.audio) this.audio.ensureContext();
+
+      this.gameState.emit('startMode', {
+        mode: GAME_MODES.CONFRONT_SURVIVAL,
+        subMode: 'survival',
+        playerName: confirmedName
+      });
+    };
+
+    if (this.btnSurvivalNameConfirm) {
+      this.btnSurvivalNameConfirm.addEventListener('click', handleConfirmName);
+    }
+
+    if (this.survivalNameInput) {
+      this.survivalNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleConfirmName();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeSurvivalNameModal();
+        }
+      });
+    }
+
+    if (this.btnSurvivalNameCancel) {
+      this.btnSurvivalNameCancel.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.closeSurvivalNameModal();
+      });
+    }
+
+    if (this.survivalNameModal) {
+      this.survivalNameModal.addEventListener('click', (e) => {
+        if (e.target === this.survivalNameModal) {
+          this.closeSurvivalNameModal();
+        }
+      });
+    }
+
+    // 1d. Leaderboard Modal Handlers
+    if (this.btnLeaderboardClose) {
+      this.btnLeaderboardClose.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.closeLeaderboardModal();
+      });
+    }
+
+    if (this.btnLeaderboardChangeName) {
+      this.btnLeaderboardChangeName.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.closeLeaderboardModal();
+        this.openSurvivalNameModal();
+      });
+    }
+
+    if (this.leaderboardModal) {
+      this.leaderboardModal.addEventListener('click', (e) => {
+        if (e.target === this.leaderboardModal) {
+          this.closeLeaderboardModal();
+        }
+      });
+    }
+
+    if (this.btnGameoverLeaderboard) {
+      this.btnGameoverLeaderboard.addEventListener('click', (e) => {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        this.openLeaderboardModal();
+      });
     }
 
     if (this.btnMenuHowToPlay) {
@@ -553,7 +781,15 @@ export class HUD {
         e.stopPropagation();
         this.requestFullscreen();
         if (this.audio) this.audio.ensureContext();
-        this.gameState.emit('restartGame', { fromCheckpoint: false });
+        if (this.gameState.confrontSubMode === 'survival') {
+          this.gameState.emit('startMode', {
+            mode: GAME_MODES.CONFRONT_SURVIVAL,
+            subMode: 'survival',
+            playerName: this.gameState.playerName || supabaseService.getStoredPlayerName()
+          });
+        } else {
+          this.gameState.emit('restartGame', { fromCheckpoint: false });
+        }
       });
     }
 
@@ -643,12 +879,20 @@ export class HUD {
           this.input.requestPointerLock();
         } else if (this.gameState.current === STATES.GAME_OVER) {
           this.requestFullscreen();
-          const cp = this.getSavedCheckpoint();
-          if (cp) {
-            this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
-            this.gameState.emit('restartGame', { fromCheckpoint: true });
+          if (this.gameState.confrontSubMode === 'survival') {
+            this.gameState.emit('startMode', {
+              mode: GAME_MODES.CONFRONT_SURVIVAL,
+              subMode: 'survival',
+              playerName: this.gameState.playerName || supabaseService.getStoredPlayerName()
+            });
           } else {
-            this.gameState.emit('restartGame');
+            const cp = this.getSavedCheckpoint();
+            if (cp) {
+              this.gameState.currentMode = GAME_MODES.SHOOT_SHOOT_SHOOT;
+              this.gameState.emit('restartGame', { fromCheckpoint: true });
+            } else {
+              this.gameState.emit('restartGame');
+            }
           }
         } else if (this.gameState.current === STATES.VICTORY) {
           this.requestFullscreen();
@@ -976,6 +1220,7 @@ Coded by Gemini 3.8 Flash`;
 
   hideAllViews() {
     if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
+    if (this.confrontModeView) this.confrontModeView.classList.add('hidden');
     if (this.pauseMenuView) this.pauseMenuView.classList.add('hidden');
     if (this.gameoverMenuView) this.gameoverMenuView.classList.add('hidden');
     if (this.howToPlayView) this.howToPlayView.classList.add('hidden');
@@ -1038,21 +1283,35 @@ Coded by Gemini 3.8 Flash`;
           !this.gameState.isGameOver() &&
           !this.gameState.isVictory()
         ) {
-          this.btnMenuPlay.textContent = '▶ PLAY (CONTINUE)';
+          this.btnMenuPlay.textContent = '▶ EVADE (CONTINUE)';
         } else {
-          this.btnMenuPlay.textContent = '▶ PLAY';
+          this.btnMenuPlay.textContent = '▶ EVADE';
         }
       }
       if (this.btnMenuShoot) {
         if (
           this.gameState.hasActiveSession &&
-          this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT &&
+          (this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ||
+           this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN ||
+           this.gameState.currentMode === GAME_MODES.CONFRONT_SURVIVAL) &&
           !this.gameState.isGameOver() &&
           !this.gameState.isVictory()
         ) {
-          this.btnMenuShoot.textContent = '💥 SHOOT SHOOT SHOOT (RESUME)';
+          this.btnMenuShoot.textContent = '💥 CONFRONT (RESUME)';
         } else {
-          this.btnMenuShoot.textContent = '💥 SHOOT SHOOT SHOOT';
+          this.btnMenuShoot.textContent = '💥 CONFRONT';
+        }
+      }
+      if (this.btnMenuBattle) {
+        if (
+          this.gameState.hasActiveSession &&
+          this.gameState.currentMode === GAME_MODES.BATTLE &&
+          !this.gameState.isGameOver() &&
+          !this.gameState.isVictory()
+        ) {
+          this.btnMenuBattle.textContent = '⚔️ BATTLE (RESUME)';
+        } else {
+          this.btnMenuBattle.textContent = '⚔️ BATTLE (MULTIPLAYER)';
         }
       }
     } else if (state === STATES.PAUSED) {
@@ -1060,21 +1319,28 @@ Coded by Gemini 3.8 Flash`;
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {
         this.overlayTitle.classList.remove('hidden');
-        if (this.gameState.currentMode === GAME_MODES.PLAY) {
-          this.overlayTitle.textContent = 'MENU';
+        if (this.gameState.currentMode === GAME_MODES.PLAY || this.gameState.currentMode === GAME_MODES.BATTLE) {
+          this.overlayTitle.textContent = 'ARENA MENU';
         } else {
           this.overlayTitle.textContent = 'GAME PAUSED';
         }
       }
       if (this.overlaySubtitle) {
-        const modeName = this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ? 'SHOOT SHOOT SHOOT' : 'PLAY';
+        let modeName = 'EVADE';
+        if (this.gameState.currentMode === GAME_MODES.BATTLE) {
+          modeName = 'BATTLE (MULTIPLAYER)';
+        } else if (this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ||
+            this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN ||
+            this.gameState.currentMode === GAME_MODES.CONFRONT_SURVIVAL) {
+          modeName = this.gameState.confrontSubMode === 'survival' ? 'CONFRONT (SURVIVAL)' : 'CONFRONT (CAMPAIGN)';
+        }
         this.overlaySubtitle.textContent = `MODE: ${modeName}`;
       }
 
       // Checkpoint Retry button in Pause Menu
       const cp = this.getSavedCheckpoint();
       if (this.btnPauseCheckpoint) {
-        if (cp && cp.checkpointName && this.gameState.currentMode !== GAME_MODES.PLAY) {
+        if (cp && cp.checkpointName && this.gameState.currentMode !== GAME_MODES.PLAY && this.gameState.currentMode !== GAME_MODES.BATTLE) {
           this.btnPauseCheckpoint.style.display = 'block';
           this.btnPauseCheckpoint.textContent = `💾 RETRY FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
           this.btnPauseCheckpoint.classList.remove('hidden');
@@ -1084,8 +1350,8 @@ Coded by Gemini 3.8 Flash`;
         }
       }
 
-      // Online mode: display ONLY 2 options: Resume Game and Leave Room
-      if (this.gameState.currentMode === GAME_MODES.PLAY) {
+      // Online mode: display ONLY 2 options: Resume Game and Leave Room / Arena
+      if (this.gameState.currentMode === GAME_MODES.PLAY || this.gameState.currentMode === GAME_MODES.BATTLE) {
         if (this.btnPauseResume) {
           this.btnPauseResume.style.display = 'block';
           this.btnPauseResume.textContent = '▶ RESUME GAME';
@@ -1098,7 +1364,7 @@ Coded by Gemini 3.8 Flash`;
         }
         if (this.btnPauseMainMenu) {
           this.btnPauseMainMenu.style.display = 'block';
-          this.btnPauseMainMenu.textContent = '🚪 LEAVE ROOM';
+          this.btnPauseMainMenu.textContent = this.gameState.currentMode === GAME_MODES.BATTLE ? '🚪 LEAVE ARENA' : '🚪 LEAVE ROOM';
         }
       } else {
         if (this.btnPauseResume) {
@@ -1122,23 +1388,50 @@ Coded by Gemini 3.8 Flash`;
       this.triggerScreenShake(500);
       if (this.gameoverMenuView) this.gameoverMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
-      if (this.overlayTitle) {
-        this.overlayTitle.classList.remove('hidden');
-        this.overlayTitle.textContent = 'Not so vibrant, are you?';
-      }
-      if (this.overlaySubtitle) {
-        this.overlaySubtitle.textContent = 'LMAO';
-      }
-      if (this.btnGameoverRestart) {
-        this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
-      }
-      if (this.btnGameoverCheckpoint) {
-        const cp = this.getSavedCheckpoint();
-        if (cp && cp.checkpointName) {
-          this.btnGameoverCheckpoint.textContent = `💾 TRY AGAIN FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
-          this.btnGameoverCheckpoint.classList.remove('hidden');
-        } else {
+
+      const isSurvival = this.gameState.confrontSubMode === 'survival';
+      if (isSurvival) {
+        if (this.overlayTitle) {
+          this.overlayTitle.classList.remove('hidden');
+          this.overlayTitle.textContent = 'SURVIVAL RUN OVER';
+        }
+        if (this.overlaySubtitle) {
+          this.overlaySubtitle.textContent = 'CAMPUS DEFENSE FAILED';
+        }
+        if (this.btnGameoverRestart) {
+          this.btnGameoverRestart.textContent = '🔄 PLAY SURVIVAL AGAIN';
+        }
+        if (this.btnGameoverCheckpoint) {
           this.btnGameoverCheckpoint.classList.add('hidden');
+        }
+        if (this.btnGameoverLeaderboard) {
+          this.btnGameoverLeaderboard.classList.remove('hidden');
+        }
+      } else {
+        if (this.gameoverSurvivalSummary) {
+          this.gameoverSurvivalSummary.classList.add('hidden');
+        }
+        if (this.btnGameoverLeaderboard) {
+          this.btnGameoverLeaderboard.classList.add('hidden');
+        }
+        if (this.overlayTitle) {
+          this.overlayTitle.classList.remove('hidden');
+          this.overlayTitle.textContent = 'Not so vibrant, are you?';
+        }
+        if (this.overlaySubtitle) {
+          this.overlaySubtitle.textContent = 'LMAO';
+        }
+        if (this.btnGameoverRestart) {
+          this.btnGameoverRestart.textContent = '🔄 TRY AGAIN';
+        }
+        if (this.btnGameoverCheckpoint) {
+          const cp = this.getSavedCheckpoint();
+          if (cp && cp.checkpointName) {
+            this.btnGameoverCheckpoint.textContent = `💾 TRY AGAIN FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
+            this.btnGameoverCheckpoint.classList.remove('hidden');
+          } else {
+            this.btnGameoverCheckpoint.classList.add('hidden');
+          }
         }
       }
     } else if (state === STATES.VICTORY) {
@@ -1575,6 +1868,163 @@ Coded by Gemini 3.8 Flash`;
         dn.element.style.top = `${screenY.toFixed(1)}px`;
       }
     }
+  }
+
+  showConfrontModeView() {
+    this.hideAllViews();
+    if (this.confrontModeView) this.confrontModeView.classList.remove('hidden');
+    if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+    if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
+    if (this.overlaySubtitle) {
+      this.overlaySubtitle.textContent = 'CONFRONT MODES';
+    }
+  }
+
+  showMainMenuView() {
+    this.hideAllViews();
+    if (this.mainMenuView) this.mainMenuView.classList.remove('hidden');
+    if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
+    if (this.overlayTitle) this.overlayTitle.classList.add('hidden');
+    if (this.overlaySubtitle) {
+      this.overlaySubtitle.textContent = 'GROUND FLOOR';
+    }
+  }
+
+  openSurvivalNameModal() {
+    if (!this.survivalNameModal) return;
+    this.survivalNameModal.classList.remove('hidden');
+    if (this.survivalNameError) {
+      this.survivalNameError.classList.add('hidden');
+      this.survivalNameError.textContent = '';
+    }
+    const stored = supabaseService.getStoredPlayerName() || '';
+    if (this.survivalNameInput) {
+      this.survivalNameInput.value = stored;
+      setTimeout(() => {
+        this.survivalNameInput.focus();
+        this.survivalNameInput.select();
+      }, 60);
+    }
+  }
+
+  closeSurvivalNameModal() {
+    if (this.survivalNameModal) {
+      this.survivalNameModal.classList.add('hidden');
+    }
+  }
+
+  async openLeaderboardModal() {
+    if (!this.leaderboardModal) return;
+    this.leaderboardModal.classList.remove('hidden');
+
+    const storedName = supabaseService.getStoredPlayerName();
+    if (this.leaderboardPlayerBadge) {
+      this.leaderboardPlayerBadge.textContent = storedName ? `PLAYER: ${storedName}` : 'NOT REGISTERED';
+    }
+
+    if (this.leaderboardStatus) {
+      this.leaderboardStatus.textContent = 'Fetching leaderboard...';
+      this.leaderboardStatus.style.color = '#3498db';
+    }
+
+    if (this.leaderboardTableBody) {
+      this.leaderboardTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#888;">Loading high scores...</td></tr>`;
+    }
+
+    try {
+      const scores = await supabaseService.getLeaderboard(15);
+      if (!scores || scores.length === 0) {
+        if (this.leaderboardTableBody) {
+          this.leaderboardTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#888;">No high scores recorded yet. Be the first!</td></tr>`;
+        }
+        if (this.leaderboardStatus) {
+          this.leaderboardStatus.textContent = '';
+        }
+        return;
+      }
+
+      if (this.leaderboardStatus) {
+        this.leaderboardStatus.textContent = '';
+      }
+
+      if (this.leaderboardTableBody) {
+        this.leaderboardTableBody.innerHTML = scores.map((entry, index) => {
+          const isCurrentPlayer = storedName && entry.player_name && storedName.toLowerCase() === entry.player_name.toLowerCase();
+          const rank = index + 1;
+          const rankMedal = rank === 1 ? '🥇 ' : (rank === 2 ? '🥈 ' : (rank === 3 ? '🥉 ' : ''));
+          const scoreFormatted = (entry.score || 0).toLocaleString();
+          const wave = entry.wave || 1;
+          const rowClass = isCurrentPlayer ? 'active-player-row' : '';
+
+          return `
+            <tr class="${rowClass}">
+              <td style="font-weight: bold;">${rankMedal}#${rank}</td>
+              <td style="font-weight: 600;">${this.escapeHtml(entry.player_name || 'Anonymous')}</td>
+              <td style="color: #f1c40f; font-weight: bold;">${scoreFormatted}</td>
+              <td style="color: #e67e22;">W${wave}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    } catch (err) {
+      console.error('Failed to load leaderboard:', err);
+      if (this.leaderboardStatus) {
+        this.leaderboardStatus.textContent = 'Unable to fetch online leaderboard';
+        this.leaderboardStatus.style.color = '#e74c3c';
+      }
+    }
+  }
+
+  closeLeaderboardModal() {
+    if (this.leaderboardModal) {
+      this.leaderboardModal.classList.add('hidden');
+    }
+  }
+
+  showSurvivalGameOver(playerName, finalScore, waveReached) {
+    if (this.gameoverSurvivalSummary) {
+      this.gameoverSurvivalSummary.classList.remove('hidden');
+    }
+    if (this.survivalGameoverStats) {
+      this.survivalGameoverStats.innerHTML = `
+        <div>CODENAME: <b style="color: #2ecc71;">${(playerName || 'SURVIVOR').toUpperCase()}</b></div>
+        <div>FINAL SCORE: <b style="color: #f1c40f;">${finalScore.toLocaleString()}</b> PTS</div>
+        <div>WAVE REACHED: <b style="color: #e67e22;">WAVE ${waveReached}</b></div>
+      `;
+    }
+    if (this.btnGameoverLeaderboard) {
+      this.btnGameoverLeaderboard.classList.remove('hidden');
+    }
+    if (this.btnGameoverCheckpoint) {
+      this.btnGameoverCheckpoint.classList.add('hidden');
+    }
+    if (this.btnGameoverRestart) {
+      this.btnGameoverRestart.textContent = '🔄 PLAY SURVIVAL AGAIN';
+    }
+  }
+
+  showWaveBanner(title, subtitle) {
+    if (this.notificationEl) {
+      this.notificationEl.textContent = `${title} | ${subtitle}`;
+      this.notificationEl.style.display = 'block';
+      this.notificationTimer = 3.5;
+    }
+  }
+
+  hideWaveBanner() {
+    if (this.notificationEl) {
+      this.notificationEl.style.display = 'none';
+      this.notificationTimer = 0;
+    }
+  }
+
+  escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   /**

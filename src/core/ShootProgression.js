@@ -175,12 +175,22 @@ export class ShootProgression {
       }
 
       // 3. Boss kill check
-      if (enemy.isBoss) {
+      if (enemy.isBoss && !enemy.isBoss2 && !this.isBoss1Dead) {
+        this.isBoss1Dead = true;
+        this.hud.showNotification('👑 CHIEF OVERSEER PHASE 1 DEFEATED! CHIEF OVERSEER II EMERGES!', 4.5);
+        if (this.audio && this.audio.playComboSound) {
+          this.audio.playComboSound(2);
+        }
+        setTimeout(() => {
+          this.triggerBoss2Fight();
+        }, 1200);
+      } else if (enemy.isBoss2 || (enemy.isBoss && this.isBoss1Dead)) {
         this.isBossDead = true;
+        this.isBoss2Dead = true;
         if (this.bossHudEl) {
           this.bossHudEl.classList.add('hidden');
         }
-        this.hud.showNotification('👑 CHIEF OVERSEER ELIMINATED! Photocopy dropped!', 5.0);
+        this.hud.showNotification('👑 CHIEF OVERSEER II ELIMINATED! Photocopy dropped!', 5.0);
       }
     };
   }
@@ -219,6 +229,8 @@ export class ShootProgression {
     this.hideWaveBanner();
 
     this.isBossSpawned = false;
+    this.isBoss1Dead = false;
+    this.isBoss2Dead = false;
     this.isBossDead = false;
     this.bossEnemy = null;
     if (this.bossHudEl) this.bossHudEl.classList.add('hidden');
@@ -773,15 +785,30 @@ export class ShootProgression {
 
   triggerBossFight() {
     this.isBossSpawned = true;
-    this.hud.showNotification('⚠️ WARNING: CAMPUS OVERSEER APPROACHES!', 5.0);
+    this.isBoss1Dead = false;
+    this.isBoss2Dead = false;
+    this.hud.showNotification('⚠️ WARNING: CHIEF OVERSEER APPROACHES (500 HP)!', 5.0);
 
     // Show Boss HUD
     if (this.bossHudEl) {
       this.bossHudEl.classList.remove('hidden');
+      const bossNameEl = document.getElementById('boss-name');
+      if (bossNameEl) bossNameEl.textContent = 'CHIEF OVERSEER';
     }
 
-    // Spawn Boss on the Seminar Hall stage (X: 82.0, Z: 46.5)
+    // Spawn Boss 1 on the Seminar Hall stage (X: 82.0, Z: 46.5)
     this.bossEnemy = this.enemySpawner.spawnBoss(82.0, 46.5);
+  }
+
+  triggerBoss2Fight() {
+    this.hud.showNotification('⚠️ WARNING: CHIEF OVERSEER II HAS AWAKENED (500 HP)!', 5.0);
+    if (this.bossHudEl) {
+      this.bossHudEl.classList.remove('hidden');
+      const bossNameEl = document.getElementById('boss-name');
+      if (bossNameEl) bossNameEl.textContent = 'CHIEF OVERSEER II';
+    }
+    // Spawn Boss 2 on the Seminar Hall stage (X: 82.0, Z: 46.5)
+    this.bossEnemy = this.enemySpawner.spawnBoss2(82.0, 46.5);
   }
 
   triggerElevatorEscapeCutscene() {

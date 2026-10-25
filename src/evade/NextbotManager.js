@@ -25,6 +25,7 @@ export const EVIL_SANTHOMITE_TYPES = [
   { id: 'mahadev', name: 'Mahadev', img: assetUrl('/images/enemies/mahadev.jpg'), color: '#ff6348' },
   { id: 'ritul', name: 'Ritul', img: assetUrl('/images/enemies/ritul.jpg'), color: '#e056fd' },
   { id: 'ryan', name: 'Ryan', img: assetUrl('/images/enemies/ryan.jpg'), color: '#f0932b' },
+  { id: 'ryan_confront', name: 'Ryan Confront', img: assetUrl('/images/enemies/ryan-confront.jpg'), color: '#e84118' },
   { id: 'sijinil', name: 'Sijinil', img: assetUrl('/images/enemies/sijinil.jpg'), color: '#00d2d3' },
 ];
 

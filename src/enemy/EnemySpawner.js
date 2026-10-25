@@ -10,11 +10,11 @@
  */
 import * as THREE from 'three';
 import { Enemy } from './Enemy.js';
-import { ASSET_PATHS, ensureAtLeastOneEnemyType } from '../config/assets.js';
+import { ASSET_PATHS, ensureAtLeastOneEnemyType, assetUrl } from '../config/assets.js';
 
 export function isBossEnemy(key, item) {
   if (!item && !key) return false;
-  if (item && item.isBoss) return true;
+  if (item && (item.isBoss || item.isBoss2)) return true;
   const k = (key || '').toLowerCase();
   const id = (item && item.id ? item.id : '').toLowerCase();
   const s = (item && item.sprite ? item.sprite : '').toLowerCase();
@@ -189,6 +189,49 @@ export class EnemySpawner {
     return enemy;
   }
 
+  spawnSurvivalEnemy(spawnX, spawnZ, forceType = null) {
+    const roster = ASSET_PATHS.enemies.types;
+    const validKeys = Object.keys(roster).filter((k) => !isBossEnemy(k, roster[k]) && !k.toLowerCase().includes('photocopy'));
+
+    let chosenKey = forceType;
+    if (!chosenKey || !roster[chosenKey]) {
+      chosenKey = validKeys.length > 0 ? validKeys[Math.floor(Math.random() * validKeys.length)] : Object.keys(roster)[0];
+    }
+
+    const typeConfig = roster[chosenKey] || {
+      id: chosenKey,
+      name: chosenKey,
+      sprite: assetUrl(`/images/enemies/${chosenKey}.png`)
+    };
+
+    this.instanceCounter++;
+    const instanceId = `survival_${chosenKey}_${String(this.instanceCounter).padStart(3, '0')}`;
+    const enemy = new Enemy(this.scene, this.world, this.audio, typeConfig, instanceId);
+
+    enemy.onDeath = (deadEnemy) => {
+      this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+    };
+
+    if (this.onEnemyDropItem) {
+      enemy.onDropItem = (type, pos) => this.onEnemyDropItem(type, pos);
+    }
+
+    enemy.spawn(spawnX, spawnZ);
+
+    if (this.world && this.world.resolveSphereCollision) {
+      this.world.resolveSphereCollision(enemy.position, enemy.radius);
+    }
+    if (enemy.sprite) {
+      enemy.sprite.position.copy(enemy.position);
+    }
+    if (enemy.hitMesh) {
+      enemy.hitMesh.position.copy(enemy.position);
+    }
+
+    this.enemies.push(enemy);
+    return enemy;
+  }
+
   spawnSijinil(spawnX, spawnZ) {
     const roster = ASSET_PATHS.enemies.types;
     let sijinilConfig = roster['sijinil'] || roster['sijinil.jpg'];
@@ -240,16 +283,60 @@ export class EnemySpawner {
       bossConfig = {
         id: 'boss',
         name: 'CHIEF OVERSEER',
-        sprite: './images/enemies/boss.png',
+        sprite: assetUrl('/images/enemies/boss.png'),
         isBoss: true,
-        hp: 250
+        hp: 500
       };
     } else {
-      bossConfig = { ...bossConfig, isBoss: true, name: 'CHIEF OVERSEER', hp: 250 };
+      bossConfig = { ...bossConfig, isBoss: true, name: 'CHIEF OVERSEER', hp: 500 };
     }
 
     this.instanceCounter++;
     const enemy = new Enemy(this.scene, this.world, this.audio, bossConfig, `boss_${this.instanceCounter}`);
+
+    enemy.onDeath = (deadEnemy) => {
+      this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+    };
+
+    if (this.onEnemyDropItem) {
+      enemy.onDropItem = (type, pos) => this.onEnemyDropItem(type, pos);
+    }
+
+    enemy.spawn(spawnX, spawnZ);
+
+    if (this.world && this.world.resolveSphereCollision) {
+      this.world.resolveSphereCollision(enemy.position, enemy.radius);
+    }
+    if (enemy.sprite) {
+      enemy.sprite.position.copy(enemy.position);
+    }
+    if (enemy.hitMesh) {
+      enemy.hitMesh.position.copy(enemy.position);
+    }
+
+    this.enemies.push(enemy);
+    return enemy;
+  }
+
+  spawnBoss2(spawnX, spawnZ) {
+    const roster = ASSET_PATHS.enemies.types;
+    let bossConfig = roster['boss-2'] || roster['boss-2.png'] || roster['boss_2'];
+
+    if (!bossConfig) {
+      bossConfig = {
+        id: 'boss-2',
+        name: 'CHIEF OVERSEER II',
+        sprite: assetUrl('/images/enemies/boss-2.png'),
+        isBoss: true,
+        isBoss2: true,
+        hp: 500
+      };
+    } else {
+      bossConfig = { ...bossConfig, isBoss: true, isBoss2: true, name: 'CHIEF OVERSEER II', hp: 500 };
+    }
+
+    this.instanceCounter++;
+    const enemy = new Enemy(this.scene, this.world, this.audio, bossConfig, `boss2_${this.instanceCounter}`);
 
     enemy.onDeath = (deadEnemy) => {
       this.handleEnemyKill(deadEnemy, this.lastPlayerRef);

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Blasting Through Kattaikonam - Retro FPS</title>
   <link rel="icon" type="image/png" href="./favicon.png" />
-  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-DpYP3uvA.js"></script>
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-Ckmk79iX.js"></script>
   <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-BjboqPVj.js">
-  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-C3rWB5VZ.css">
+  <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-GWQmQa6S.css">
 </head>
 <body>
   <div id="game-container">
@@ -291,11 +291,29 @@
       <div id="main-menu-view" class="menu-view">
         <div class="menu-buttons-list">
           <button id="btn-menu-checkpoint" class="menu-btn checkpoint-btn hidden">💾 CONTINUE FROM CHECKPOINT</button>
-          <button id="btn-menu-play" class="menu-btn play-btn">▶ PLAY</button>
-          <button id="btn-menu-shoot" class="menu-btn shoot-btn">💥 SHOOT SHOOT SHOOT</button>
+          <button id="btn-menu-play" class="menu-btn play-btn">▶ EVADE</button>
+          <button id="btn-menu-shoot" class="menu-btn shoot-btn">💥 CONFRONT</button>
+          <button id="btn-menu-battle" class="menu-btn battle-btn" style="background: linear-gradient(135deg, #c0392b, #8e44ad); border-color: #e74c3c;">⚔️ BATTLE (MULTIPLAYER)</button>
           <button id="btn-menu-howtoplay" class="menu-btn">📖 HOW TO PLAY</button>
           <button id="btn-menu-options" class="menu-btn">⚙ OPTIONS</button>
           <button id="btn-menu-credits" class="menu-btn">📜 CREDITS</button>
+        </div>
+      </div>
+
+      <!-- 1b. Confront Mode Selection View -->
+      <div id="confront-mode-view" class="menu-view hidden">
+        <h2 class="view-title">💥 CONFRONT</h2>
+        <div class="menu-buttons-list">
+          <button id="btn-confront-campaign" class="menu-btn play-btn" style="background: linear-gradient(135deg, #e67e22, #d35400); border-color: #f39c12;">
+            📖 CAMPAIGN MODE
+          </button>
+          <button id="btn-confront-survival" class="menu-btn shoot-btn" style="background: linear-gradient(135deg, #8e44ad, #c0392b); border-color: #9b59b6;">
+            ⚔️ SURVIVAL MODE (HIGH SCORES)
+          </button>
+          <button id="btn-confront-leaderboard" class="menu-btn checkpoint-btn">
+            🏆 VIEW LEADERBOARD
+          </button>
+          <button id="btn-confront-back" class="menu-btn back-btn">← BACK TO MENU</button>
         </div>
       </div>
 
@@ -312,7 +330,12 @@
 
       <!-- 3. Game Over / Victory View -->
       <div id="gameover-menu-view" class="menu-view hidden">
+        <div id="gameover-survival-summary" class="hidden" style="margin-bottom: 12px; text-align: center;">
+          <h3 id="survival-gameover-title" style="color: #ff4757; font-size: 20px; margin: 4px 0; font-family: monospace; font-weight: 900;">SURVIVAL OVER</h3>
+          <div id="survival-gameover-stats" style="font-size: 14px; color: #fff; line-height: 1.6; font-family: monospace;"></div>
+        </div>
         <div class="menu-buttons-list">
+          <button id="btn-gameover-leaderboard" class="menu-btn checkpoint-btn hidden">🏆 VIEW HIGH SCORES</button>
           <button id="btn-gameover-checkpoint" class="menu-btn checkpoint-btn hidden">💾 TRY AGAIN FROM LAST CHECKPOINT</button>
           <button id="btn-gameover-restart" class="menu-btn primary-btn">🔄 TRY AGAIN</button>
           <button id="btn-gameover-mainmenu" class="menu-btn secondary-btn">🏠 MAIN MENU</button>
@@ -334,8 +357,16 @@
               <p>All campus doors and the Seminar Hall are unlocked from the start! Work together to survive the relentless Evil Santhomites for 2 to 3 minutes (coordinated countdown). Stay fast, revive fallen friends, and survive until 00:00!</p>
             </div>
             <div class="howtoplay-card">
-              <h4>💥 SHOOT SHOOT SHOOT MODE</h4>
-              <p>Retro FPS action! Use your AK-47, Pistol, and Grenades to blast campus enemies. Eliminate 20 enemies to clear the lockdown on the Seminar Hall!</p>
+              <h4>💥 CONFRONT: CAMPAIGN MODE</h4>
+              <p>Story FPS questline! Hack laboratory computers with Pen Drives dropped by Sijinil, find the Physics Lab Key in the library, locate the Vernier Caliper in the Physics Lab, and confront Chief Overseer Phase 1 &amp; 2 in the Seminar Hall!</p>
+            </div>
+            <div class="howtoplay-card">
+              <h4>⚔️ CONFRONT: SURVIVAL MODE</h4>
+              <p>Survive endless waves of PNG and JPG campus enemies attacking from all sides! Compete for the highest score on the global leaderboard. Fallen enemies drop weapon ammo and medkits.</p>
+            </div>
+            <div class="howtoplay-card">
+              <h4>⚔️ BATTLE: MULTIPLAYER DEATHMATCH</h4>
+              <p>Peer-to-peer 1v1, 2v2, and 3v3 deathmatch combat! Choose from any unique PNG or JPG character. Survive the 2-minute countdown timer. Find scattered keys to open randomly locked campus doors and dominate the arena!</p>
             </div>
           </div>
 
@@ -423,6 +454,52 @@
           <pre id="credits-text-content" class="credits-pre">LOADING CREDITS...</pre>
         </div>
         <button id="btn-credits-back" class="menu-btn back-btn">← BACK TO MENU</button>
+      </div>
+    </div>
+
+    <!-- Survival Mode Name Registration Modal -->
+    <div id="survival-name-modal" class="modal-overlay hidden">
+      <div class="survival-modal-box">
+        <h2 class="survival-modal-title">⚔️ SURVIVAL MODE</h2>
+        <p class="survival-modal-subtitle">Enter your name to be displayed on the global High Scores Leaderboard:</p>
+        <div class="survival-input-wrapper">
+          <input type="text" id="survival-name-input" maxlength="20" placeholder="Enter Codename / Name..." autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="survival-name-error" class="survival-error-msg hidden"></div>
+        <div class="survival-modal-buttons">
+          <button id="btn-survival-name-confirm" class="menu-btn primary-btn">▶ ENTER SURVIVAL</button>
+          <button id="btn-survival-name-cancel" class="menu-btn secondary-btn">✕ CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global High Scores Leaderboard Modal -->
+    <div id="leaderboard-modal" class="modal-overlay hidden">
+      <div class="leaderboard-modal-box">
+        <div class="leaderboard-header">
+          <h2 class="leaderboard-title">🏆 CONFRONT HIGH SCORES</h2>
+          <button id="btn-leaderboard-close" class="modal-close-btn">&times;</button>
+        </div>
+        <div id="leaderboard-status" class="leaderboard-status-text"></div>
+        <div class="leaderboard-content-wrapper">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>NAME</th>
+                <th>SCORE</th>
+                <th>WAVE</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-table-body">
+              <tr><td colspan="4" style="text-align:center; padding:15px; color:#888;">Loading leaderboard...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="leaderboard-footer">
+          <span id="leaderboard-player-badge"></span>
+          <button id="btn-leaderboard-change-name" class="menu-sub-btn">✏️ CHANGE NAME</button>
+        </div>
       </div>
     </div>
   </div>

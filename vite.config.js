@@ -39,11 +39,36 @@ function enemyDiscoveryPlugin() {
   };
 }
 
+function loadEnvVariables() {
+  const envPath = path.resolve(process.cwd(), '.env');
+  const envVars = {};
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        envVars[key] = val;
+      }
+    }
+  }
+  return envVars;
+}
+
+const envVars = loadEnvVariables();
+
 export default defineConfig({
   base: '/blasting-through-kattaikonam/',
   server: {
     port: 5173,
     host: true, // Allow local network access for mobile testing
+  },
+  define: {
+    __SUPABASE_URL__: JSON.stringify(envVars.SUPABASE_URL || envVars.VITE_SUPABASE_URL || ''),
+    __SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(envVars.SUPABASE_PUBLISHABLE_KEY || envVars.VITE_SUPABASE_PUBLISHABLE_KEY || ''),
   },
   build: {
     chunkSizeWarningLimit: 1000,
