@@ -40,21 +40,71 @@ export class BattleGame {
     // Connected remote players: Map<id, BattleRemotePlayer>
     this.remotePlayers = new Map();
 
-    // Spawn points for Red and Blue teams
+    // Guaranteed open corridor / atrium spawn points (STRICTLY outside all locked rooms & Seminar Hall)
+    // Red Base: South Hallway & South Central open corridor
     this.redSpawns = [
-      new THREE.Vector3(20, 0, 36),
-      new THREE.Vector3(22, 0, 48),
-      new THREE.Vector3(18, 0, 60)
+      new THREE.Vector3(34, 0, 88),
+      new THREE.Vector3(28, 0, 88),
+      new THREE.Vector3(40, 0, 88),
+      new THREE.Vector3(34, 0, 72)
     ];
 
+    // Blue Base: North Hallway & North Central open corridor
     this.blueSpawns = [
-      new THREE.Vector3(56, 0, 40),
-      new THREE.Vector3(64, 0, 52),
-      new THREE.Vector3(70, 0, 36)
+      new THREE.Vector3(34, 0, 22),
+      new THREE.Vector3(28, 0, 22),
+      new THREE.Vector3(40, 0, 22),
+      new THREE.Vector3(34, 0, 34)
     ];
 
     this.netSyncTimer = 0;
     this.initCallbacks();
+  }
+
+  isInsideRestrictedArea(x, z) {
+    // 1. Check if Seminar Hall is locked (Gate at x: 55, z: 45.5)
+    const isSeminarLocked = this.keys.lockedDoorIds.has('door_seminar_gate') ||
+      (this.level && this.level.seminarGate && !this.level.seminarGate.isUnlocked);
+    if (isSeminarLocked && x >= 54.0 && z >= 26.0 && z <= 67.0) {
+      return true;
+    }
+
+    // 2. Check if inside any room whose door is currently locked
+    const ROOM_BOUNDS = {
+      door_infirmary: { minX: 0, maxX: 15, minZ: 15, maxZ: 29 },
+      door_computer_lab: { minX: 0, maxX: 15, minZ: 49, maxZ: 65 },
+      door_bio_lab: { minX: 0, maxX: 15, minZ: 67, maxZ: 83 },
+      door_board_room: { minX: 45, maxX: 65, minZ: 84, maxZ: 100 },
+      door_library: { minX: 65, maxX: 100, minZ: 82, maxZ: 100 },
+      door_phy_lab: { minX: 34, maxX: 63, minZ: 0, maxZ: 15 },
+      door_locked_room: { minX: 64, maxX: 81, minZ: 0, maxZ: 15 },
+      door_unlockable_room: { minX: 82, maxX: 100, minZ: 0, maxZ: 15 }
+    };
+
+    for (const [doorId, b] of Object.entries(ROOM_BOUNDS)) {
+      if (this.keys.lockedDoorIds.has(doorId)) {
+        if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  getSafeSpawnPosition(team, index = 0) {
+    const list = team === 'blue' ? this.blueSpawns : this.redSpawns;
+    const base = list[index % list.length];
+    const candidate = new THREE.Vector3(
+      base.x + (Math.random() - 0.5) * 1.5,
+      0.9,
+      base.z + (Math.random() - 0.5) * 1.5
+    );
+
+    // If candidate ever falls inside Seminar Hall or any locked room, fallback to Central Atrium
+    if (this.isInsideRestrictedArea(candidate.x, candidate.z)) {
+      return new THREE.Vector3(31, 0.9, 48);
+    }
+    return candidate;
   }
 
   initCallbacks() {
@@ -134,7 +184,11 @@ export class BattleGame {
       this.keys.unlockDoor(data.doorId);
       const playerObj = this.network.players.get(data.playerId);
       const pName = playerObj ? playerObj.name : 'An operative';
-      this.hud.showNotice(`🔓 ${pName.toUpperCase()} UNLOCKED A CAMPUS DOOR!`, 3.5);
+      if (data.doorId === 'door_seminar_gate') {
+        this.hud.showNotice(`🔓 ${pName.toUpperCase()} UNLOCKED THE SEMINAR HALL AUDITORIUM!`, 4.0);
+      } else {
+        this.hud.showNotice(`🔓 ${pName.toUpperCase()} UNLOCKED A CAMPUS DOOR!`, 3.5);
+      }
     };
 
     this.network.onMatchOver = (data) => {
@@ -154,7 +208,11 @@ export class BattleGame {
 
     this.keys.onDoorUnlocked = (doorId, count) => {
       this.hud.updateKeysHeld(count);
-      this.hud.showNotice(`🔓 DOOR UNLOCKED! (${count} KEYS LEFT)`, 3.0);
+      if (doorId === 'door_seminar_gate') {
+        this.hud.showNotice(`🔓 SEMINAR HALL AUDITORIUM UNLOCKED! (${count} KEYS LEFT)`, 3.5);
+      } else {
+        this.hud.showNotice(`🔓 DOOR UNLOCKED! (${count} KEYS LEFT)`, 3.0);
+      }
       this.network.sendDoorUnlocked(doorId);
     };
   }
@@ -184,23 +242,21 @@ export class BattleGame {
     let blueIndex = 0;
 
     allPlayers.forEach((p) => {
+      const spIdx = (p.team === 'blue' ? blueIndex : redIndex);
+      const safePos = this.getSafeSpawnPosition(p.team, spIdx);
+
       if (p.id === this.network.localId) {
-        // Spawn local player at team base
-        const spawns = p.team === 'blue' ? this.blueSpawns : this.redSpawns;
-        const spIdx = (p.team === 'blue' ? blueIndex : redIndex) % spawns.length;
-        const sp = spawns[spIdx];
-        this.player.position.set(sp.x, 0.9, sp.z);
+        // Spawn local player at guaranteed safe corridor base
+        this.player.position.set(safePos.x, 0.9, safePos.z);
         this.player.health = 100;
         this.player.maxHealth = 100;
       } else {
-        // Instantiate remote player
-        const rp = new BattleRemotePlayer(this.scene, p);
-        const spawns = p.team === 'blue' ? this.blueSpawns : this.redSpawns;
-        const spIdx = (p.team === 'blue' ? blueIndex : redIndex) % spawns.length;
-        const sp = spawns[spIdx];
-        rp.currentPos.copy(sp);
-        rp.targetPos.copy(sp);
-        rp.group.position.copy(sp);
+        // Instantiate remote player with nametag shown ONLY for same-team allies
+        const isFriendly = (this.network.matchMode !== '1v1') && (p.team === this.network.localTeam);
+        const rp = new BattleRemotePlayer(this.scene, p, { isFriendly });
+        rp.currentPos.copy(safePos);
+        rp.targetPos.copy(safePos);
+        rp.group.position.copy(safePos);
         this.remotePlayers.set(p.id, rp);
       }
 
@@ -359,10 +415,9 @@ export class BattleGame {
     this.player.health = 100;
     this.hud.hideRespawn();
 
-    // Teleport to team base
-    const spawns = this.network.localTeam === 'blue' ? this.blueSpawns : this.redSpawns;
-    const sp = spawns[Math.floor(Math.random() * spawns.length)];
-    this.player.position.set(sp.x + (Math.random() - 0.5) * 2, 0.9, sp.z + (Math.random() - 0.5) * 2);
+    // Teleport to safe team base (guaranteed outside locked doors & Seminar Hall)
+    const safePos = this.getSafeSpawnPosition(this.network.localTeam, Math.floor(Math.random() * 4));
+    this.player.position.set(safePos.x, 0.9, safePos.z);
 
     // Broadcast respawn
     this.network.sendPlayerUpdate({

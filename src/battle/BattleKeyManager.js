@@ -24,24 +24,23 @@ export class BattleKeyManager {
     this.onKeyCollected = null;
     this.onDoorUnlocked = null;
 
-    // Candidate key spawn locations scattered around campus
+    // Candidate key spawn locations strictly scattered in open campus corridors/atrium (outside locked rooms & seminar)
     this.candidateSpawns = [
       { x: 31, y: 0.8, z: 48, name: 'Central Atrium' },
-      { x: 48, y: 0.8, z: 24, name: 'North Hall' },
+      { x: 31, y: 0.8, z: 24, name: 'North Hall' },
       { x: 20, y: 0.8, z: 40, name: 'West Wing' },
-      { x: 50, y: 0.8, z: 68, name: 'East Corridor' },
+      { x: 48, y: 0.8, z: 55, name: 'East Corridor' },
+      { x: 34, y: 0.8, z: 88, name: 'South Lobby' },
+      { x: 20, y: 0.8, z: 65, name: 'West Corridor' },
+      { x: 31, y: 0.8, z: 34, name: 'North Corridor' },
       { x: 34, y: 0.8, z: 68, name: 'South Central Hall' },
-      { x: 20, y: 0.8, z: 65, name: 'Computer Lab Approach' },
-      { x: 31, y: 0.8, z: 32, name: 'North Corridor' },
-      { x: 80, y: 0.8, z: 88, name: 'Library Approach' },
-      { x: 58, y: 0.8, z: 46, name: 'Seminar Wing' },
-      { x: 14, y: 0.8, z: 80, name: 'Biology Lab' },
-      { x: 72, y: 0.8, z: 20, name: 'Archives Hall' }
+      { x: 48, y: 0.8, z: 24, name: 'North-East Hall' },
+      { x: 48, y: 0.8, z: 75, name: 'South-East Corridor' }
     ];
   }
 
   /**
-   * Host chooses random doors to lock for the match
+   * Host chooses random doors to lock for the match, including Seminar Gate
    */
   setupRandomDoors(count = 4) {
     if (!this.level || !this.level.doors) return { lockedDoors: [], keySpawns: [] };
@@ -53,19 +52,30 @@ export class BattleKeyManager {
       door.setOpen(true);
     });
 
+    // 1. Lock Seminar Gate for Battle Mode (always unlockable via key)
+    if (this.level && this.level.resetSeminarGate) {
+      this.level.resetSeminarGate();
+    }
+    this.lockedDoorIds.add('door_seminar_gate');
+
+    const lockedDoors = [
+      { id: 'door_seminar_gate', name: 'SEMINAR HALL GATE' }
+    ];
+
+    // 2. Randomly select other campus doors to lock
     const eligibleDoors = this.level.doors.filter((d) => d.id !== 'door_stairs_sw' && d.id !== 'door_nw_stairs');
     const shuffled = [...eligibleDoors].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+    const selected = shuffled.slice(0, Math.max(1, count - 1));
 
-    const lockedDoors = selected.map((d) => {
+    selected.forEach((d) => {
       d.isLocked = true;
       d.setOpen(false);
       d.customLockedPrompt = '🔒 DOOR LOCKED [KEY REQUIRED]';
       this.lockedDoorIds.add(d.id);
-      return { id: d.id, name: d.name || 'Door' };
+      lockedDoors.push({ id: d.id, name: d.name || 'Door' });
     });
 
-    // Generate matching key spawns
+    // Generate matching key spawns in open common corridors
     const shuffledSpawns = [...this.candidateSpawns].sort(() => 0.5 - Math.random());
     const keySpawns = [];
     for (let i = 0; i < lockedDoors.length; i++) {
@@ -86,6 +96,19 @@ export class BattleKeyManager {
 
   applyMatchConfig(lockedDoors = [], keySpawns = []) {
     this.clear();
+
+    const isSeminarLocked = lockedDoors.some((d) => (typeof d === 'string' ? d === 'door_seminar_gate' : d.id === 'door_seminar_gate'));
+    if (isSeminarLocked) {
+      if (this.level && this.level.resetSeminarGate) {
+        this.level.resetSeminarGate();
+      }
+      this.lockedDoorIds.add('door_seminar_gate');
+    } else {
+      if (this.level && this.level.unlockSeminarGate) {
+        this.level.unlockSeminarGate();
+      }
+      this.lockedDoorIds.delete('door_seminar_gate');
+    }
 
     if (this.level && this.level.doors) {
       this.level.doors.forEach((door) => {
@@ -152,6 +175,15 @@ export class BattleKeyManager {
 
   unlockDoor(doorId) {
     this.lockedDoorIds.delete(doorId);
+
+    // Check if this is the Seminar Hall Gate
+    if (doorId === 'door_seminar_gate') {
+      if (this.level && this.level.unlockSeminarGate) {
+        this.level.unlockSeminarGate();
+      }
+      return;
+    }
+
     if (this.level && this.level.doors) {
       const door = this.level.doors.find((d) => d.id === doorId);
       if (door) {
@@ -184,7 +216,7 @@ export class BattleKeyManager {
       }
     });
 
-    // 2. Check door unlocks with key
+    // 2. Check regular door unlocks with key
     if (this.keysHeld > 0 && playerPosition && this.level && this.level.doors) {
       for (let door of this.level.doors) {
         if (!door.isLocked) continue;
@@ -200,6 +232,17 @@ export class BattleKeyManager {
             this.useKeyOnDoor(door.id);
             break;
           }
+        }
+      }
+    }
+
+    // 3. Check Seminar Gate unlock with key (Gate is at x: 55, z: 45.5)
+    if (this.keysHeld > 0 && playerPosition && this.lockedDoorIds.has('door_seminar_gate')) {
+      const distToGate = Math.hypot(55 - playerPosition.x, 45.5 - playerPosition.z);
+      if (distToGate < 3.8) {
+        const wantsInteract = input && input.keys && (input.keys.KeyE || input.keys.e);
+        if (wantsInteract || distToGate < 2.0) {
+          this.useKeyOnDoor('door_seminar_gate');
         }
       }
     }
@@ -241,5 +284,10 @@ export class BattleKeyManager {
     });
     this.activeKeyPickups.clear();
     this.lockedDoorIds.clear();
+
+    // Ensure Seminar Gate is not left locked if player leaves Battle mode
+    if (this.level && this.level.unlockSeminarGate) {
+      this.level.unlockSeminarGate();
+    }
   }
 }

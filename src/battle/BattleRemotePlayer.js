@@ -60,13 +60,14 @@ function getPlayerFBXTemplate() {
 }
 
 export class BattleRemotePlayer {
-  constructor(scene, data = {}) {
+  constructor(scene, data = {}, options = {}) {
     this.scene = scene;
     this.id = data.id || `p_${Math.random().toString(36).substring(2, 6)}`;
     this.name = data.name || 'Operative';
     this.team = data.team || 'red';
     this.characterId = data.characterId || 'aahil_confront';
     this.isHost = !!data.isHost;
+    this.isFriendly = options.isFriendly !== undefined ? !!options.isFriendly : false;
 
     this.health = 100;
     this.maxHealth = 100;
@@ -236,12 +237,24 @@ export class BattleRemotePlayer {
     this.nameSprite = new THREE.Sprite(spriteMat);
     this.nameSprite.position.y = 2.25;
     this.nameSprite.scale.set(1.9, 0.52, 1);
+    this.nameSprite.visible = !!this.isFriendly;
     this.group.add(this.nameSprite);
 
     this.updateNameTag();
   }
 
+  setFriendly(isFriendly) {
+    this.isFriendly = !!isFriendly;
+    if (this.nameSprite) {
+      this.nameSprite.visible = this.isFriendly;
+    }
+  }
+
   updateNameTag() {
+    if (this.nameSprite) {
+      this.nameSprite.visible = !!this.isFriendly;
+    }
+
     const ctx = this.nameCtx;
     ctx.clearRect(0, 0, 512, 140);
 
