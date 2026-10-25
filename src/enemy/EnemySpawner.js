@@ -94,7 +94,29 @@ export class EnemySpawner {
         validTypes = pngKeys;
       }
 
-      const typeKey = validTypes[Math.floor(Math.random() * validTypes.length)];
+      // In Confront Campaign Mode: make mahadev, joewyn, and aahil confront pngs rare
+      const isRareConfront = (k) => {
+        const lower = (k || '').toLowerCase();
+        return (lower.includes('mahadev') || lower.includes('joewyn') || lower.includes('aahil')) && lower.includes('confront');
+      };
+
+      let totalWeight = 0;
+      const weights = validTypes.map((k) => {
+        const w = isRareConfront(k) ? 0.12 : 1.0;
+        totalWeight += w;
+        return w;
+      });
+
+      let rand = Math.random() * totalWeight;
+      let typeKey = validTypes[0];
+      for (let j = 0; j < validTypes.length; j++) {
+        rand -= weights[j];
+        if (rand <= 0) {
+          typeKey = validTypes[j];
+          break;
+        }
+      }
+
       const typeConfig = roster[typeKey] || roster[pngKeys[0]];
 
       this.instanceCounter++;

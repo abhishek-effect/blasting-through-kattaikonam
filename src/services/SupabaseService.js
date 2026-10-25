@@ -305,25 +305,22 @@ export class SupabaseService {
 
   // --- Local storage helpers ---
   getLocalScores() {
+    const FAKE_NAMES = new Set(['santhomite_hunter', 'kattaikonamranger', 'ak47master', 'campusrunner', 'laserdodger']);
     try {
       const raw = localStorage.getItem(LOCAL_SCORES_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          return parsed.sort((a, b) => (b.score || 0) - (a.score || 0));
+          // Filter out any fake names that may have been previously stored
+          const valid = parsed.filter((s) => s && s.name && !FAKE_NAMES.has(s.name.toLowerCase()));
+          return valid.sort((a, b) => (b.score || 0) - (a.score || 0));
         }
       }
     } catch (e) {
       // Ignore
     }
-    // Default seed scores for exciting initial leaderboard view
-    return [
-      { name: 'Santhomite_Hunter', score: 4200, wave: 8 },
-      { name: 'KattaikonamRanger', score: 3100, wave: 6 },
-      { name: 'Ak47Master', score: 2400, wave: 5 },
-      { name: 'CampusRunner', score: 1800, wave: 4 },
-      { name: 'LaserDodger', score: 1200, wave: 3 }
-    ];
+    // No fake names: return empty array so only real players appear
+    return [];
   }
 
   saveLocalScore(scoreObj) {

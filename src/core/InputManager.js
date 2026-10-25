@@ -185,9 +185,21 @@ export class InputManager {
     });
 
     window.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && this.isPointerLocked) {
-        this.isMouseDown = true;
-        this.triggerJustPressed = true;
+      if (e.button === 0) {
+        if (this.isPointerLocked) {
+          this.isMouseDown = true;
+          this.triggerJustPressed = true;
+        } else if (!this.isTouchDevice) {
+          // If player clicks while in active gameplay (no open menus/modals), re-lock mouse pointer
+          const overlay = document.getElementById('screen-overlay');
+          const isOverlayVisible = overlay && !overlay.classList.contains('hidden');
+          const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden)');
+          if (!isOverlayVisible && !hasOpenModal) {
+            this.requestPointerLock();
+            this.isMouseDown = true;
+            this.triggerJustPressed = true;
+          }
+        }
       }
     });
 
@@ -199,11 +211,37 @@ export class InputManager {
   }
 
   initPointerLock() {
+    // Re-acquire pointer lock on canvas click/mousedown during active gameplay
+    const handleCanvasActivate = (e) => {
+      if (this.isTouchDevice) return;
+      const overlay = document.getElementById('screen-overlay');
+      const isOverlayVisible = overlay && !overlay.classList.contains('hidden');
+      const hasOpenModal = !!document.querySelector('.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden)');
+      if (!isOverlayVisible && !hasOpenModal) {
+        if (!this.isPointerLocked) {
+          this.requestPointerLock();
+        }
+        if (e && e.button === 0) {
+          this.isMouseDown = true;
+          this.triggerJustPressed = true;
+        }
+      }
+    };
+
+    if (this.canvas) {
+      this.canvas.addEventListener('click', handleCanvasActivate);
+      this.canvas.addEventListener('mousedown', handleCanvasActivate);
+    }
+
     document.addEventListener('pointerlockchange', () => {
       this.isPointerLocked = document.pointerLockElement === this.canvas;
       if (!this.isPointerLocked) {
         this.isMouseDown = false;
       }
+    });
+
+    document.addEventListener('pointerlockerror', (err) => {
+      console.debug('[InputManager] Pointer lock error:', err);
     });
 
     document.addEventListener('mousemove', (e) => {

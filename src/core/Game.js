@@ -670,7 +670,17 @@ export class Game {
     } else if (isBattle) {
       // --- BATTLE (MULTIPLAYER DEATHMATCH MODE) ---
       if (this.gameState.isPlaying()) {
-        const activeItem = this.player.getActiveItem();
+        const slotChange = this.input.checkAndConsumeSlotChange ? this.input.checkAndConsumeSlotChange() : null;
+        if (slotChange !== null) {
+          this.player.switchSlot(slotChange);
+        }
+
+        let activeItem = this.player.getActiveItem();
+        if (!activeItem && this.player.setWeaponsVisible) {
+          this.player.setWeaponsVisible(true);
+          this.player.switchSlot(0);
+          activeItem = this.player.getActiveItem();
+        }
 
         // 1. Check Reload Input (for weapons)
         if (this.input.checkAndConsumeReload() && activeItem && activeItem.reload) {

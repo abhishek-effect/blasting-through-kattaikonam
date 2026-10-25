@@ -207,7 +207,13 @@ export class Player {
         if (s && s.setVisible) s.setVisible(false);
       });
     } else {
-      this.switchSlot(this.activeSlotIndex);
+      const slotToUse = (this.activeSlotIndex >= 0 && this.activeSlotIndex < this.slots.length) ? this.activeSlotIndex : 0;
+      this.activeSlotIndex = slotToUse;
+      this.slots.forEach((slot, idx) => {
+        if (slot && slot.setVisible) {
+          slot.setVisible(idx === slotToUse);
+        }
+      });
     }
   }
 

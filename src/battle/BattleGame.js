@@ -276,6 +276,12 @@ export class BattleGame {
     this.gameState.currentMode = GAME_MODES.BATTLE;
     this.gameState.setState(STATES.PLAYING);
 
+    if (this.player.setWeaponsVisible) {
+      this.player.setWeaponsVisible(true);
+      this.player.switchSlot(0);
+    }
+    this.input.requestPointerLock();
+
     if (this.audio && this.audio.playComboSound) {
       this.audio.playComboSound(2);
     }
@@ -414,6 +420,12 @@ export class BattleGame {
     this.isLocalDead = false;
     this.player.health = 100;
     this.hud.hideRespawn();
+
+    if (this.player.setWeaponsVisible) {
+      this.player.setWeaponsVisible(true);
+      this.player.switchSlot(0);
+    }
+    this.input.requestPointerLock();
 
     // Teleport to safe team base (guaranteed outside locked doors & Seminar Hall)
     const safePos = this.getSafeSpawnPosition(this.network.localTeam, Math.floor(Math.random() * 4));
