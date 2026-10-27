@@ -461,7 +461,11 @@ export class NetworkManager {
       case MSG_TYPES.PLAYER_DOWNED:
       case MSG_TYPES.PLAYER_REVIVED:
       case MSG_TYPES.PLAYER_ESCAPED:
-      case MSG_TYPES.PLAYER_OOFED: {
+      case MSG_TYPES.PLAYER_OOFED:
+      case MSG_TYPES.PLAYER_CARRIED:
+      case MSG_TYPES.PLAYER_DROPPED:
+      case MSG_TYPES.PLAYER_LEFT:
+      case MSG_TYPES.PHOTOCOPY_ACQUIRED: {
         if (this.onGameplayEvent) {
           this.onGameplayEvent(data);
         }
@@ -783,6 +787,8 @@ export class NetworkManager {
     this.isConnected = false;
     this.isGameRunning = false;
     this.isHost = false;
+    this.playerVotes.clear();
+    this.playerVotes.set(this.localId, 'escape');
   }
 
   sendVote(mode) {
