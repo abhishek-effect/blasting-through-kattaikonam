@@ -247,7 +247,7 @@ export class InputManager {
 
     // Check for open modals or lobbies
     const hasOpenModal = !!document.querySelector(
-      '.modal-overlay:not(.hidden), .battle-lobby-modal:not(.hidden), .lobby-modal:not(.hidden), #survival-name-modal:not(.hidden), #leaderboard-modal:not(.hidden), #security-keypad-modal:not(.hidden), #voting-modal:not(.hidden), #checkpoint-countdown-overlay:not(.hidden)'
+      '.modal-overlay:not(.hidden), .lobby-modal:not(.hidden), #survival-name-modal:not(.hidden), #leaderboard-modal:not(.hidden), #security-keypad-modal:not(.hidden), #voting-modal:not(.hidden), #checkpoint-countdown-overlay:not(.hidden)'
     );
     if (hasOpenModal) return false;
 

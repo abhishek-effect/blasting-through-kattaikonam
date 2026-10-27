@@ -124,11 +124,10 @@ export class HUD {
     this.optionsView = document.getElementById('options-view');
     this.creditsView = document.getElementById('credits-view');
 
-    // Main Menu Buttons (EVADE, CONFRONT, BATTLE, HOW TO PLAY)
+    // Main Menu Buttons (EVADE, CONFRONT, HOW TO PLAY)
     this.btnMenuCheckpoint = document.getElementById('btn-menu-checkpoint');
     this.btnMenuPlay = document.getElementById('btn-menu-play');
     this.btnMenuShoot = document.getElementById('btn-menu-shoot');
-    this.btnMenuBattle = document.getElementById('btn-menu-battle');
     this.btnMenuHowToPlay = document.getElementById('btn-menu-howtoplay');
     this.btnMenuOptions = document.getElementById('btn-menu-options');
     this.btnMenuCredits = document.getElementById('btn-menu-credits');
@@ -460,30 +459,6 @@ export class HUD {
         }
       };
       this.btnMenuShoot.addEventListener('click', handleShoot);
-    }
-
-    if (this.btnMenuBattle) {
-      const handleBattle = (e) => {
-        if (e) {
-          e.stopPropagation();
-          e.preventDefault();
-        }
-        if (this.audio) this.audio.ensureContext();
-
-        if (
-          this.gameState.hasActiveSession &&
-          this.gameState.currentMode === GAME_MODES.BATTLE &&
-          !this.gameState.isGameOver() &&
-          !this.gameState.isVictory()
-        ) {
-          this.input.requestPointerLock();
-          this.requestFullscreen();
-          this.gameState.setState(STATES.PLAYING);
-        } else {
-          this.gameState.emit('startMode', { mode: GAME_MODES.BATTLE });
-        }
-      };
-      this.btnMenuBattle.addEventListener('click', handleBattle);
     }
 
     // 1b. Confront Mode Selection Handlers
@@ -1328,24 +1303,12 @@ Coded by Gemini 3.8 Flash`;
           this.btnMenuShoot.textContent = '💥 CONFRONT';
         }
       }
-      if (this.btnMenuBattle) {
-        if (
-          this.gameState.hasActiveSession &&
-          this.gameState.currentMode === GAME_MODES.BATTLE &&
-          !this.gameState.isGameOver() &&
-          !this.gameState.isVictory()
-        ) {
-          this.btnMenuBattle.textContent = '⚔️ BATTLE (RESUME)';
-        } else {
-          this.btnMenuBattle.textContent = '⚔️ BATTLE (MULTIPLAYER)';
-        }
-      }
     } else if (state === STATES.PAUSED) {
       if (this.pauseMenuView) this.pauseMenuView.classList.remove('hidden');
       if (this.menuTitleImg) this.menuTitleImg.classList.remove('hidden');
       if (this.overlayTitle) {
         this.overlayTitle.classList.remove('hidden');
-        if (this.gameState.currentMode === GAME_MODES.PLAY || this.gameState.currentMode === GAME_MODES.BATTLE) {
+        if (this.gameState.currentMode === GAME_MODES.PLAY) {
           this.overlayTitle.textContent = 'ARENA MENU';
         } else {
           this.overlayTitle.textContent = 'GAME PAUSED';
@@ -1353,9 +1316,7 @@ Coded by Gemini 3.8 Flash`;
       }
       if (this.overlaySubtitle) {
         let modeName = 'EVADE';
-        if (this.gameState.currentMode === GAME_MODES.BATTLE) {
-          modeName = 'BATTLE (MULTIPLAYER)';
-        } else if (this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ||
+        if (this.gameState.currentMode === GAME_MODES.SHOOT_SHOOT_SHOOT ||
             this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN ||
             this.gameState.currentMode === GAME_MODES.CONFRONT_SURVIVAL) {
           modeName = this.gameState.confrontSubMode === 'survival' ? 'CONFRONT (SURVIVAL)' : 'CONFRONT (CAMPAIGN)';
@@ -1366,7 +1327,7 @@ Coded by Gemini 3.8 Flash`;
       // Checkpoint Retry button in Pause Menu
       const cp = this.getSavedCheckpoint();
       if (this.btnPauseCheckpoint) {
-        if (cp && cp.checkpointName && this.gameState.currentMode !== GAME_MODES.PLAY && this.gameState.currentMode !== GAME_MODES.BATTLE) {
+        if (cp && cp.checkpointName && this.gameState.currentMode !== GAME_MODES.PLAY) {
           this.btnPauseCheckpoint.style.display = 'block';
           this.btnPauseCheckpoint.textContent = `💾 RETRY FROM LAST CHECKPOINT (${cp.checkpointName.toUpperCase()})`;
           this.btnPauseCheckpoint.classList.remove('hidden');
@@ -1376,8 +1337,8 @@ Coded by Gemini 3.8 Flash`;
         }
       }
 
-      // Online mode: display ONLY 2 options: Resume Game and Leave Room / Arena
-      if (this.gameState.currentMode === GAME_MODES.PLAY || this.gameState.currentMode === GAME_MODES.BATTLE) {
+      // Online mode: display ONLY 2 options: Resume Game and Leave Room
+      if (this.gameState.currentMode === GAME_MODES.PLAY) {
         if (this.btnPauseResume) {
           this.btnPauseResume.style.display = 'block';
           this.btnPauseResume.textContent = '▶ RESUME GAME';
@@ -1390,7 +1351,7 @@ Coded by Gemini 3.8 Flash`;
         }
         if (this.btnPauseMainMenu) {
           this.btnPauseMainMenu.style.display = 'block';
-          this.btnPauseMainMenu.textContent = this.gameState.currentMode === GAME_MODES.BATTLE ? '🚪 LEAVE ARENA' : '🚪 LEAVE ROOM';
+          this.btnPauseMainMenu.textContent = '🚪 LEAVE ROOM';
         }
       } else {
         if (this.btnPauseResume) {

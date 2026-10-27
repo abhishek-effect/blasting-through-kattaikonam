@@ -38,7 +38,7 @@ try {
   }
 }
 
-const commitMsg = 'Deploy: Battle mode safe corridor spawns, key-unlockable Seminar Hall, team overhead badges';
+const commitMsg = 'Deploy update to gh-pages';
 const parentArg = parentCommit ? `-p ${parentCommit}` : '';
 const commitCmd = `git commit-tree ${tree} ${parentArg} -m "${commitMsg}"`;
 const commitSha = execSync(commitCmd, { cwd: rootDir }).toString().trim();
