@@ -1,0 +1,9 @@
+When u check the models u will find object1, object2 etc. Here,
+For stylish-zombie:
+4: Upper body (Hands, chest head, is combined)
+7: Pants
+8: Shoes
+9: Hair
+
+For bbq-dad:
+Object4.001 is combo of arms legs and head. Find a way to animate it somehow
