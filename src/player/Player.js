@@ -289,7 +289,7 @@ export class Player {
   }
 
   update(deltaTime) {
-    if (this.isDead) return;
+    if (this.isDead || this.isFrozen) return;
 
     this.isLookingBehind = !!(this.input && this.input.isLookBehindActive);
 

@@ -1,3 +1,4 @@
+import { zombieModelManager } from '../enemy/ZombieModelManager.js';
 /**
  * Centralized Asset Configuration & Dynamic Enemy Registry
  * Completely dynamic: Zero hardcoded enemy names or files!
@@ -35,6 +36,7 @@ export const ASSET_PATHS = {
     key: assetUrl('/images/key.webp'),
     vernier: assetUrl('/images/vernier.png'),
     keypad: assetUrl('/images/security-keypad.jpg'),
+    rope: assetUrl('/images/rope.png'),
   },
   ui: {
     blastingTitle: assetUrl('/images/blasting.png'),
@@ -439,6 +441,7 @@ export function loadTexture(url, repeatX = 1, repeatY = 1, fallbackColor1 = '#55
  * Calculates metrics in advance so zero CPU image processing happens during gameplay!
  */
 export async function preloadAllAssets(onProgress = null) {
+  try { zombieModelManager.loadAll(); } catch (e) {}
   const urlsToPreload = new Set();
 
   // 1. Environment textures

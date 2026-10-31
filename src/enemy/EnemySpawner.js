@@ -254,6 +254,77 @@ export class EnemySpawner {
     return enemy;
   }
 
+
+  spawnZombie(spawnX, spawnZ, modelIndex = null) {
+    this.instanceCounter++;
+    const zombieConfig = {
+      id: 'zombie',
+      name: 'ZOMBIE',
+      isZombie: true,
+      zombieModelIndex: modelIndex,
+      hp: 80,
+      speed: 3.4 + Math.random() * 0.4,
+      attackDistance: 1.8,
+      attackInterval: 0.85,
+      damage: 14
+    };
+
+    const enemy = new Enemy(this.scene, this.world, this.audio, zombieConfig, `zombie_${this.instanceCounter}`);
+    enemy.onDeath = (deadEnemy) => {
+      this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+    };
+
+    if (this.onEnemyDropItem) {
+      enemy.onDropItem = (type, pos) => this.onEnemyDropItem(type, pos);
+    }
+
+    enemy.spawn(spawnX, spawnZ);
+
+    if (this.world && this.world.resolveSphereCollision) {
+      this.world.resolveSphereCollision(enemy.position, enemy.radius);
+    }
+
+    this.enemies.push(enemy);
+    return enemy;
+  }
+
+  spawnAadesh(spawnX, spawnZ) {
+    this.instanceCounter++;
+    const aadeshConfig = {
+      id: 'aadesh',
+      name: 'AADESH',
+      isAadesh: true,
+      isMiniBoss: true,
+      sprite: assetUrl('/images/enemies/aadesh.png'),
+      hp: 650, // More health than Sijinil!
+      speed: 3.3
+    };
+
+    const enemy = new Enemy(this.scene, this.world, this.audio, aadeshConfig, `aadesh_${this.instanceCounter}`);
+    enemy.onDeath = (deadEnemy) => {
+      this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+    };
+
+    if (this.onEnemyDropItem) {
+      enemy.onDropItem = (type, pos) => this.onEnemyDropItem(type, pos);
+    }
+
+    enemy.spawn(spawnX, spawnZ);
+
+    if (this.world && this.world.resolveSphereCollision) {
+      this.world.resolveSphereCollision(enemy.position, enemy.radius);
+    }
+    if (enemy.sprite) {
+      enemy.sprite.position.copy(enemy.position);
+    }
+    if (enemy.hitMesh) {
+      enemy.hitMesh.position.copy(enemy.position);
+    }
+
+    this.enemies.push(enemy);
+    return enemy;
+  }
+
   spawnSijinil(spawnX, spawnZ) {
     const roster = ASSET_PATHS.enemies.types;
     let sijinilConfig = roster['sijinil'] || roster['sijinil.jpg'];
@@ -262,12 +333,13 @@ export class EnemySpawner {
       sijinilConfig = {
         id: 'sijinil',
         name: 'SIJINIL',
-        sprite: './images/enemies/sijinil.jpg',
+        sprite: assetUrl('/images/enemies/sijin.png'),
         isSijinil: true,
-        hp: 140
+        isMiniBoss: true,
+        hp: 400
       };
     } else {
-      sijinilConfig = { ...sijinilConfig, isSijinil: true, name: 'SIJINIL' };
+      sijinilConfig = { ...sijinilConfig, isSijinil: true, isMiniBoss: true, name: 'SIJINIL', hp: 400, sprite: assetUrl('/images/enemies/sijin.png') };
     }
 
     this.instanceCounter++;

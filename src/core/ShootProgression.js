@@ -1,3 +1,4 @@
+import { RopeCutscene } from './RopeCutscene.js';
 /**
  * ShootProgression Module
  * Implements all gameplay objectives and progression for Shoot Shoot Shoot mode:
@@ -137,41 +138,55 @@ export class ShootProgression {
       });
     };
 
-    // Kill listener for Sijinil milestones and Wave counters
+    // Kill listener for Zombie Waves, Sijinil, and Aadesh
     this.enemySpawner.onEnemyKilled = (enemy, totalKills) => {
-      // 1. Sijinil milestone: Spawns every 5 kills (only if player hasn't hacked all 3 computers yet)
-      const milestone = Math.floor(totalKills / 5) * 5;
-      if (milestone > 0 && milestone > this.lastSijinilMilestone) {
-        this.lastSijinilMilestone = milestone;
-        if (this.hackedComputersCount < 3) {
-          this.spawnSijinilWave();
+      // 1. Zombie wave progression (10 kills each)
+      if (this.currentWave) {
+        if (enemy.isZombie) {
+          this.currentWave.kills++;
+          this.updateWaveBanner();
+
+          if (this.currentWave.kills >= this.currentWave.target) {
+            const finishedWave = this.currentWave.type;
+            this.currentWave = null;
+            this.hideWaveBanner();
+
+            if (finishedWave === 'computer_lab_zombies') {
+              this.hud.showNotification('🎉 10 ZOMBIES ELIMINATED! SIJINIL IS SPAWNING!', 4.5);
+              setTimeout(() => {
+                this.spawnSijinilMiniBoss();
+              }, 700);
+            } else if (finishedWave === 'library_zombies') {
+              this.hud.showNotification('🎉 LIBRARY HORDE CLEARED! AADESH IS SPAWNING!', 4.5);
+              setTimeout(() => {
+                this.spawnAadeshMiniBoss();
+              }, 700);
+            }
+          } else {
+            this.replenishWaveZombies();
+          }
         }
       }
 
-      // 2. Active wave progression (10 kills each)
-      if (this.currentWave) {
-        this.currentWave.kills++;
-        this.updateWaveBanner();
-
-        if (this.currentWave.kills >= this.currentWave.target) {
-          if (this.currentWave.type === 'computer_lab') {
-            this.isLibraryUnlocked = true;
-            const libDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_library') : null;
-            if (libDoor) {
-              libDoor.isLocked = false;
-              libDoor.customLockedPrompt = null;
-              libDoor.setOpen(true);
-            }
-            this.hud.showNotification('🎉 COMPUTER LAB WAVE CLEARED! CAMPUS LIBRARY OPENED!', 5.0);
-          } else {
-            this.hud.showNotification('🎉 PHYSICS LAB WAVE CLEARED!', 4.5);
-          }
-          this.currentWave = null;
-          this.hideWaveBanner();
-        } else {
-          // Replenish wave enemies if low
-          this.replenishWaveEnemies();
+      // 2. Sijinil Kill
+      if (enemy.isSijinil) {
+        this.isSijinilDead = true;
+        if (this.bossHudEl) this.bossHudEl.classList.add('hidden');
+        this.hud.showNotification('💀 MINI BOSS SIJINIL DEFEATED! PEN DRIVE DROPPED!', 5.0);
+        if (this.audio && this.audio.playComboSound) {
+          this.audio.playComboSound(2);
         }
+      }
+
+      // 3. Aadesh Kill
+      if (enemy.isAadesh) {
+        this.isAadeshDead = true;
+        if (this.bossHudEl) this.bossHudEl.classList.add('hidden');
+        this.hud.showNotification('👑 MINI BOSS AADESH ELIMINATED! CAMPUS HERO!', 6.0);
+        if (this.audio && this.audio.playComboSound) {
+          this.audio.playComboSound(2);
+        }
+        this.isSeminarHallUnlocked = true;
       }
 
       // 3. Boss kill check
@@ -253,6 +268,12 @@ export class ShootProgression {
     if (this.keypad) this.keypad.reset();
     if (this.roomPickups) this.roomPickups.reset();
     if (this.dropItems) this.dropItems.clear();
+    if (this.ropeCutscene) this.ropeCutscene.reset();
+
+    const compDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_computer_lab') : null;
+    if (compDoor && compDoor.resetExplosion) compDoor.resetExplosion();
+    const libDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_library') : null;
+    if (libDoor && libDoor.resetExplosion) libDoor.resetExplosion();
 
     // Lock doors
     this.lockDoorsAtStart();
@@ -301,6 +322,131 @@ export class ShootProgression {
         subtitle: 'You need a vernier caliper to unlock seminar hall',
         isLocked: true
       };
+    }
+  }
+
+
+  startCampaignCutscene() {
+    this.reset();
+    if (this.enemySpawner) {
+      this.enemySpawner.clear();
+    }
+    const compDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_computer_lab') : null;
+    if (compDoor) {
+      compDoor.isLocked = true;
+      if (compDoor.resetExplosion) compDoor.resetExplosion();
+    }
+    const libDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_library') : null;
+    if (libDoor) {
+      libDoor.isLocked = true;
+      if (libDoor.resetExplosion) libDoor.resetExplosion();
+    }
+
+    if (this.ropeCutscene) {
+      this.ropeCutscene.start(() => {
+        this.onRopeLanding();
+      });
+    }
+  }
+
+  onRopeLanding() {
+    // 1. Explode Computer Lab Door
+    const compDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_computer_lab') : null;
+    if (compDoor && compDoor.explode) {
+      compDoor.explode(this.scene, this.audio);
+    }
+    this.isComputerLabUnlocked = true;
+
+    this.hud.showNotification('💥 COMPUTER LAB EXPLODED! ZOMBIES BREACHING!', 4.5);
+
+    // 2. Spawn first wave of 3D zombies
+    this.startComputerLabZombieWave();
+  }
+
+  startComputerLabZombieWave() {
+    this.currentWave = {
+      type: 'computer_lab_zombies',
+      kills: 0,
+      target: 10
+    };
+    this.showWaveBanner('COMPUTER LAB BREACH!', 'DEFEAT 10 ZOMBIES (0 / 10)');
+
+    // Initial 5 3D zombies bursting out from inside Computer Lab
+    for (let i = 0; i < 5; i++) {
+      const sx = 8.0 + (Math.random() - 0.5) * 5.0;
+      const sz = 57.0 + (Math.random() - 0.5) * 6.0;
+      this.enemySpawner.spawnZombie(sx, sz, i % 3);
+    }
+  }
+
+  spawnSijinilMiniBoss() {
+    this.hud.showNotification('⚠️ MINI BOSS: SIJINIL HAS SPAWNED! (ELIMINATE TO OBTAIN PEN DRIVE)', 5.0);
+    const spawnX = 24.0 + (Math.random() - 0.5) * 4.0;
+    const spawnZ = 57.0 + (Math.random() - 0.5) * 4.0;
+    this.sijinilEnemy = this.enemySpawner.spawnSijinil(spawnX, spawnZ);
+    if (this.bossHudEl) this.bossHudEl.classList.remove('hidden');
+    const bossNameEl = document.getElementById('boss-name');
+    if (bossNameEl) bossNameEl.textContent = 'MINI BOSS: SIJINIL';
+  }
+
+  onLibraryExplodeAndSpawnWave() {
+    // 1. Explode Library Door
+    const libDoor = this.level && this.level.doors ? this.level.doors.find((d) => d.id === 'door_library') : null;
+    if (libDoor && libDoor.explode) {
+      libDoor.explode(this.scene, this.audio);
+    }
+    this.isLibraryUnlocked = true;
+
+    // Screen shake
+    const container = document.getElementById('game-container') || document.body;
+    if (container) {
+      container.classList.remove('screen-shake');
+      void container.offsetWidth;
+      container.classList.add('screen-shake');
+      setTimeout(() => container.classList.remove('screen-shake'), 650);
+    }
+
+    this.hud.showNotification('💥 LIBRARY ENTRANCE EXPLODED! ZOMBIE WAVE INCOMING!', 4.5);
+
+    // 2. Start Library Zombie Wave (10 zombies)
+    this.startLibraryZombieWave();
+  }
+
+  startLibraryZombieWave() {
+    this.currentWave = {
+      type: 'library_zombies',
+      kills: 0,
+      target: 10
+    };
+    this.showWaveBanner('LIBRARY BREACH!', 'DEFEAT 10 ZOMBIES (0 / 10)');
+
+    // Initial 5 3D zombies from Library
+    for (let i = 0; i < 5; i++) {
+      const sx = 80.0 + (Math.random() - 0.5) * 6.0;
+      const sz = 83.0 + (Math.random() - 0.5) * 8.0;
+      this.enemySpawner.spawnZombie(sx, sz, i % 3);
+    }
+  }
+
+  spawnAadeshMiniBoss() {
+    this.hud.showNotification('⚠️ MINI BOSS: AADESH HAS SPAWNED! (TALLER & MORE HEALTH)', 5.0);
+    const spawnX = 72.0 + (Math.random() - 0.5) * 4.0;
+    const spawnZ = 78.0 + (Math.random() - 0.5) * 6.0;
+    this.aadeshEnemy = this.enemySpawner.spawnAadesh(spawnX, spawnZ);
+    if (this.bossHudEl) this.bossHudEl.classList.remove('hidden');
+    const bossNameEl = document.getElementById('boss-name');
+    if (bossNameEl) bossNameEl.textContent = 'MINI BOSS: AADESH';
+  }
+
+  replenishWaveZombies() {
+    if (!this.currentWave) return;
+    const livingZombies = this.enemySpawner.getEnemies().filter((e) => !e.isDead && e.isZombie).length;
+    const remainingToKill = this.currentWave.target - this.currentWave.kills;
+    if (livingZombies < 4 && (this.currentWave.kills + livingZombies) < this.currentWave.target) {
+      const isComp = this.currentWave.type === 'computer_lab_zombies';
+      const sx = isComp ? (8.0 + (Math.random() - 0.5) * 4.0) : (80.0 + (Math.random() - 0.5) * 6.0);
+      const sz = isComp ? (57.0 + (Math.random() - 0.5) * 6.0) : (83.0 + (Math.random() - 0.5) * 6.0);
+      this.enemySpawner.spawnZombie(sx, sz, Math.floor(Math.random() * 3));
     }
   }
 
@@ -460,7 +606,39 @@ export class ShootProgression {
   }
 
   update(deltaTime, player, input) {
+    if (this.ropeCutscene && this.ropeCutscene.isActive) {
+      this.ropeCutscene.update(deltaTime);
+      return;
+    }
+
     if (!player || player.isDead) return;
+
+    // Periodic wave zombie replenish check
+    if (this.currentWave) {
+      this._waveReplenishTimer = (this._waveReplenishTimer || 0) + deltaTime;
+      if (this._waveReplenishTimer >= 1.2) {
+        this._waveReplenishTimer = 0;
+        this.replenishWaveZombies();
+      }
+    }
+
+    // Update Boss HUD for active mini-boss (Sijinil, Aadesh, or Boss)
+    const activeBoss = this.enemySpawner.getEnemies().find((e) => !e.isDead && (e.isSijinil || e.isAadesh || e.isBoss));
+    if (activeBoss) {
+      if (this.bossHudEl) this.bossHudEl.classList.remove('hidden');
+      const bossNameEl = document.getElementById('boss-name');
+      if (bossNameEl) {
+        if (activeBoss.isSijinil) bossNameEl.textContent = 'MINI BOSS: SIJINIL';
+        else if (activeBoss.isAadesh) bossNameEl.textContent = 'MINI BOSS: AADESH';
+        else if (activeBoss.isBoss2) bossNameEl.textContent = 'CHIEF OVERSEER II';
+        else if (activeBoss.isBoss) bossNameEl.textContent = 'CHIEF OVERSEER';
+      }
+      const hpPct = Math.max(0, Math.min(100, Math.round((activeBoss.health / activeBoss.maxHealth) * 100)));
+      if (this.bossHpFillEl) this.bossHpFillEl.style.width = `${hpPct}%`;
+      if (this.bossHpValEl) this.bossHpValEl.textContent = `${hpPct}%`;
+    } else if (this.bossHudEl && !this.isBossSpawned) {
+      this.bossHudEl.classList.add('hidden');
+    }
 
     // Periodic wave enemy replenish check (every 1.5s)
     if (this.currentWave) {
@@ -535,11 +713,11 @@ export class ShootProgression {
         this.audio.playComboSound(2);
       }
       const drivesLeft = this.player ? (this.player.penDriveCount || 0) : 0;
-      this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/3) | Pen Drives: ${drivesLeft}`, 3.5);
+      this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/4) | Pen Drives: ${drivesLeft}`, 3.5);
 
-      if (this.hackedComputersCount === 3) {
-        this.hud.showNotification('💻 3 COMPUTERS HACKED! SURVIVE THE COMPUTER LAB WAVE TO UNLOCK LIBRARY!', 5.0);
-        this.startComputerLabWave(true);
+      if (this.hackedComputersCount === 4) {
+        this.hud.showNotification('💻 ALL 4 COMPUTERS HACKED! LIBRARY BREACH INCOMING!', 5.0);
+        this.onLibraryExplodeAndSpawnWave();
       }
     } else if (action.type === 'search_shelf') {
       this.hasFoundKey = true;
@@ -581,7 +759,7 @@ export class ShootProgression {
     }
 
     // B. Check Computer Lab Workstations (Hacking with Pen Drive)
-    if (this.isComputerLabUnlocked && this.hackedComputersCount < 3) {
+    if (this.isComputerLabUnlocked && this.hackedComputersCount < 4) {
       for (let i = 0; i < this.computers.length; i++) {
         const pc = this.computers[i];
         if (pc.isHacked) continue;
@@ -757,6 +935,7 @@ export class ShootProgression {
       for (let i = 0; i < this.level.doors.length; i++) {
         const door = this.level.doors[i];
         if (door.id === 'door_computer_lab' && !this.isComputerLabUnlocked) continue;
+        if (door.id === 'door_library' && !this.isLibraryUnlocked) continue;
         if (door.id === 'door_phy_lab' && !this.isPhysicsLabUnlocked) continue;
         const dist = Math.hypot(player.position.x - door.x, player.position.z - door.z);
         if (dist <= door.interactionRadius && dist < minDoorDist) {

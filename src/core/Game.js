@@ -565,6 +565,37 @@ export class Game {
       return;
     }
 
+    if (this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN || mode === 'campaign') {
+      this.rifle.reset();
+      this.pistol.reset();
+      this.medkit.reset();
+      this.player.switchSlot(0);
+      this.grenadeManager.reset();
+
+      if (this.level && this.level.doors) {
+        this.level.doors.forEach((d) => {
+          d.setOpen(false);
+          d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room' || d.id === 'door_computer_lab' || d.id === 'door_library');
+          if (d.resetExplosion) d.resetExplosion();
+        });
+      }
+
+      this.enemySpawner.clear();
+      if (this.laserManager) {
+        this.laserManager.initLasers(level1Data.lasers || []);
+      }
+
+      this.gameState.reset(0);
+      this.gameState.setState(STATES.PLAYING);
+      this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+      this.input.requestPointerLock();
+
+      if (this.shootProgression) {
+        this.shootProgression.startCampaignCutscene();
+      }
+      return;
+    }
+
     const startPos = new THREE.Vector3(
       level1Data.playerStart.x,
       level1Data.playerStart.y,

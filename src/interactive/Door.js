@@ -136,7 +136,7 @@ export class Door {
   }
 
   toggle() {
-    if (this.isLocked) return false;
+    if (this.isLocked || this.isExploded) return false;
     return this.setOpen(!this.isOpen);
   }
 
@@ -191,6 +191,7 @@ export class Door {
   }
 
   getPromptInfo(kills = 0) {
+    if (this.isExploded) return null;
     const isEvade = typeof document !== 'undefined' && document.body.classList.contains('evade-mode');
 
     if (this.customLockedPrompt && this.isLocked) {
@@ -306,6 +307,151 @@ export class Door {
     }
     this.scene.remove(this.group);
   }
+
+  explode(scene, audio) {
+    if (this.isExploded) return;
+    this.isExploded = true;
+    this.isLocked = false;
+    this.isOpen = true;
+    this.customLockedPrompt = null;
+
+    // Permanently remove collider so players & zombies can pass freely
+    const idx = this.collidersList.indexOf(this.collider);
+    if (idx !== -1) {
+      this.collidersList.splice(idx, 1);
+    }
+    if (this.onCollidersChanged) {
+      this.onCollidersChanged();
+    }
+
+    // Hide original door leaves
+    if (this.leftPivot) this.leftPivot.visible = false;
+    if (this.rightPivot) this.rightPivot.visible = false;
+
+    // Play explosion sound
+    if (audio) {
+      if (audio.playGrenadeExplosion) {
+        audio.playGrenadeExplosion();
+      } else if (audio.playBuffer) {
+        audio.playBuffer('grenade', 1.0);
+      }
+    }
+
+    const fireGeo = new THREE.SphereGeometry(1.2, 16, 16);
+    const fireMat = new THREE.MeshBasicMaterial({
+      color: 0xff6600,
+      transparent: true,
+      opacity: 0.95
+    });
+    const fireMesh = new THREE.Mesh(fireGeo, fireMat);
+    fireMesh.position.set(this.x, this.height * 0.5, this.z);
+    scene.add(fireMesh);
+
+    const ringGeo = new THREE.RingGeometry(0.2, 0.8, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xffcc33,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.copy(fireMesh.position);
+    ringMesh.rotation.x = Math.PI / 2;
+    scene.add(ringMesh);
+
+    const blastLight = new THREE.PointLight(0xff8822, 5.0, 15);
+    blastLight.position.copy(fireMesh.position);
+    scene.add(blastLight);
+
+    const chunks = [];
+    const chunkMat = this.doorMaterial || new THREE.MeshStandardMaterial({ color: 0x8d5b32 });
+    const numChunks = 16;
+    for (let i = 0; i < numChunks; i++) {
+      const cW = 0.2 + Math.random() * 0.35;
+      const cH = 0.2 + Math.random() * 0.45;
+      const cD = 0.08 + Math.random() * 0.1;
+      const cGeo = new THREE.BoxGeometry(cW, cH, cD);
+      const cMesh = new THREE.Mesh(cGeo, chunkMat);
+
+      cMesh.position.set(
+        this.x + (Math.random() - 0.5) * 1.5,
+        (this.height * 0.3) + Math.random() * (this.height * 0.6),
+        this.z + (Math.random() - 0.5) * 1.5
+      );
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 4.0 + Math.random() * 7.0;
+      const vx = Math.cos(angle) * speed;
+      const vz = Math.sin(angle) * speed;
+      const vy = 2.0 + Math.random() * 5.0;
+
+      const rotSpeedX = (Math.random() - 0.5) * 12;
+      const rotSpeedY = (Math.random() - 0.5) * 12;
+
+      scene.add(cMesh);
+      chunks.push({ mesh: cMesh, vx, vy, vz, rotX: rotSpeedX, rotY: rotSpeedY });
+    }
+
+    let elapsed = 0;
+    const duration = 1.8;
+    const animateDebris = () => {
+      elapsed += 0.03;
+      const t = elapsed / duration;
+
+      const scale = 1.0 + elapsed * 4.5;
+      fireMesh.scale.setScalar(scale);
+      fireMat.opacity = Math.max(0, 0.95 * (1.0 - t));
+
+      ringMesh.scale.setScalar(1.0 + elapsed * 6.0);
+      ringMat.opacity = Math.max(0, 0.85 * (1.0 - t));
+
+      blastLight.intensity = Math.max(0, 5.0 * (1.0 - t));
+
+      chunks.forEach((c) => {
+        c.vy -= 9.8 * 0.03;
+        c.mesh.position.x += c.vx * 0.03;
+        c.mesh.position.y += c.vy * 0.03;
+        c.mesh.position.z += c.vz * 0.03;
+        c.mesh.rotation.x += c.rotX * 0.03;
+        c.mesh.rotation.y += c.rotY * 0.03;
+
+        if (c.mesh.position.y < 0.1) {
+          c.mesh.position.y = 0.1;
+          c.vy = -c.vy * 0.3;
+          c.vx *= 0.7;
+          c.vz *= 0.7;
+        }
+      });
+
+      if (elapsed < duration) {
+        requestAnimationFrame(animateDebris);
+      } else {
+        scene.remove(fireMesh);
+        fireGeo.dispose();
+        fireMat.dispose();
+        scene.remove(ringMesh);
+        ringGeo.dispose();
+        ringMat.dispose();
+        scene.remove(blastLight);
+        chunks.forEach((c) => {
+          scene.remove(c.mesh);
+          c.mesh.geometry.dispose();
+        });
+      }
+    };
+    requestAnimationFrame(animateDebris);
+  }
+
+  resetExplosion() {
+    this.isExploded = false;
+    this.isOpen = false;
+    if (this.leftPivot) this.leftPivot.visible = true;
+    if (this.rightPivot) this.rightPivot.visible = true;
+    if (!this.collidersList.includes(this.collider)) {
+      this.collidersList.push(this.collider);
+    }
+  }
 }
+
 
 

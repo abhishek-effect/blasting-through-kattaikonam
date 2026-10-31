@@ -8,7 +8,8 @@
  * 2. Ranged Shooter: Displays equipped pistol on sprite, holds distance, checks line of sight, and shoots.
  */
 import * as THREE from 'three';
-import { ASSET_PATHS, loadTexture, getImageMetrics, createProceduralEnemySprite } from '../config/assets.js';
+import { ASSET_PATHS, loadTexture, getImageMetrics, createProceduralEnemySprite, assetUrl } from '../config/assets.js';
+import { zombieModelManager } from './ZombieModelManager.js';
 
 export const ENEMY_STATES = {
   IDLE: 'IDLE',
@@ -95,10 +96,11 @@ export class Enemy {
       this.name = 'SIJINIL';
       this.attackStyle = 'ranged';
       this.speed = 3.2;
-      this.maxHealth = 140;
-      this.health = 140;
+      this.maxHealth = 400; // 4-5x health of a zombie
+      this.health = 400;
       this.rangedDamage = 14;
       this.rangedInterval = 0.85;
+      this.spriteUrl = assetUrl('/images/enemies/sijin.png');
     }
 
     if (this.isBoss) {
@@ -147,6 +149,13 @@ export class Enemy {
   }
 
   buildSprite() {
+    if (this.isZombie) {
+      const hitGeo = sharedHitGeo;
+      this.hitMesh = new THREE.Mesh(hitGeo, sharedHitMat);
+      this.hitMesh.userData.enemy = this;
+      this.scene.add(this.hitMesh);
+      return;
+    }
     const texture = loadTexture(this.spriteUrl, 1, 1, '#ff4444', '#222222');
 
     // SpriteMaterial automatically keeps billboard facing camera
@@ -242,6 +251,18 @@ export class Enemy {
 
   spawn(x, z) {
     this.position.set(x, this.scaleHeight / 2, z);
+    if (this.isZombie) {
+      if (this.zombieInstance) {
+        this.zombieInstance.group.position.set(x, 0, z);
+      }
+      if (this.hitMesh) {
+        this.hitMesh.position.copy(this.position);
+      }
+      this.health = this.maxHealth;
+      this.state = ENEMY_STATES.IDLE;
+      this.isDead = false;
+      return;
+    }
     this.sprite.position.copy(this.position);
     this.hitMesh.position.copy(this.position);
     this.health = this.maxHealth;
@@ -274,6 +295,9 @@ export class Enemy {
 
     this.health -= amount;
     this.hurtTimer = 0.18;
+    if (this.isZombie && this.zombieInstance) {
+      this.zombieInstance.setHurtFlash(isCritical);
+    }
     if (isCritical) {
       this.material.color.setRGB(1.0, 0.85, 0.15); // Flash vibrant gold on critical headshot
     } else {
@@ -329,8 +353,14 @@ export class Enemy {
     if (this.muzzleSprite) this.muzzleSprite.visible = false;
     if (this.tracerLine) this.tracerLine.visible = false;
     this.audio.playEnemyDeath();
+    if (this.isZombie && this.zombieInstance) {
+      this.zombieInstance.die();
+    }
     if (this.isSijinil && this.onDropItem) {
       this.onDropItem('pendrive', this.position.clone());
+    }
+    if (this.isAadesh && this.onDropItem) {
+      this.onDropItem('photocopy', this.position.clone());
     }
     if (this.isBoss && !this.isBoss2 && this.onDropItem) {
       this.onDropItem('medkit', this.position.clone());
@@ -387,6 +417,42 @@ export class Enemy {
   }
 
   update(deltaTime, playerPosition, onDamagePlayer) {
+    if (this.isZombie) {
+      if (this.isDead) {
+        this.deathTimer += deltaTime;
+        if (this.zombieInstance) {
+          this.zombieInstance.update(deltaTime, false, false, 0, null);
+        }
+        return;
+      }
+      const distToPlayer = this.position.distanceTo(playerPosition);
+      if (distToPlayer <= this.meleeDistance) {
+        this.state = ENEMY_STATES.ATTACK;
+        this.attackTimer += deltaTime;
+        const progress = Math.min(1.0, this.attackTimer / this.meleeInterval);
+        if (this.zombieInstance) {
+          this.zombieInstance.update(deltaTime, false, true, progress, playerPosition);
+        }
+        if (this.attackTimer >= this.meleeInterval) {
+          this.attackTimer = 0;
+          this.performMeleeAttack(onDamagePlayer);
+        }
+      } else {
+        this.state = ENEMY_STATES.CHASE;
+        this.moveTowards(playerPosition, deltaTime);
+        if (this.zombieInstance) {
+          this.zombieInstance.update(deltaTime, true, false, 0, playerPosition);
+        }
+      }
+      if (this.zombieInstance) {
+        this.zombieInstance.group.position.set(this.position.x, 0, this.position.z);
+      }
+      if (this.hitMesh) {
+        this.hitMesh.position.copy(this.position);
+      }
+      return;
+    }
+
     if (this.isDead) {
       this.updateDeathAnimation(deltaTime);
       return;
@@ -721,7 +787,11 @@ export class Enemy {
   }
 
   destroy() {
-    this.scene.remove(this.sprite);
+    if (this.zombieInstance) {
+      this.scene.remove(this.zombieInstance.group);
+      this.zombieInstance.dispose();
+    }
+    if (this.sprite) this.scene.remove(this.sprite);
     this.scene.remove(this.hitMesh);
     if (this.tracerLine) {
       this.scene.remove(this.tracerLine);
