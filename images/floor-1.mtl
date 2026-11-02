@@ -1,0 +1,13 @@
+# floor-1.mtl - Material Definitions for First Floor Campus
+
+newmtl black_solid
+Kd 0.05 0.05 0.05
+
+newmtl white_tiles
+Kd 0.95 0.95 0.95
+
+newmtl boundary_wall
+Kd 0.980 0.902 0.906
+
+newmtl ceiling
+Kd 1.0 1.0 1.0

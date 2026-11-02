@@ -14,6 +14,7 @@ import { GameState, STATES, GAME_MODES } from './GameState.js';
 import { AudioManager } from './AudioManager.js';
 import { InputManager } from './InputManager.js';
 import { level1Data } from '../level/level1Data.js';
+import { firstFloorData } from '../level/firstFloorData.js';
 import { LevelGenerator } from '../level/LevelGenerator.js';
 import { InteractionSystem } from '../interactive/InteractionSystem.js';
 import { Player } from '../player/Player.js';
@@ -440,18 +441,14 @@ export class Game {
         if (this.shootProgression) {
           this.shootProgression.reset();
         }
-        this.restartConfrontBase();
-        this.survivalMode.start(options.playerName);
+        const mapToLoad = options.selectedMap === 'first_floor' ? firstFloorData : level1Data;
+        this.loadLevel(mapToLoad);
+        this.restartConfrontBase(mapToLoad);
+        this.survivalMode.start(options.playerName, options.selectedMap || 'ground');
       } else {
         this.gameState.currentMode = GAME_MODES.CONFRONT_CAMPAIGN;
         if (this.survivalMode) {
           this.survivalMode.stop();
-        }
-        if (this.level && this.level.doors) {
-          this.level.doors.forEach((d) => {
-            d.setOpen(false);
-            d.isLocked = (d.id === 'door_nw_lock' || d.id === 'door_locked_room');
-          });
         }
         this.restart('campaign', options.fromCheckpoint);
         this.hud.showNotification('💥 MODE: CONFRONT (CAMPAIGN)', 3.0);
@@ -459,13 +456,43 @@ export class Game {
     }
   }
 
-  restartConfrontBase() {
+  loadLevel(levelData) {
+    if (this.currentLevelData === levelData && this.level) {
+      return;
+    }
+    if (this.level && typeof this.level.destroy === 'function') {
+      this.level.destroy();
+    }
+    this.currentLevelData = levelData;
+    this.level = new LevelGenerator(this.scene, levelData, this.audio);
+
+    if (this.player) {
+      this.player.level = this.level;
+    }
+    if (this.grenadeManager) {
+      this.grenadeManager.level = this.level;
+    }
+    if (this.enemySpawner) {
+      this.enemySpawner.level = this.level;
+    }
+    if (this.interactionSystem) {
+      this.interactionSystem.level = this.level;
+    }
+    if (this.evadeGame) {
+      this.evadeGame.level = this.level;
+    }
+    if (this.shootProgression) {
+      this.shootProgression.level = this.level;
+    }
+  }
+
+  restartConfrontBase(levelData = level1Data) {
     const startPos = new THREE.Vector3(
-      level1Data.playerStart.x,
-      level1Data.playerStart.y,
-      level1Data.playerStart.z
+      levelData.playerStart.x,
+      levelData.playerStart.y,
+      levelData.playerStart.z
     );
-    this.player.reset(startPos);
+    this.player.reset(startPos, levelData.playerStart.yaw || 0);
     this.rifle.reset();
     this.pistol.reset();
     this.medkit.reset();
@@ -474,6 +501,9 @@ export class Game {
 
     if (this.laserManager) {
       this.laserManager.clear();
+      if (levelData.lasers && levelData.lasers.length > 0) {
+        this.laserManager.initLasers(levelData.lasers);
+      }
     }
     this.enemySpawner.clear();
     this.gameState.reset(0);
@@ -513,6 +543,11 @@ export class Game {
     }
 
     if (checkpointData && checkpointData.player) {
+      if (checkpointData.checkpointId === 'first_floor') {
+        this.loadLevel(firstFloorData);
+      } else {
+        this.loadLevel(level1Data);
+      }
       const cpPos = new THREE.Vector3(
         checkpointData.player.position.x,
         this.player.standHeight,
@@ -568,6 +603,7 @@ export class Game {
     }
 
     if (this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN || mode === 'campaign') {
+      this.loadLevel(level1Data);
       const ropePos = new THREE.Vector3(23.5, 5.3, 57.0);
       this.player.reset(ropePos, -Math.PI / 2);
       this.rifle.reset();

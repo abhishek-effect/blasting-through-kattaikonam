@@ -80,10 +80,13 @@ export class NetworkManager {
     // Local player ID
     this.localId = `p_${Math.random().toString(36).substring(2, 8)}`;
 
-    // Mode voting state ('escape' or 'survive')
+    // Mode and Map voting state ('escape' or 'survive'; 'ground' or 'first_floor')
     this.playerVotes = new Map(); // Map<playerId, mode>
+    this.playerMapVotes = new Map(); // Map<playerId, map>
     this.selectedMode = 'escape';
+    this.selectedMap = 'ground';
     this.playerVotes.set(this.localId, 'escape');
+    this.playerMapVotes.set(this.localId, 'ground');
 
     // Lobby discovery beacon state
     this.beaconInterval = null;
@@ -475,7 +478,8 @@ export class NetworkManager {
 
       case MSG_TYPES.VOTE_UPDATE: {
         const pId = data.playerId || conn.peer;
-        this.playerVotes.set(pId, data.mode);
+        if (data.mode) this.playerVotes.set(pId, data.mode);
+        if (data.map) this.playerMapVotes.set(pId, data.map);
         const summary = this.getVotesSummary();
         const votePayload = {
           type: MSG_TYPES.VOTE_UPDATE,
@@ -681,6 +685,7 @@ export class NetworkManager {
     const payload = {
       type: MSG_TYPES.VOTING_DECIDED,
       mode: winningMode,
+      map: summary.mapWinner || 'ground',
       surviveDuration,
       isSolo
     };
@@ -788,7 +793,9 @@ export class NetworkManager {
     this.isGameRunning = false;
     this.isHost = false;
     this.playerVotes.clear();
+    this.playerMapVotes.clear();
     this.playerVotes.set(this.localId, 'escape');
+    this.playerMapVotes.set(this.localId, 'ground');
   }
 
   sendVote(mode) {
@@ -800,6 +807,30 @@ export class NetworkManager {
       type: MSG_TYPES.VOTE_UPDATE,
       playerId: this.localId,
       mode: mode,
+      map: this.selectedMap,
+      votes: summary
+    };
+
+    if (this.isHost) {
+      this.broadcast(payload);
+      if (this.onVoteUpdate) {
+        this.onVoteUpdate(summary);
+      }
+    } else if (this.hostConn && this.hostConn.open) {
+      this.hostConn.send(payload);
+    }
+  }
+
+  sendMapVote(mapId) {
+    this.selectedMap = mapId;
+    this.playerMapVotes.set(this.localId, mapId);
+
+    const summary = this.getVotesSummary();
+    const payload = {
+      type: MSG_TYPES.VOTE_UPDATE,
+      playerId: this.localId,
+      mode: this.selectedMode,
+      map: mapId,
       votes: summary
     };
 
@@ -833,11 +864,33 @@ export class NetworkManager {
       winner = hostChoice;
     }
 
+    let groundCount = 0;
+    let firstFloorCount = 0;
+    this.playerMapVotes.forEach((m) => {
+      if (m === 'first_floor') firstFloorCount++;
+      else groundCount++;
+    });
+
+    let mapWinner = 'ground';
+    const hostMapChoice = this.playerMapVotes.get(this.localId) || 'ground';
+
+    if (firstFloorCount > groundCount) {
+      mapWinner = 'first_floor';
+    } else if (groundCount > firstFloorCount) {
+      mapWinner = 'ground';
+    } else {
+      mapWinner = hostMapChoice;
+    }
+
     return {
       escape: escapeCount,
       survive: surviveCount,
       winner,
-      hostChoice
+      hostChoice,
+      ground: groundCount,
+      first_floor: firstFloorCount,
+      mapWinner,
+      hostMapChoice
     };
   }
 

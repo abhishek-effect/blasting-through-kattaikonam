@@ -579,9 +579,46 @@ export class HUD {
       this.gameState.emit('startMode', {
         mode: GAME_MODES.CONFRONT_SURVIVAL,
         subMode: 'survival',
-        playerName: confirmedName
+        playerName: confirmedName,
+        selectedMap: this.selectedSurvivalMap || 'ground'
       });
     };
+
+    this.selectedSurvivalMap = 'ground';
+    this.btnSurvivalMapGround = document.getElementById('btn-survival-map-ground');
+    this.btnSurvivalMapFirst = document.getElementById('btn-survival-map-first');
+
+    if (this.btnSurvivalMapGround) {
+      this.btnSurvivalMapGround.addEventListener('click', () => {
+        this.selectedSurvivalMap = 'ground';
+        this.btnSurvivalMapGround.classList.add('active');
+        this.btnSurvivalMapGround.style.background = '#2563eb';
+        this.btnSurvivalMapGround.style.color = '#fff';
+        this.btnSurvivalMapGround.style.borderColor = '#3b82f6';
+        if (this.btnSurvivalMapFirst) {
+          this.btnSurvivalMapFirst.classList.remove('active');
+          this.btnSurvivalMapFirst.style.background = '#1e293b';
+          this.btnSurvivalMapFirst.style.color = '#94a3b8';
+          this.btnSurvivalMapFirst.style.borderColor = '#334155';
+        }
+      });
+    }
+
+    if (this.btnSurvivalMapFirst) {
+      this.btnSurvivalMapFirst.addEventListener('click', () => {
+        this.selectedSurvivalMap = 'first_floor';
+        this.btnSurvivalMapFirst.classList.add('active');
+        this.btnSurvivalMapFirst.style.background = '#2563eb';
+        this.btnSurvivalMapFirst.style.color = '#fff';
+        this.btnSurvivalMapFirst.style.borderColor = '#3b82f6';
+        if (this.btnSurvivalMapGround) {
+          this.btnSurvivalMapGround.classList.remove('active');
+          this.btnSurvivalMapGround.style.background = '#1e293b';
+          this.btnSurvivalMapGround.style.color = '#94a3b8';
+          this.btnSurvivalMapGround.style.borderColor = '#334155';
+        }
+      });
+    }
 
     if (this.btnSurvivalNameConfirm) {
       this.btnSurvivalNameConfirm.addEventListener('click', handleConfirmName);

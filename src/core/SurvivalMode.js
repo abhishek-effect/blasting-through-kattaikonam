@@ -47,7 +47,7 @@ export class SurvivalMode {
    * Starts a new Survival Mode session
    * @param {string} playerName
    */
-  start(playerName = '') {
+  start(playerName = '', selectedMap = 'ground') {
     this.isActive = true;
     this.isIntermission = false;
     this.intermissionTimer = 0;
@@ -55,6 +55,36 @@ export class SurvivalMode {
     this.waveKills = 0;
     this.playerName = playerName || supabaseService.getStoredPlayerName() || 'Survivor';
     this.activeWaveEnemies = [];
+
+    // Assign appropriate spawn points based on active floor
+    if (this.game.level && this.game.level.data && this.game.level.data.id === 2) {
+      this.spawnPoints = [
+        new THREE.Vector3(36, 0, 50),
+        new THREE.Vector3(36, 0, 35),
+        new THREE.Vector3(36, 0, 65),
+        new THREE.Vector3(75, 0, 45), // Grand Atrium
+        new THREE.Vector3(20, 0, 42), // 11A corridor
+        new THREE.Vector3(20, 0, 65), // 11C corridor
+        new THREE.Vector3(60, 0, 20), // North corridor
+        new THREE.Vector3(65, 0, 78), // South corridor
+        new THREE.Vector3(45, 0, 7),  // Staff room
+        new THREE.Vector3(62, 0, 7),  // 12A
+        new THREE.Vector3(59, 0, 92), // 10A
+      ];
+    } else {
+      this.spawnPoints = [
+        new THREE.Vector3(31, 0, 48),  // Central Atrium
+        new THREE.Vector3(48, 0, 24),  // North Central Hallway
+        new THREE.Vector3(20, 0, 40),  // West Corridor
+        new THREE.Vector3(50, 0, 68),  // East Hallway
+        new THREE.Vector3(34, 0, 68),  // South Central Hallway
+        new THREE.Vector3(20, 0, 65),  // West South Corridor
+        new THREE.Vector3(31, 0, 32),  // Central North Hallway
+        new THREE.Vector3(40, 0, 85),  // South Hallway Approach
+        new THREE.Vector3(75, 0, 88),  // Library Corridor
+        new THREE.Vector3(58, 0, 46)   // Seminar Approach
+      ];
+    }
 
     // Ensure all campus doors are unlocked so player can move freely
     if (this.game.level && this.game.level.doors) {
@@ -86,7 +116,8 @@ export class SurvivalMode {
       };
     }
 
-    this.hud.showNotification(`⚔️ SURVIVAL MODE ACTIVATED! CODENAME: ${this.playerName.toUpperCase()}`, 4.0);
+    const floorName = (this.game.level && this.game.level.data && this.game.level.data.name) ? this.game.level.data.name.toUpperCase() : 'CAMPUS';
+    this.hud.showNotification(`⚔️ SURVIVAL ACTIVATED (${floorName})! CODENAME: ${this.playerName.toUpperCase()}`, 4.5);
     this.startWave(1);
   }
 

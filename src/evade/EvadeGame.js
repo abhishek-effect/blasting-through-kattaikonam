@@ -21,6 +21,8 @@ import { EvadeHUD } from './EvadeHUD.js';
 import { EvadeLobbyUI } from './EvadeLobbyUI.js';
 import { STATES } from '../core/GameState.js';
 import { ASSET_PATHS } from '../config/assets.js';
+import { level1Data } from '../level/level1Data.js';
+import { firstFloorData } from '../level/firstFloorData.js';
 
 // Pre-allocated static vectors (zero GC allocations)
 const _egCamDir = new THREE.Vector3();
@@ -100,7 +102,7 @@ export class EvadeGame {
 
     this.network.onVoteUpdate = (votes) => {
       if (this.hud) {
-        this.hud.updateVotingTallies(votes, this.network.selectedMode);
+        this.hud.updateVotingTallies(votes, this.network.selectedMode, this.network.selectedMap);
       }
     };
 
@@ -357,7 +359,7 @@ export class EvadeGame {
     this.hud.setPhotocopyStatus(false);
     this.hud.show();
 
-    // Show the 10-second In-Game Sub-Mode Voting Modal
+    // Show the 10-second In-Game Sub-Mode & Map Voting Modal
     this.hud.showVotingModal(
       payload.duration || 10,
       (mode) => {
@@ -373,6 +375,9 @@ export class EvadeGame {
           this.isVotingPhase = false;
           this.network.finishVotingPhase(this.isSoloMatch);
         }
+      },
+      (mapId) => {
+        this.network.sendMapVote(mapId);
       }
     );
 
@@ -403,11 +408,12 @@ export class EvadeGame {
     }
     this.isVotingPhase = false;
     const mode = payload.mode || 'escape';
+    const map = payload.map || 'ground';
     const surviveDuration = payload.surviveDuration || 120;
     const isSolo = !!payload.isSolo;
 
-    this.hud.showVotingResult(mode, () => {
-      this.beginGameplay(mode, surviveDuration, isSolo);
+    this.hud.showVotingResult({ mode, map }, () => {
+      this.beginGameplay(mode, surviveDuration, isSolo, map);
     });
   }
 
@@ -423,11 +429,36 @@ export class EvadeGame {
   /**
    * Begins actual gameplay once voting is decided
    */
-  beginGameplay(mode = 'escape', surviveDuration = 120, isSolo = false) {
+  beginGameplay(mode = 'escape', surviveDuration = 120, isSolo = false, map = 'ground') {
     this.isMatchRunning = true;
     this.isVotingPhase = false;
     this.isLocalEscaped = false;
     this.isLocalDowned = false;
+    this.isElevatorEscaping = false;
+    this.bleedoutTimer = 45.0;
+    this.subMode = mode;
+    this.selectedMap = map;
+
+    // Load active map
+    if (map === 'first_floor') {
+      if (window.__game) {
+        window.__game.loadLevel(firstFloorData);
+        this.level = window.__game.level;
+      }
+      this.player.reset(
+        new THREE.Vector3(firstFloorData.playerStart.x, firstFloorData.playerStart.y, firstFloorData.playerStart.z),
+        firstFloorData.playerStart.yaw || 0
+      );
+    } else {
+      if (window.__game) {
+        window.__game.loadLevel(level1Data);
+        this.level = window.__game.level;
+      }
+      this.player.reset(
+        new THREE.Vector3(level1Data.playerStart.x, level1Data.playerStart.y, level1Data.playerStart.z),
+        level1Data.playerStart.yaw || 0
+      );
+    }
     this.isElevatorEscaping = false;
     this.bleedoutTimer = 45.0;
     this.subMode = mode;

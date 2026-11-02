@@ -44,6 +44,21 @@ export class Door {
       side: THREE.DoubleSide
     });
 
+    // Mirrored texture for the right door leaf so the knob is on the left (meeting in the middle)
+    const rightDoorTex = loadTexture(ASSET_PATHS.textures.door, 1, 1, '#8b5a2b', '#5c3a21').clone();
+    rightDoorTex.wrapS = THREE.RepeatWrapping;
+    rightDoorTex.repeat.x = -1;
+    rightDoorTex.offset.x = 1;
+    rightDoorTex.needsUpdate = true;
+
+    this.rightDoorMaterial = new THREE.MeshStandardMaterial({
+      map: rightDoorTex,
+      color: 0x8d5b32,
+      roughness: 0.55,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+
     // Deep brown frame
     this.frameMaterial = new THREE.MeshStandardMaterial({
       color: 0x3d2314,
@@ -93,7 +108,7 @@ export class Door {
       this.leftPivot.add(leftMesh);
 
       // Right Leaf Mesh: offset from hinge by -leafW/2
-      const rightMesh = new THREE.Mesh(leafGeo, this.doorMaterial);
+      const rightMesh = new THREE.Mesh(leafGeo, this.rightDoorMaterial);
       rightMesh.position.set(-leafW / 2, this.height / 2, 0);
       rightMesh.castShadow = true;
       rightMesh.receiveShadow = true;
@@ -111,7 +126,7 @@ export class Door {
       this.leftPivot.add(leftMesh);
 
       // Right Leaf Mesh: offset along -Z
-      const rightMesh = new THREE.Mesh(leafGeo, this.doorMaterial);
+      const rightMesh = new THREE.Mesh(leafGeo, this.rightDoorMaterial);
       rightMesh.position.set(0, this.height / 2, -leafW / 2);
       rightMesh.castShadow = true;
       rightMesh.receiveShadow = true;

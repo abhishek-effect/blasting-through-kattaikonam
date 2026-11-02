@@ -20,6 +20,7 @@ import { SecurityKeypad } from '../interactive/SecurityKeypad.js';
 import { RoomPickups } from '../interactive/RoomPickups.js';
 import { DropItemManager } from '../interactive/DropItem.js';
 import { HoldableItem } from '../weapon/HoldableItem.js';
+import { firstFloorData } from '../level/firstFloorData.js';
 
 export class ShootProgression {
   constructor(game) {
@@ -949,7 +950,7 @@ export class ShootProgression {
       }
     }
 
-    // G. Check Elevator Escape Interaction
+    // G. Check Elevator Escape / First Floor Interaction
     if (this.level.elevator) {
       const elev = this.level.elevator;
       const dist = player.position.distanceTo(elev.frontPosition);
@@ -962,14 +963,26 @@ export class ShootProgression {
             isLocked: true
           });
         } else {
-          this.hud.updateInteractionPrompt({
-            title: '[E] ESCAPE VIA ELEVATOR',
-            subtitle: 'Photocopy authenticated. Press E to escape campus!',
-            isLocked: false
-          });
+          if (this.level.data.id === 1) {
+            this.hud.updateInteractionPrompt({
+              title: '[E] ENTER ELEVATOR (FLOOR 1)',
+              subtitle: 'Photocopy authenticated. Press E to ride elevator to First Floor!',
+              isLocked: false
+            });
 
-          if (input && input.checkAndConsumeInteract()) {
-            this.triggerElevatorEscapeCutscene();
+            if (input && input.checkAndConsumeInteract()) {
+              this.triggerElevatorFloor1Transition();
+            }
+          } else {
+            this.hud.updateInteractionPrompt({
+              title: '[E] ESCAPE VIA ELEVATOR',
+              subtitle: 'Photocopy authenticated. Press E to escape campus!',
+              isLocked: false
+            });
+
+            if (input && input.checkAndConsumeInteract()) {
+              this.triggerElevatorEscapeCutscene();
+            }
           }
         }
         return;
@@ -1037,6 +1050,65 @@ export class ShootProgression {
     }
     // Spawn Boss 2 on the Seminar Hall stage (X: 82.0, Z: 46.5)
     this.bossEnemy = this.enemySpawner.spawnBoss2(82.0, 46.5);
+  }
+
+  triggerElevatorFloor1Transition() {
+    if (this.isEscaping) return;
+    this.isEscaping = true;
+
+    // 1. Black Screen Overlay
+    if (this.endingOverlayEl) {
+      this.endingOverlayEl.classList.remove('hidden');
+      this.endingOverlayEl.style.opacity = '1';
+    }
+
+    // 2. Play elevator ride sound sequence
+    const onArrived = () => {
+      // 3. Save checkpoint for Floor 1
+      this.saveCheckpoint('first_floor', 'First Floor Campus', { x: 20.0, y: 1.65, z: 27.0 });
+
+      // 4. Load Floor 1 Level
+      this.game.loadLevel(firstFloorData);
+      this.level = this.game.level;
+
+      // 5. Place player outside Floor 1 elevator
+      const spawn = new THREE.Vector3(20.0, 1.65, 27.0);
+      this.player.reset(spawn, Math.PI / 2);
+      this.player.health = 100;
+
+      // 6. Spawn Floor 1 enemies/zombies
+      if (this.enemySpawner) {
+        this.enemySpawner.clear();
+        this.enemySpawner.spawnLevelEnemies(firstFloorData.spawnZones, false);
+      }
+
+      // 7. Fade out black overlay
+      if (this.endingOverlayEl) {
+        this.endingOverlayEl.style.transition = 'opacity 1.0s ease';
+        this.endingOverlayEl.style.opacity = '0';
+        setTimeout(() => {
+          this.endingOverlayEl.classList.add('hidden');
+          this.isEscaping = false;
+        }, 1000);
+      } else {
+        this.isEscaping = false;
+      }
+
+      // 8. Re-request pointer lock and resume BGM
+      if (this.audio) {
+        this.audio.playBGM(ASSET_PATHS.audio.metalBgm, 0.45);
+      }
+      this.input.requestPointerLock();
+
+      this.hud.showNotification('🏢 ARRIVED AT FIRST FLOOR! CHECKPOINT SAVED!', 5.0);
+      this.updateObjectiveUI('🏢 EXPLORE FIRST FLOOR CLASSROOMS & GRAND ATRIUM STAIRS', 0, 1);
+    };
+
+    if (this.audio && this.audio.playElevatorSequence) {
+      this.audio.playElevatorSequence(onArrived);
+    } else {
+      setTimeout(onArrived, 4000);
+    }
   }
 
   triggerElevatorEscapeCutscene() {
@@ -1172,6 +1244,20 @@ export class ShootProgression {
       this.hackedComputersCount = 3;
       this.hasFoundKey = true;
       this.hasFoundVernier = true;
+    } else if (cp.checkpointId === 'first_floor') {
+      this.isComputerLabUnlocked = true;
+      this.isLibraryUnlocked = true;
+      this.isPhysicsLabUnlocked = true;
+      this.isSeminarHallUnlocked = true;
+      this.isBossDead = true;
+      this.isBossSpawned = true;
+      this.hackedComputersCount = 3;
+      this.hasFoundKey = true;
+      this.hasFoundVernier = true;
+      if (this.game) {
+        this.game.loadLevel(firstFloorData);
+        this.level = this.game.level;
+      }
     }
 
     if (p.computers && Array.isArray(p.computers)) {
@@ -1220,6 +1306,9 @@ export class ShootProgression {
       this.startPhysicsLabWave(false);
     } else if (cp.checkpointId === 'seminar_hall_unlocked') {
       this.hud.showNotification('🏛️ SEMINAR HALL UNLOCKED! ENTER AUDITORIUM FOR THE FINAL BOSS!', 5.0);
+    } else if (cp.checkpointId === 'first_floor') {
+      this.hud.showNotification('🏢 RESUMED AT FIRST FLOOR CAMPUS!', 5.0);
+      this.updateObjectiveUI('🏢 EXPLORE FIRST FLOOR CLASSROOMS & GRAND ATRIUM STAIRS', 0, 1);
     }
 
     if (this.hud && typeof this.hud.startCheckpointCountdown === 'function') {

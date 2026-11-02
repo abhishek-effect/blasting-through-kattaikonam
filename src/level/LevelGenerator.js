@@ -119,6 +119,7 @@ export class LevelGenerator {
     this.pillars = [];
     this.furniture = [];
     this.posters = [];
+    this.staircases = [];
     this.elevator = null;
     this.seminarGate = null;
     this.mapModel = null;
@@ -150,33 +151,38 @@ export class LevelGenerator {
   buildMap() {
     const h = this.data.ceilingHeight || 5.0;
 
-    // 1. Build deterministic AABB colliders for all 54 walls
+    // 1. Build deterministic AABB colliders for all walls
     this.buildWallColliders(h);
 
-    // 2. Build the Two Cylindrical Pillars matching circles on ground-floor-newer-plan
+    // 2. Build the Cylindrical Pillars matching circles on blueprint
     this.buildPillars(h);
 
-    // 3. Build Functional Interactable Doors on every room with door-texture.jpg
+    // 3. Build Functional Interactable Doors on every room
     this.buildDoors();
 
-    // 4. Build Accessible Elevator replacing door at West Wing doorway (x: 14.0, z: 39.0)
+    // 4. Build Accessible Elevator
     if (this.data.elevator) {
       this.elevator = new Elevator(this.scene, this.data.elevator);
       const elevColliders = this.elevator.getColliders();
       elevColliders.forEach((box) => this.colliders.push(box));
     }
 
-    // 5. Build Seminar Hall Security Gate (x: 55, z: 45.5, width: 5.0m, locked until 20 kills)
-    this.buildSeminarGate(h);
+    // 5. Build Seminar Hall Security Gate (Ground floor only)
+    if (this.data.id === 1) {
+      this.buildSeminarGate(h);
+    }
 
-    // 6. Build 3D Collide-able Tables and Chairs in CS, Bio, Physics Labs, and Library
+    // 6. Build Staircases (Ground floor stairwells with invisible barrier; Floor 1 Grand Atrium stairs & NW stairs)
+    this.buildStaircases();
+
+    // 7. Build Furniture (Labs on ground floor, Classrooms on floor 1)
     this.buildFurniture();
 
-    // 7. Build 3D Props (Bookshelves, Wardrobes, Whiteboard) from models folder
-    this.buildPropsFromModels();
-
-    // 8. Mount Educational Posters on Lab Walls
-    this.buildPosters();
+    // 8. Build 3D Props (Ground floor only; Floor 1 wardrobes & whiteboards built in classrooms)
+    if (this.data.id === 1) {
+      this.buildPropsFromModels();
+      this.buildPosters();
+    }
 
     // 9. Initialize 2D Spatial Hash Grid for high-performance O(1) collision queries
     this.initSpatialGrid();
@@ -185,8 +191,9 @@ export class LevelGenerator {
   buildWallColliders(h = 5.0) {
     const wallThick = 0.4;
     const halfThick = wallThick / 2;
+    const walls = this.data.walls || MAPPU_WALLS;
 
-    MAPPU_WALLS.forEach((w) => {
+    walls.forEach((w) => {
       const box = new THREE.Box3();
       if (Math.abs(w.minZ - w.maxZ) < 0.01) {
         // Wall runs along X axis
@@ -211,23 +218,24 @@ export class LevelGenerator {
   }
 
   /**
-   * Builds the two prominent cylindrical pillars to the left of black tiles
+   * Builds cylindrical pillars matching blueprint circles
    */
   buildPillars(h = 5.0) {
-    const pillarRadius = 0.85;
-    const pillarGeo = new THREE.CylinderGeometry(pillarRadius, pillarRadius, h, 32);
+    const defaultPillars = [
+      { id: 'pillar_north', x: 19.5, z: 31.0, radius: 0.85 },
+      { id: 'pillar_south', x: 19.5, z: 68.0, radius: 0.85 },
+    ];
+    const pillarList = this.data.pillars || defaultPillars;
+
     const pillarMat = new THREE.MeshStandardMaterial({
       color: 0xfae6e7, // Light pink matching campus walls
       roughness: 0.65,
       metalness: 0.1,
     });
 
-    const pillarCoords = [
-      { id: 'pillar_north', x: 19.5, z: 31.0 },
-      { id: 'pillar_south', x: 19.5, z: 68.0 },
-    ];
-
-    pillarCoords.forEach((p) => {
+    pillarList.forEach((p) => {
+      const radius = p.radius || 0.85;
+      const pillarGeo = new THREE.CylinderGeometry(radius, radius, h, 32);
       const mesh = new THREE.Mesh(pillarGeo, pillarMat);
       mesh.position.set(p.x, h / 2, p.z);
       mesh.matrixAutoUpdate = false;
@@ -237,8 +245,8 @@ export class LevelGenerator {
 
       // Robust cylinder AABB collider
       const box = new THREE.Box3();
-      box.min.set(p.x - pillarRadius, 0, p.z - pillarRadius);
-      box.max.set(p.x + pillarRadius, h, p.z + pillarRadius);
+      box.min.set(p.x - radius, 0, p.z - radius);
+      box.max.set(p.x + radius, h, p.z + radius);
       this.colliders.push(box);
     });
   }
@@ -248,25 +256,41 @@ export class LevelGenerator {
    */
   buildDoors() {
     this.doors = [];
-    const doorConfigs = [
-      // West Wing Doors
-      { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      // Elevator directly replaces the door at x: 14, z: 39 (no redundant door)
-      { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      { id: 'door_bio_lab', name: 'BIOLOGY LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-      { id: 'door_stairs_sw', name: 'SOUTH STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
+    let doorConfigs = [];
+    if (this.data.id === 2 || this.data.doorways) {
+      doorConfigs = (this.data.doorways || []).map((d) => ({
+        id: d.id,
+        name: d.label || d.name,
+        x: d.x,
+        z: d.z,
+        width: d.w || d.width || 4.0,
+        height: d.height || 3.5,
+        dir: d.dir || 'x',
+        swingDir: d.swingDir || 1,
+        isLocked: !!d.isLocked,
+        requiresKills: d.requiresKills || 0
+      }));
+    } else {
+      doorConfigs = [
+        // West Wing Doors
+        { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+        // Elevator directly replaces the door at x: 14, z: 39 (no redundant door)
+        { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+        { id: 'door_bio_lab', name: 'BIOLOGY LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
+        { id: 'door_stairs_sw', name: 'SOUTH STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
 
-      // North Wall Doors
-      { id: 'door_nw_lock', name: 'DOOR LOCKED', x: 6, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
-      { id: 'door_nw_stairs', name: 'NORTH STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
-      { id: 'door_phy_lab', name: 'PHYSICS LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
-      { id: 'door_locked_room', name: 'FACULTY ARCHIVES', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
-      { id: 'door_unlockable_room', name: 'UNLOCKABLE ROOM', x: 90, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+        // North Wall Doors
+        { id: 'door_nw_lock', name: 'DOOR LOCKED', x: 6, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
+        { id: 'door_nw_stairs', name: 'NORTH STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+        { id: 'door_phy_lab', name: 'PHYSICS LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
+        { id: 'door_locked_room', name: 'FACULTY ARCHIVES', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
+        { id: 'door_unlockable_room', name: 'UNLOCKABLE ROOM', x: 90, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
 
-      // South Wall Doors
-      { id: 'door_board_room', name: 'BOARD ROOM', x: 55, z: 85, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
-      { id: 'door_library', name: 'CAMPUS LIBRARY', x: 80, z: 83, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
-    ];
+        // South Wall Doors
+        { id: 'door_board_room', name: 'BOARD ROOM', x: 55, z: 85, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
+        { id: 'door_library', name: 'CAMPUS LIBRARY', x: 80, z: 83, width: 4.0, height: 3.5, dir: 'x', swingDir: 1 },
+      ];
+    }
 
     doorConfigs.forEach((cfg) => {
       const door = new Door(this.scene, this.colliders, this.audio, cfg);
@@ -287,8 +311,8 @@ export class LevelGenerator {
    * Loads mappu.mtl and mappu.obj
    */
   loadMappu() {
-    const mtlUrl = ASSET_PATHS.models.mtl || './images/mappu.mtl';
-    const objUrl = ASSET_PATHS.models.obj || './images/mappu.obj';
+    const mtlUrl = this.data.mtl || ASSET_PATHS.models.mtl || './images/mappu.mtl';
+    const objUrl = this.data.obj || ASSET_PATHS.models.obj || './images/mappu.obj';
 
     const mtlLoader = new MTLLoader();
     mtlLoader.load(
@@ -345,11 +369,6 @@ export class LevelGenerator {
         child.matrixAutoUpdate = false;
         child.updateMatrix();
 
-        const floorTex = loadTexture(ASSET_PATHS.textures.floor, 1, 1, '#ffffff', '#e0e0e0');
-        floorTex.wrapS = THREE.RepeatWrapping;
-        floorTex.wrapT = THREE.RepeatWrapping;
-        floorTex.repeat.set(30, 30);
-
         const wallTex = loadTexture(assetUrl('/images/textures/white-wall-texture.jpg'), 1, 1, '#ffffff', '#f5f5f5');
         wallTex.wrapS = THREE.RepeatWrapping;
         wallTex.wrapT = THREE.RepeatWrapping;
@@ -359,11 +378,7 @@ export class LevelGenerator {
           mat.side = THREE.DoubleSide;
           mat.roughness = 0.75;
           mat.metalness = 0.05;
-          if (mat.name && (mat.name.includes('white_tiles') || mat.name.includes('tiles') || mat.name.includes('floor'))) {
-            mat.map = floorTex;
-            mat.color.setHex(0xffffff);
-            mat.roughness = 0.65;
-          } else if (mat.name && (mat.name === 'boundary_wall' || (!mat.name.includes('black') && !mat.name.includes('ceiling')))) {
+          if (mat.name && (mat.name === 'boundary_wall' || (!mat.name.includes('black') && !mat.name.includes('white') && !mat.name.includes('ceiling')))) {
             mat.map = wallTex;
             mat.color.setHex(0xffffff);
             mat.roughness = 0.85;
@@ -411,8 +426,27 @@ export class LevelGenerator {
     this.scene.add(fillSun);
     this.lights.push(fillSun);
 
-    // 4. Campus Fluorescent Tube Luminaires Grid (17 bright fixtures at Y = 4.7)
-    const lightPositions = [
+    // 4. Campus Fluorescent Tube Luminaires Grid
+    const lightPositions = (this.data.id === 2) ? [
+      { x: 36.0, y: 4.7, z: 50.0, color: 0xfff8ee, intensity: 2.6, range: 30 },
+      { x: 36.0, y: 4.7, z: 35.0, color: 0xfff8ee, intensity: 2.5, range: 30 },
+      { x: 36.0, y: 4.7, z: 65.0, color: 0xfff8ee, intensity: 2.5, range: 30 },
+      { x: 75.0, y: 4.7, z: 45.0, color: 0xfff5e6, intensity: 3.2, range: 36 },
+      { x: 90.0, y: 4.7, z: 45.0, color: 0xffeedd, intensity: 2.8, range: 30 },
+      { x: 45.0, y: 4.7, z: 7.0,  color: 0xffeedd, intensity: 2.4, range: 24 }, // Staff Room
+      { x: 62.0, y: 4.7, z: 7.0,  color: 0xfff5e6, intensity: 2.4, range: 24 }, // 12A
+      { x: 77.0, y: 4.7, z: 7.0,  color: 0xfff5e6, intensity: 2.4, range: 24 }, // 12B
+      { x: 93.0, y: 4.7, z: 7.0,  color: 0xfff5e6, intensity: 2.4, range: 24 }, // 12C
+      { x: 7.0,  y: 4.7, z: 27.0, color: 0xe6f2ff, intensity: 2.4, range: 24 }, // Elevator Lobby
+      { x: 7.0,  y: 4.7, z: 42.0, color: 0xffeedd, intensity: 2.4, range: 24 }, // 11A
+      { x: 7.0,  y: 4.7, z: 57.0, color: 0xfff5e6, intensity: 2.4, range: 24 }, // 11B
+      { x: 7.0,  y: 4.7, z: 72.0, color: 0xe6fff0, intensity: 2.4, range: 24 }, // 11C
+      { x: 7.0,  y: 4.7, z: 89.0, color: 0xfff0e6, intensity: 2.4, range: 24 }, // Option 1
+      { x: 59.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.4, range: 24 }, // 10A
+      { x: 76.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.4, range: 24 }, // 10B
+      { x: 92.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.4, range: 24 }, // 10C
+      { x: 42.0, y: 4.7, z: 78.0, color: 0xffe0cc, intensity: 2.4, range: 24 }, // Pillar South
+    ] : [
       { x: 34.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // South Spawn Hall
       { x: 55.0, y: 4.7, z: 92.5, color: 0xfff5e6, intensity: 2.2, range: 26 }, // Board Room
       { x: 82.0, y: 4.7, z: 91.5, color: 0xfff5e6, intensity: 2.5, range: 28 }, // Library
@@ -511,6 +545,11 @@ export class LevelGenerator {
    */
   buildFurniture() {
     this.furniture = [];
+
+    if (this.data.id === 2) {
+      this.buildClassrooms();
+      return;
+    }
 
     // Pure white chair materials
     const chairCushionMat = new THREE.MeshStandardMaterial({
@@ -1643,5 +1682,525 @@ export class LevelGenerator {
   resolveSphereCollision(position, radius = 0.45) {
     this.resolveAxisCollision(position, radius, 'x');
     this.resolveAxisCollision(position, radius, 'z');
+  }
+
+  buildStaircases() {
+    this.staircases = [];
+
+    const stepMat = new THREE.MeshStandardMaterial({
+      color: 0xc8c8c8,
+      roughness: 0.55,
+      metalness: 0.1,
+    });
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x222222,
+      roughness: 0.25,
+      metalness: 0.85,
+    });
+
+    if (this.data.id === 1) {
+      // Ground Floor: Two stairwells with actual 3D stairs blocked by invisible wall
+      // 1. South Stairwell (stairs_sw, doorway at x: 20, z: 91)
+      this.createFlight({
+        startX: 17.0, startY: 0, startZ: 93.0,
+        dir: 'x-',
+        stepCount: 16,
+        stepWidth: 3.4,
+        stepTread: 0.65,
+        stepRise: 0.22,
+        stepMat, railMat,
+        blocked: true
+      });
+
+      // 2. North Stairwell (nw_stairs, doorway at x: 24, z: 10)
+      this.createFlight({
+        startX: 24.0, startY: 0, startZ: 8.5,
+        dir: 'z-',
+        stepCount: 16,
+        stepWidth: 3.4,
+        stepTread: 0.42,
+        stepRise: 0.22,
+        stepMat, railMat,
+        blocked: true
+      });
+    } else if (this.data.id === 2) {
+      // First Floor:
+      // 1. North Stairwell (nw_stairs, doorway at x: 24, z: 10)
+      this.createFlight({
+        startX: 24.0, startY: 0, startZ: 8.5,
+        dir: 'z-',
+        stepCount: 16,
+        stepWidth: 3.4,
+        stepTread: 0.42,
+        stepRise: 0.22,
+        stepMat, railMat,
+        blocked: true
+      });
+
+      // 2. Grand Open Staircase in Atrium (X: 62..98, Z: 25..65)
+      this.createGrandAtriumStairs(stepMat, railMat);
+    }
+  }
+
+  createFlight({ startX, startY, startZ, dir, stepCount, stepWidth, stepTread, stepRise, stepMat, railMat, blocked }) {
+    const flightGroup = new THREE.Group();
+
+    for (let i = 0; i < stepCount; i++) {
+      const stepH = (i + 1) * stepRise;
+      let x = startX;
+      let z = startZ;
+      let w = stepWidth;
+      let d = stepTread;
+
+      if (dir === 'x-') {
+        x = startX - (i * stepTread);
+        w = stepTread;
+        d = stepWidth;
+      } else if (dir === 'x+') {
+        x = startX + (i * stepTread);
+        w = stepTread;
+        d = stepWidth;
+      } else if (dir === 'z-') {
+        z = startZ - (i * stepTread);
+        w = stepWidth;
+        d = stepTread;
+      } else if (dir === 'z+') {
+        z = startZ + (i * stepTread);
+        w = stepWidth;
+        d = stepTread;
+      }
+
+      // Step solid box
+      const stepGeo = new THREE.BoxGeometry(w, stepRise, d);
+      const stepMesh = new THREE.Mesh(stepGeo, stepMat);
+      stepMesh.position.set(x, startY + stepH - stepRise / 2, z);
+      flightGroup.add(stepMesh);
+
+      // Railing posts every 3 steps
+      if (i % 3 === 0 || i === stepCount - 1) {
+        const postGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.95, 8);
+        const postY = startY + stepH + 0.475;
+        if (dir.startsWith('x')) {
+          const p1 = new THREE.Mesh(postGeo, railMat);
+          p1.position.set(x, postY, z - d / 2 + 0.08);
+          flightGroup.add(p1);
+
+          const p2 = new THREE.Mesh(postGeo, railMat);
+          p2.position.set(x, postY, z + d / 2 - 0.08);
+          flightGroup.add(p2);
+        } else {
+          const p1 = new THREE.Mesh(postGeo, railMat);
+          p1.position.set(x - w / 2 + 0.08, postY, z);
+          flightGroup.add(p1);
+
+          const p2 = new THREE.Mesh(postGeo, railMat);
+          p2.position.set(x + w / 2 - 0.08, postY, z);
+          flightGroup.add(p2);
+        }
+      }
+    }
+
+    // Top handrail slope bars
+    const totalDist = stepCount * stepTread;
+    const totalHeight = stepCount * stepRise;
+    const railLength = Math.hypot(totalDist, totalHeight);
+    const railAngle = Math.atan2(totalHeight, totalDist);
+
+    if (dir.startsWith('x')) {
+      const sign = dir === 'x-' ? -1 : 1;
+      const railGeo = new THREE.CylinderGeometry(0.04, 0.04, railLength, 8);
+      railGeo.rotateZ(sign * railAngle);
+
+      const r1 = new THREE.Mesh(railGeo, railMat);
+      r1.position.set(startX + sign * (totalDist / 2), startY + totalHeight / 2 + 0.95, startZ - stepWidth / 2 + 0.08);
+      flightGroup.add(r1);
+
+      const r2 = new THREE.Mesh(railGeo, railMat);
+      r2.position.set(startX + sign * (totalDist / 2), startY + totalHeight / 2 + 0.95, startZ + stepWidth / 2 - 0.08);
+      flightGroup.add(r2);
+    } else {
+      const sign = dir === 'z-' ? -1 : 1;
+      const railGeo = new THREE.CylinderGeometry(0.04, 0.04, railLength, 8);
+      railGeo.rotateX(-sign * railAngle);
+
+      const r1 = new THREE.Mesh(railGeo, railMat);
+      r1.position.set(startX - stepWidth / 2 + 0.08, startY + totalHeight / 2 + 0.95, startZ + sign * (totalDist / 2));
+      flightGroup.add(r1);
+
+      const r2 = new THREE.Mesh(railGeo, railMat);
+      r2.position.set(startX + stepWidth / 2 - 0.08, startY + totalHeight / 2 + 0.95, startZ + sign * (totalDist / 2));
+      flightGroup.add(r2);
+    }
+
+    this.scene.add(flightGroup);
+    this.staircases.push(flightGroup);
+
+    // Invisible collision wall to block climbing
+    if (blocked) {
+      const barrier = new THREE.Box3();
+      if (dir === 'x-') {
+        barrier.min.set(startX - 0.6, 0, startZ - stepWidth / 2 - 0.2);
+        barrier.max.set(startX + 0.6, 5.0, startZ + stepWidth / 2 + 0.2);
+      } else if (dir === 'x+') {
+        barrier.min.set(startX - 0.6, 0, startZ - stepWidth / 2 - 0.2);
+        barrier.max.set(startX + 0.6, 5.0, startZ + stepWidth / 2 + 0.2);
+      } else if (dir === 'z-') {
+        barrier.min.set(startX - stepWidth / 2 - 0.2, 0, startZ - 0.6);
+        barrier.max.set(startX + stepWidth / 2 + 0.2, 5.0, startZ + 0.6);
+      } else {
+        barrier.min.set(startX - stepWidth / 2 - 0.2, 0, startZ - 0.6);
+        barrier.max.set(startX + stepWidth / 2 + 0.2, 5.0, startZ + 0.6);
+      }
+      this.colliders.push(barrier);
+    }
+  }
+
+  createGrandAtriumStairs(stepMat, railMat) {
+    const atriumGroup = new THREE.Group();
+
+    // 1. Central Flight (ascending towards +X from X: 64 to X: 76, width 7.0m, rising 0 to 2.4m)
+    const count1 = 12;
+    const rise1 = 0.20;
+    const tread1 = 0.90;
+    for (let i = 0; i < count1; i++) {
+      const x = 64 + i * tread1;
+      const y = (i + 1) * rise1;
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(tread1, rise1, 7.0), stepMat);
+      stepMesh.position.set(x + tread1 / 2, y - rise1 / 2, 45.0);
+      atriumGroup.add(stepMesh);
+
+      const box = new THREE.Box3();
+      box.min.set(x, 0, 41.5);
+      box.max.set(x + tread1, y, 48.5);
+      this.colliders.push(box);
+    }
+
+    // 2. Mid Landing (X: 75..84, Z: 32..58 at Y: 2.4m, thickness 0.3m)
+    const landingMesh = new THREE.Mesh(new THREE.BoxGeometry(9.0, 0.3, 26.0), stepMat);
+    landingMesh.position.set(79.5, 2.25, 45.0);
+    atriumGroup.add(landingMesh);
+
+    const landBox = new THREE.Box3();
+    landBox.min.set(75.0, 0, 32.0);
+    landBox.max.set(84.0, 2.4, 58.0);
+    this.colliders.push(landBox);
+
+    // Support pillars under landing
+    [
+      [77.0, 35.0], [82.0, 35.0],
+      [77.0, 45.0], [82.0, 45.0],
+      [77.0, 55.0], [82.0, 55.0],
+    ].forEach(([px, pz]) => {
+      const pilGeo = new THREE.CylinderGeometry(0.35, 0.35, 2.4, 16);
+      const pilMesh = new THREE.Mesh(pilGeo, stepMat);
+      pilMesh.position.set(px, 1.2, pz);
+      atriumGroup.add(pilMesh);
+    });
+
+    // 3. Dual Split Flights (rising from Y: 2.4 to Y: 4.8)
+    // North branch (X: 84..94, ascending towards -Z, Z: 40 down to 28)
+    const count2 = 12;
+    const rise2 = 0.20;
+    const tread2 = 0.95;
+    for (let i = 0; i < count2; i++) {
+      const z = 40.0 - i * tread2;
+      const y = 2.4 + (i + 1) * rise2;
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(4.5, rise2, tread2), stepMat);
+      stepMesh.position.set(88.0, y - rise2 / 2, z - tread2 / 2);
+      atriumGroup.add(stepMesh);
+
+      const b = new THREE.Box3();
+      b.min.set(85.75, 0, z - tread2);
+      b.max.set(90.25, y, z);
+      this.colliders.push(b);
+    }
+
+    // South branch (X: 84..94, ascending towards +Z, Z: 50 up to 62)
+    for (let i = 0; i < count2; i++) {
+      const z = 50.0 + i * tread2;
+      const y = 2.4 + (i + 1) * rise2;
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(4.5, rise2, tread2), stepMat);
+      stepMesh.position.set(88.0, y - rise2 / 2, z + tread2 / 2);
+      atriumGroup.add(stepMesh);
+
+      const b = new THREE.Box3();
+      b.min.set(85.75, 0, z);
+      b.max.set(90.25, y, z + tread2);
+      this.colliders.push(b);
+    }
+
+    this.scene.add(atriumGroup);
+    this.staircases.push(atriumGroup);
+  }
+
+  buildClassrooms() {
+    const classRooms = (this.data.rooms || []).filter((r) => r.isClass);
+
+    const deskMat = new THREE.MeshStandardMaterial({
+      color: 0x795548,
+      roughness: 0.5,
+      metalness: 0.05,
+    });
+    const deskFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x37474f,
+      roughness: 0.4,
+      metalness: 0.7,
+    });
+    const chairMat = new THREE.MeshStandardMaterial({
+      color: 0x1976d2,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
+    const wardrobeMat = new THREE.MeshStandardMaterial({
+      color: 0x4e342e,
+      roughness: 0.65,
+      metalness: 0.08,
+    });
+    const handleMat = new THREE.MeshStandardMaterial({
+      color: 0xffd54f,
+      roughness: 0.3,
+      metalness: 0.85,
+    });
+    const wbMat = new THREE.MeshStandardMaterial({
+      color: 0xfdfdfd,
+      roughness: 0.12,
+      metalness: 0.05,
+    });
+    const wbFrameMat = new THREE.MeshStandardMaterial({
+      color: 0xb0bec5,
+      roughness: 0.3,
+      metalness: 0.8,
+    });
+
+    classRooms.forEach((r) => {
+      const classGroup = new THREE.Group();
+      const halfW = r.w / 2;
+      const halfL = r.l / 2;
+      const minX = r.x - halfW;
+      const maxX = r.x + halfW;
+      const minZ = r.z - halfL;
+      const maxZ = r.z + halfL;
+
+      // 1. Student Desks and Chairs (Facing the door direction!)
+      const cols = 2;
+      const rows = 3;
+      const colSpacing = (r.doorDir.includes('x')) ? 2.6 : 3.0;
+      const rowSpacing = (r.doorDir.includes('x')) ? 3.0 : 2.6;
+
+      for (let c = 0; c < cols; c++) {
+        for (let row = 0; row < rows; row++) {
+          const colOff = (c - (cols - 1) / 2) * colSpacing;
+          const rowOff = (row - (rows - 1) / 2) * rowSpacing;
+
+          let deskX = r.x;
+          let deskZ = r.z;
+          let chairX = r.x;
+          let chairZ = r.z;
+
+          if (r.doorDir === 'z+') {
+            // Door is south (+Z), desks face south (+Z), chairs are north (-Z) of desk
+            deskX = r.x + colOff;
+            deskZ = r.z + rowOff;
+            chairX = deskX;
+            chairZ = deskZ - 0.55;
+          } else if (r.doorDir === 'x+') {
+            // Door is east (+X), desks face east (+X), chairs are west (-X) of desk
+            deskX = r.x + rowOff;
+            deskZ = r.z + colOff;
+            chairX = deskX - 0.55;
+            chairZ = deskZ;
+          } else {
+            // Door is north (-Z), desks face north (-Z), chairs are south (+Z) of desk
+            deskX = r.x + colOff;
+            deskZ = r.z + rowOff;
+            chairX = deskX;
+            chairZ = deskZ + 0.55;
+          }
+
+          // Single student desk
+          const deskTopW = (r.doorDir.includes('x')) ? 0.7 : 1.2;
+          const deskTopD = (r.doorDir.includes('x')) ? 1.2 : 0.7;
+          const deskTop = new THREE.Mesh(new THREE.BoxGeometry(deskTopW, 0.05, deskTopD), deskMat);
+          deskTop.position.set(deskX, 0.75, deskZ);
+          classGroup.add(deskTop);
+
+          // 4 Metal Desk Legs
+          [
+            [-deskTopW / 2 + 0.06, -deskTopD / 2 + 0.06],
+            [deskTopW / 2 - 0.06, -deskTopD / 2 + 0.06],
+            [-deskTopW / 2 + 0.06, deskTopD / 2 - 0.06],
+            [deskTopW / 2 - 0.06, deskTopD / 2 - 0.06],
+          ].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.73, 0.04), deskFrameMat);
+            leg.position.set(deskX + ox, 0.365, deskZ + oz);
+            classGroup.add(leg);
+          });
+
+          // Student Chair
+          const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.42), chairMat);
+          chairSeat.position.set(chairX, 0.45, chairZ);
+          classGroup.add(chairSeat);
+
+          // Chair Backrest
+          const backGeo = new THREE.BoxGeometry(0.40, 0.30, 0.03);
+          const backMesh = new THREE.Mesh(backGeo, chairMat);
+          let backX = chairX;
+          let backZ = chairZ;
+          if (r.doorDir === 'z+') backZ -= 0.18;
+          else if (r.doorDir === 'x+') backX -= 0.18;
+          else backZ += 0.18;
+          backMesh.position.set(backX, 0.68, backZ);
+          if (r.doorDir.includes('x')) backMesh.rotation.y = Math.PI / 2;
+          classGroup.add(backMesh);
+
+          // Chair legs
+          [
+            [-0.16, -0.16], [0.16, -0.16],
+            [-0.16, 0.16], [0.16, 0.16]
+          ].forEach(([ox, oz]) => {
+            const cLeg = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.43, 0.03), deskFrameMat);
+            cLeg.position.set(chairX + ox, 0.215, chairZ + oz);
+            classGroup.add(cLeg);
+          });
+
+          // AABB Collider for desk
+          const deskBox = new THREE.Box3();
+          deskBox.min.set(deskX - deskTopW / 2, 0, deskZ - deskTopD / 2);
+          deskBox.max.set(deskX + deskTopW / 2, 0.85, deskZ + deskTopD / 2);
+          this.colliders.push(deskBox);
+        }
+      }
+
+      // 2. Whiteboard mounted on the wall near the doorway
+      let wbX = r.doorPos.x;
+      let wbZ = r.doorPos.z;
+      let wbRotY = 0;
+      let wbW = 3.2;
+      let wbH = 1.6;
+
+      if (r.doorDir === 'z+') {
+        // Wall at Z = 14 (South wall). Door is at doorPos.
+        wbZ = r.doorPos.z - 0.15;
+        wbX = (r.doorPos.x > r.x) ? (r.doorPos.x - 3.2) : (r.doorPos.x + 3.2);
+        wbRotY = Math.PI; // Face North into room
+      } else if (r.doorDir === 'x+') {
+        // Wall at X = 14 (East wall). Door is at doorPos.
+        wbX = r.doorPos.x - 0.15;
+        wbZ = (r.doorPos.z > r.z) ? (r.doorPos.z - 2.8) : (r.doorPos.z + 2.8);
+        wbRotY = -Math.PI / 2; // Face West into room
+      } else {
+        // Wall at Z = 85 (North wall). Door is at doorPos.
+        wbZ = r.doorPos.z + 0.15;
+        wbX = (r.doorPos.x > r.x) ? (r.doorPos.x - 3.2) : (r.doorPos.x + 3.2);
+        wbRotY = 0; // Face South into room
+      }
+
+      const wbGroup = new THREE.Group();
+      wbGroup.position.set(wbX, 0, wbZ);
+      wbGroup.rotation.y = wbRotY;
+
+      const wbFrame = new THREE.Mesh(new THREE.BoxGeometry(wbW, wbH, 0.06), wbFrameMat);
+      wbFrame.position.set(0, 2.0, 0);
+      wbGroup.add(wbFrame);
+
+      const wbFace = new THREE.Mesh(new THREE.BoxGeometry(wbW - 0.12, wbH - 0.12, 0.04), wbMat);
+      wbFace.position.set(0, 2.0, 0.02);
+      wbGroup.add(wbFace);
+
+      // Marker tray
+      const tray = new THREE.Mesh(new THREE.BoxGeometry(wbW - 0.3, 0.04, 0.12), wbFrameMat);
+      tray.position.set(0, 2.0 - wbH / 2 + 0.02, 0.07);
+      wbGroup.add(tray);
+
+      classGroup.add(wbGroup);
+
+      // 3. Tall Wooden Wardrobe at the corner
+      let wardX = minX + 1.2;
+      let wardZ = minZ + 1.2;
+      let wardRotY = 0;
+
+      if (r.doorDir === 'z+') {
+        // North-West corner
+        wardX = minX + 1.2;
+        wardZ = minZ + 0.9;
+        wardRotY = 0;
+      } else if (r.doorDir === 'x+') {
+        // South-West corner
+        wardX = minX + 0.9;
+        wardZ = maxZ - 1.2;
+        wardRotY = Math.PI / 2;
+      } else {
+        // South-East corner
+        wardX = maxX - 1.2;
+        wardZ = maxZ - 0.9;
+        wardRotY = Math.PI;
+      }
+
+      const wardW = 1.8;
+      const wardH = 2.6;
+      const wardD = 0.75;
+      const wardMesh = new THREE.Mesh(new THREE.BoxGeometry(wardW, wardH, wardD), wardrobeMat);
+      wardMesh.position.set(wardX, wardH / 2, wardZ);
+      wardMesh.rotation.y = wardRotY;
+      classGroup.add(wardMesh);
+
+      // Handles
+      const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.06), handleMat);
+      h1.position.set(wardX - 0.12, 1.3, wardZ + ((wardRotY === 0) ? (wardD / 2 + 0.02) : -(wardD / 2 + 0.02)));
+      classGroup.add(h1);
+
+      const h2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.06), handleMat);
+      h2.position.set(wardX + 0.12, 1.3, wardZ + ((wardRotY === 0) ? (wardD / 2 + 0.02) : -(wardD / 2 + 0.02)));
+      classGroup.add(h2);
+
+      // AABB Collider for Wardrobe
+      const wardBox = new THREE.Box3();
+      wardBox.min.set(wardX - wardW / 2, 0, wardZ - wardD / 2);
+      wardBox.max.set(wardX + wardW / 2, wardH, wardZ + wardD / 2);
+      this.colliders.push(wardBox);
+
+      this.scene.add(classGroup);
+      this.furniture.push(classGroup);
+    });
+  }
+
+  destroy() {
+    if (this.mapModel) {
+      this.scene.remove(this.mapModel);
+      this.mapModel = null;
+    }
+    if (this.doors) {
+      this.doors.forEach((d) => d.destroy());
+      this.doors = [];
+    }
+    if (this.lights) {
+      this.lights.forEach((l) => this.scene.remove(l));
+      this.lights = [];
+    }
+    if (this.pillars) {
+      this.pillars.forEach((p) => this.scene.remove(p));
+      this.pillars = [];
+    }
+    if (this.furniture) {
+      this.furniture.forEach((f) => this.scene.remove(f));
+      this.furniture = [];
+    }
+    if (this.propsList) {
+      this.propsList.forEach((p) => this.scene.remove(p));
+      this.propsList = [];
+    }
+    if (this.staircases) {
+      this.staircases.forEach((s) => this.scene.remove(s));
+      this.staircases = [];
+    }
+    if (this.elevator && this.elevator.destroy) {
+      this.elevator.destroy();
+      this.elevator = null;
+    }
+    if (this.seminarGate && this.seminarGate.mesh) {
+      this.scene.remove(this.seminarGate.mesh);
+      this.seminarGate = null;
+    }
+    this.colliders = [];
   }
 }

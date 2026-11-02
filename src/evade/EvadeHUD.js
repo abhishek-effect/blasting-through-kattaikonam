@@ -156,6 +156,27 @@ export class EvadeHUD {
               </button>
             </div>
           </div>
+          <div class="voting-section-header" style="margin-top: 15px; margin-bottom: 8px;">
+            <span class="voting-section-title" style="font-size: 13px; font-weight: bold; color: #cbd5e1; text-transform: uppercase;">🗺️ SELECT CAMPUS FLOOR</span>
+          </div>
+          <div class="voting-cards-row">
+            <div id="voting-card-map-ground" class="voting-mode-card active" data-map="ground">
+              <div class="voting-card-icon">🏛️</div>
+              <div class="voting-card-title">GROUND FLOOR</div>
+              <div class="voting-card-desc">Ground campus featuring Science Labs, Computer Lab, Library, and Seminar Hall.</div>
+              <button id="btn-vote-map-ground" class="voting-card-btn active">
+                VOTE GROUND <span id="voting-count-map-ground" class="voting-count-pill">(1)</span>
+              </button>
+            </div>
+            <div id="voting-card-map-first" class="voting-mode-card" data-map="first_floor">
+              <div class="voting-card-icon">🏢</div>
+              <div class="voting-card-title">FIRST FLOOR</div>
+              <div class="voting-card-desc">Upper campus featuring Classrooms 12A-C, 11A-C, 10A-C, Staff Room, and Grand Atrium Stairs!</div>
+              <button id="btn-vote-map-first" class="voting-card-btn">
+                VOTE FIRST FLOOR <span id="voting-count-map-first" class="voting-count-pill">(0)</span>
+              </button>
+            </div>
+          </div>
           <div class="voting-footer">
             <button id="btn-vote-confirm" class="voting-confirm-btn">▶ CONFIRM & START NOW</button>
             <span class="voting-tiebreaker-note">⚖️ If votes are equal, Host's choice decides the winner.</span>
@@ -213,6 +234,14 @@ export class EvadeHUD {
     this.votingCountSurvive = document.getElementById('voting-count-survive');
     this.votingResultBanner = document.getElementById('voting-result-banner');
     this.btnVoteConfirm = document.getElementById('btn-vote-confirm');
+
+    this.votingCardMapGround = document.getElementById('voting-card-map-ground');
+    this.votingCardMapFirst = document.getElementById('voting-card-map-first');
+    this.btnVoteMapGround = document.getElementById('btn-vote-map-ground');
+    this.btnVoteMapFirst = document.getElementById('btn-vote-map-first');
+    this.votingCountMapGround = document.getElementById('voting-count-map-ground');
+    this.votingCountMapFirst = document.getElementById('voting-count-map-first');
+    this.localMapVote = 'ground';
 
     if (this.carryLabelEl) {
       this.carryLabelEl.style.pointerEvents = 'auto';
@@ -549,7 +578,7 @@ export class EvadeHUD {
    * @param {Function} onVoteSelect Callback when player picks 'escape' or 'survive'
    * @param {Function} onConfirmNow Callback when player clicks 'CONFIRM & START NOW'
    */
-  showVotingModal(duration = 10, onVoteSelect = null, onConfirmNow = null) {
+  showVotingModal(duration = 10, onVoteSelect = null, onConfirmNow = null, onMapSelect = null) {
     if (!this.votingModalEl) return;
     this.votingModalEl.classList.remove('hidden');
 
@@ -602,6 +631,40 @@ export class EvadeHUD {
       };
     }
 
+    if (this.btnVoteMapGround) {
+      this.btnVoteMapGround.disabled = false;
+      this.btnVoteMapGround.onclick = (e) => {
+        e.stopPropagation();
+        this.selectLocalMapVote('ground');
+        if (onMapSelect) onMapSelect('ground');
+      };
+    }
+
+    if (this.btnVoteMapFirst) {
+      this.btnVoteMapFirst.disabled = false;
+      this.btnVoteMapFirst.onclick = (e) => {
+        e.stopPropagation();
+        this.selectLocalMapVote('first_floor');
+        if (onMapSelect) onMapSelect('first_floor');
+      };
+    }
+
+    if (this.votingCardMapGround) {
+      this.votingCardMapGround.onclick = () => {
+        if (this.btnVoteMapGround && !this.btnVoteMapGround.disabled) {
+          this.btnVoteMapGround.click();
+        }
+      };
+    }
+
+    if (this.votingCardMapFirst) {
+      this.votingCardMapFirst.onclick = () => {
+        if (this.btnVoteMapFirst && !this.btnVoteMapFirst.disabled) {
+          this.btnVoteMapFirst.click();
+        }
+      };
+    }
+
     this.updateVotingCountdown(duration);
   }
 
@@ -626,7 +689,18 @@ export class EvadeHUD {
     }
   }
 
-  updateVotingTallies(votes, currentLocalVote = 'escape') {
+  selectLocalMapVote(mapId) {
+    this.localMapVote = mapId;
+    if (this.votingCardMapGround && this.votingCardMapFirst) {
+      const isGround = mapId === 'ground';
+      this.votingCardMapGround.classList.toggle('active', isGround);
+      this.votingCardMapFirst.classList.toggle('active', !isGround);
+      if (this.btnVoteMapGround) this.btnVoteMapGround.classList.toggle('active', isGround);
+      if (this.btnVoteMapFirst) this.btnVoteMapFirst.classList.toggle('active', !isGround);
+    }
+  }
+
+  updateVotingTallies(votes, currentLocalVote = 'escape', currentLocalMap = 'ground') {
     if (!votes) return;
     if (this.votingCountEscape) {
       this.votingCountEscape.textContent = `(${votes.escape || 0})`;
@@ -634,12 +708,21 @@ export class EvadeHUD {
     if (this.votingCountSurvive) {
       this.votingCountSurvive.textContent = `(${votes.survive || 0})`;
     }
+    if (this.votingCountMapGround) {
+      this.votingCountMapGround.textContent = `(${votes.ground || 0})`;
+    }
+    if (this.votingCountMapFirst) {
+      this.votingCountMapFirst.textContent = `(${votes.first_floor || 0})`;
+    }
     if (currentLocalVote) {
       this.selectLocalVote(currentLocalVote);
     }
+    if (currentLocalMap) {
+      this.selectLocalMapVote(currentLocalMap);
+    }
   }
 
-  showVotingResult(winnerMode, onComplete) {
+  showVotingResult(result, onComplete) {
     if (!this.votingModalEl) {
       if (onComplete) onComplete();
       return;
@@ -647,9 +730,15 @@ export class EvadeHUD {
 
     if (this.btnVoteEscape) this.btnVoteEscape.disabled = true;
     if (this.btnVoteSurvive) this.btnVoteSurvive.disabled = true;
+    if (this.btnVoteMapGround) this.btnVoteMapGround.disabled = true;
+    if (this.btnVoteMapFirst) this.btnVoteMapFirst.disabled = true;
     if (this.btnVoteConfirm) this.btnVoteConfirm.classList.add('hidden');
 
+    const winnerMode = (typeof result === 'object') ? result.mode : result;
+    const winnerMap = (typeof result === 'object' && result.map) ? result.map : 'ground';
     const isEscape = winnerMode === 'escape';
+    const isFirstFloor = winnerMap === 'first_floor';
+
     if (this.votingCountdownEl) {
       this.votingCountdownEl.textContent = 'VOTING CONCLUDED!';
       this.votingCountdownEl.style.color = '#2ecc71';
@@ -657,9 +746,9 @@ export class EvadeHUD {
 
     if (this.votingResultBanner) {
       this.votingResultBanner.classList.remove('hidden');
-      this.votingResultBanner.textContent = isEscape
-        ? '🏆 RESULT: ESCAPE MODE DECIDED!'
-        : '🏆 RESULT: SURVIVE MODE DECIDED!';
+      const modeText = isEscape ? 'ESCAPE MODE' : 'SURVIVE MODE';
+      const mapText = isFirstFloor ? 'FIRST FLOOR' : 'GROUND FLOOR';
+      this.votingResultBanner.textContent = `🏆 RESULT: ${modeText} ON ${mapText}!`;
       this.votingResultBanner.style.background = isEscape ? '#27ae60' : '#d35400';
     }
 

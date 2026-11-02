@@ -162,4 +162,11 @@ export class Elevator {
     }
     return true;
   }
+
+  destroy() {
+    if (this.group) {
+      this.scene.remove(this.group);
+      this.group = null;
+    }
+  }
 }
