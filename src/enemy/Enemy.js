@@ -108,6 +108,7 @@ export class Enemy {
     this.isBoss = !!config.isBoss || (this.typeId && this.typeId.toLowerCase().includes('boss'));
     this.isBoss2 = !!config.isBoss2 || (this.typeId && (this.typeId.toLowerCase().includes('boss-2') || this.typeId.toLowerCase().includes('boss_2')));
     this.isAadesh = !!config.isAadesh || (this.typeId && this.typeId.toLowerCase().includes('aadesh'));
+    this.isDipu = !!config.isDipu || (this.typeId && this.typeId.toLowerCase().includes('dipu'));
 
     if (this.isSijinil) {
       this.name = 'SIJINIL';
@@ -132,6 +133,20 @@ export class Enemy {
       this.rangedDamage = 16;
       this.rangedInterval = 0.9;
       this.spriteUrl = config.sprite || assetUrl('/images/enemies/aadesh.png');
+    }
+
+    if (this.isDipu) {
+      this.name = 'DIPU';
+      this.targetFigureHeight = 2.45; // Taller than Aadesh (2.15m) and Sijinil (1.68m)
+      this.scaleHeight = 3.2;
+      this.scaleWidth = this.scaleHeight * 0.75;
+      this.attackStyle = 'ranged';
+      this.speed = 3.4;
+      this.maxHealth = 900; // More health than Aadesh (650) and Sijinil (400)
+      this.health = 900;
+      this.rangedDamage = 18;
+      this.rangedInterval = 0.8;
+      this.spriteUrl = config.sprite || assetUrl('/images/enemies/dipu.png');
     }
 
     if (this.isBoss) {
@@ -398,6 +413,9 @@ export class Enemy {
       this.onDropItem('pendrive', this.position.clone());
     }
     if (this.isAadesh && this.onDropItem) {
+      this.onDropItem('photocopy', this.position.clone());
+    }
+    if (this.isDipu && this.onDropItem) {
       this.onDropItem('photocopy', this.position.clone());
     }
     if (this.isBoss && !this.isBoss2 && this.onDropItem) {

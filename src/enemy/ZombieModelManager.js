@@ -60,14 +60,17 @@ class ZombieModelManager {
               fbx.position.y = -box.min.y * scale;
 
               fbx.traverse((child) => {
+                if (child.isLine || child.type.includes('Line') || (child.name && (child.name.toLowerCase().includes('nurb') || child.name.toLowerCase().includes('circle') || child.name.toLowerCase().includes('ikhandle')))) {
+                  child.visible = false;
+                }
                 if (child.isMesh) {
+                  child.frustumCulled = false;
                   child.castShadow = true;
                   child.receiveShadow = true;
                   child.material = new THREE.MeshStandardMaterial({
                     map: texture,
                     roughness: 0.65,
-                    metalness: 0.1,
-                    skinning: true
+                    metalness: 0.1
                   });
                 }
               });
@@ -330,6 +333,17 @@ class ZombieModelManager {
 
     if (chosen.type === 'fbx') {
       clonedModel = SkeletonUtils.clone(chosen.template);
+      clonedModel.traverse((c) => {
+        if (c.isLine || c.type.includes('Line') || (c.name && (c.name.toLowerCase().includes('nurb') || c.name.toLowerCase().includes('circle') || c.name.toLowerCase().includes('ikhandle')))) {
+          c.visible = false;
+        }
+        if (c.isMesh) {
+          c.frustumCulled = false;
+          if (c.material) {
+            c.material = c.material.clone();
+          }
+        }
+      });
       if (chosen.template.animations && chosen.template.animations.length > 0) {
         mixer = new THREE.AnimationMixer(clonedModel);
         const action = mixer.clipAction(chosen.template.animations[0]);
@@ -339,8 +353,11 @@ class ZombieModelManager {
       clonedModel = chosen.template.clone(true);
       // Ensure unique materials so hurt flash is independent
       clonedModel.traverse((c) => {
-        if (c.isMesh && c.material) {
-          c.material = c.material.clone();
+        if (c.isMesh) {
+          c.frustumCulled = false;
+          if (c.material) {
+            c.material = c.material.clone();
+          }
         }
       });
     }

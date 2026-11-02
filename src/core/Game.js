@@ -217,7 +217,7 @@ export class Game {
     }
 
     // Step 3: Preload All Textures & Precompute Metrics
-    try { zombieModelManager.loadAll(); } catch (e) { console.warn("[Game] Zombie model preload:", e); }
+    try { await zombieModelManager.loadAll(); } catch (e) { console.warn("[Game] Zombie model preload:", e); }
     await preloadAllAssets((progress, msg) => {
       this.hud.updateIntroLoading(progress * 0.85, msg);
     });

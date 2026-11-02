@@ -1213,6 +1213,61 @@ Coded by Gemini 3.8 Flash`;
     }, 3800));
   }
 
+  startDetonationCountdown(targetName, onFinished) {
+    this.clearCheckpointCountdown();
+    this._countdownTimeouts = [];
+
+    if (!this.countdownOverlay || !this.countdownNumber) {
+      if (typeof onFinished === 'function') onFinished();
+      return;
+    }
+
+    this.countdownOverlay.classList.remove('hidden');
+
+    const updateStep = (text, sub, isGo = false) => {
+      if (!this.countdownNumber) return;
+      this.countdownNumber.textContent = text;
+      if (this.countdownSub) this.countdownSub.textContent = sub;
+
+      this.countdownNumber.classList.remove('countdown-pop');
+      void this.countdownNumber.offsetWidth;
+      this.countdownNumber.classList.add('countdown-pop');
+
+      if (isGo) {
+        this.countdownNumber.style.color = '#ff3838';
+        this.countdownNumber.style.textShadow = '0 0 40px rgba(255, 56, 56, 0.9), 0 0 80px rgba(231, 76, 60, 0.8), 4px 4px 0px #000';
+      } else {
+        this.countdownNumber.style.color = '#f1c40f';
+        this.countdownNumber.style.textShadow = '0 0 35px rgba(241, 196, 15, 0.9), 0 0 70px rgba(230, 126, 34, 0.8), 4px 4px 0px #000';
+      }
+
+      if (this.audio && this.audio.playCountdownBeep) {
+        this.audio.playCountdownBeep(isGo);
+      }
+    };
+
+    updateStep('3', `${targetName.toUpperCase()} DETONATION IN 3...`, false);
+
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('2', `${targetName.toUpperCase()} DETONATION IN 2...`, false);
+    }, 1000));
+
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('1', `${targetName.toUpperCase()} DETONATION IN 1...`, false);
+    }, 2000));
+
+    this._countdownTimeouts.push(setTimeout(() => {
+      updateStep('💥', `${targetName.toUpperCase()} BREACH DETONATED!`, true);
+      if (typeof onFinished === 'function') {
+        onFinished();
+      }
+    }, 3000));
+
+    this._countdownTimeouts.push(setTimeout(() => {
+      this.countdownOverlay.classList.add('hidden');
+    }, 3700));
+  }
+
   hideAllViews() {
     if (this.mainMenuView) this.mainMenuView.classList.add('hidden');
     if (this.confrontModeView) this.confrontModeView.classList.add('hidden');

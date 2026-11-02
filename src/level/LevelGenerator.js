@@ -345,17 +345,32 @@ export class LevelGenerator {
         child.matrixAutoUpdate = false;
         child.updateMatrix();
 
+        const floorTex = loadTexture(ASSET_PATHS.textures.floor, 1, 1, '#ffffff', '#e0e0e0');
+        floorTex.wrapS = THREE.RepeatWrapping;
+        floorTex.wrapT = THREE.RepeatWrapping;
+        floorTex.repeat.set(30, 30);
+
+        const wallTex = loadTexture(assetUrl('/images/textures/white-wall-texture.jpg'), 1, 1, '#ffffff', '#f5f5f5');
+        wallTex.wrapS = THREE.RepeatWrapping;
+        wallTex.wrapT = THREE.RepeatWrapping;
+        wallTex.repeat.set(16, 4);
+
         const formatMaterial = (mat) => {
           mat.side = THREE.DoubleSide;
-          mat.roughness = 0.7;
+          mat.roughness = 0.75;
           mat.metalness = 0.05;
-          // Apply light pink color #fae6e7 to all walls
-          if (
-            mat.name === 'boundary_wall' ||
-            (!mat.name.includes('black') && !mat.name.includes('white') && !mat.name.includes('ceiling'))
-          ) {
-            mat.color.setHex(0xfae6e7);
+          if (mat.name && (mat.name.includes('white_tiles') || mat.name.includes('tiles') || mat.name.includes('floor'))) {
+            mat.map = floorTex;
+            mat.color.setHex(0xffffff);
+            mat.roughness = 0.65;
+          } else if (mat.name && (mat.name === 'boundary_wall' || (!mat.name.includes('black') && !mat.name.includes('ceiling')))) {
+            mat.map = wallTex;
+            mat.color.setHex(0xffffff);
+            mat.roughness = 0.85;
+          } else if (mat.name && mat.name.includes('black')) {
+            mat.color.setHex(0x222222);
           }
+          mat.needsUpdate = true;
         };
 
         if (Array.isArray(child.material)) {

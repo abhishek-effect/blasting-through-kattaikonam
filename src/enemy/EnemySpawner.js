@@ -288,6 +288,36 @@ export class EnemySpawner {
     return enemy;
   }
 
+  spawnDipu(spawnX, spawnZ) {
+    this.instanceCounter++;
+    const dipuConfig = {
+      id: 'dipu',
+      name: 'DIPU',
+      isDipu: true,
+      isMiniBoss: true,
+      sprite: assetUrl('/images/enemies/dipu.png'),
+      hp: 900,
+      speed: 3.4
+    };
+
+    const enemy = new Enemy(this.scene, this.world, this.audio, dipuConfig, `dipu_${this.instanceCounter}`);
+    enemy.onDeath = (deadEnemy) => {
+      this.handleEnemyKill(deadEnemy, this.lastPlayerRef);
+    };
+
+    if (this.onEnemyDropItem) {
+      enemy.onDropItem = (type, pos) => this.onEnemyDropItem(type, pos);
+    }
+
+    enemy.spawn(spawnX, spawnZ);
+
+    if (this.world && this.world.resolveSphereCollision) {
+      this.world.resolveSphereCollision(enemy.position, enemy.radius);
+    }
+    this.enemies.push(enemy);
+    return enemy;
+  }
+
   spawnAadesh(spawnX, spawnZ) {
     this.instanceCounter++;
     const aadeshConfig = {

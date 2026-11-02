@@ -162,6 +162,11 @@ export class ShootProgression {
               setTimeout(() => {
                 this.spawnAadeshMiniBoss();
               }, 700);
+            } else if (finishedWave === 'physics_lab_zombies') {
+              this.hud.showNotification('🎉 PHYSICS LAB HORDE CLEARED! DIPU IS SPAWNING!', 4.5);
+              setTimeout(() => {
+                this.spawnDipuMiniBoss();
+              }, 700);
             }
           } else {
             this.replenishWaveZombies();
@@ -183,7 +188,22 @@ export class ShootProgression {
       if (enemy.isAadesh) {
         this.isAadeshDead = true;
         if (this.bossHudEl) this.bossHudEl.classList.add('hidden');
-        this.hud.showNotification('👑 MINI BOSS AADESH ELIMINATED! CAMPUS HERO!', 6.0);
+        this.hud.showNotification('👑 MINI BOSS AADESH ELIMINATED!', 5.0);
+        if (this.audio && this.audio.playComboSound) {
+          this.audio.playComboSound(2);
+        }
+        // Objective: Search 2 bookshelves in library for Vernier Caliper
+        this.searchedBookshelvesCount = 0;
+        this.bookshelves.forEach((b) => (b.isSearched = false));
+        this.showWaveBanner('OBJECTIVE: SEARCH LIBRARY', 'SEARCH 2 BOOKSHELVES FOR VERNIER CALIPER (0 / 2)');
+        this.hud.showNotification('🔍 SEARCH THE LIBRARY: Search 2 bookshelves for Vernier Caliper!', 6.0);
+      }
+
+      // 4. Dipu Kill
+      if (enemy.isDipu) {
+        this.isDipuDead = true;
+        if (this.bossHudEl) this.bossHudEl.classList.add('hidden');
+        this.hud.showNotification('👑 MINI BOSS DIPU DEFEATED! CAMPUS LIBERATED!', 6.0);
         if (this.audio && this.audio.playComboSound) {
           this.audio.playComboSound(2);
         }
@@ -444,9 +464,20 @@ export class ShootProgression {
     const livingZombies = this.enemySpawner.getEnemies().filter((e) => !e.isDead && e.isZombie).length;
     const remainingToKill = this.currentWave.target - this.currentWave.kills;
     if (livingZombies < 4 && (this.currentWave.kills + livingZombies) < this.currentWave.target) {
-      const isComp = this.currentWave.type === 'computer_lab_zombies';
-      const sx = isComp ? (8.0 + (Math.random() - 0.5) * 4.0) : (80.0 + (Math.random() - 0.5) * 6.0);
-      const sz = isComp ? (57.0 + (Math.random() - 0.5) * 6.0) : (83.0 + (Math.random() - 0.5) * 6.0);
+      let sx, sz;
+      if (this.currentWave.type === 'computer_lab_zombies') {
+        sx = 8.0 + (Math.random() - 0.5) * 4.0;
+        sz = 57.0 + (Math.random() - 0.5) * 6.0;
+      } else if (this.currentWave.type === 'library_zombies') {
+        sx = 80.0 + (Math.random() - 0.5) * 6.0;
+        sz = 83.0 + (Math.random() - 0.5) * 6.0;
+      } else if (this.currentWave.type === 'physics_lab_zombies') {
+        sx = 48.5 + (Math.random() - 0.5) * 6.0;
+        sz = 8.0 + (Math.random() - 0.5) * 6.0;
+      } else {
+        sx = 40.0;
+        sz = 50.0;
+      }
       this.enemySpawner.spawnZombie(sx, sz, Math.floor(Math.random() * 3));
     }
   }
@@ -624,7 +655,7 @@ export class ShootProgression {
     }
 
     // Update Boss HUD for active mini-boss (Sijinil, Aadesh, or Boss)
-    const activeBoss = this.enemySpawner.getEnemies().find((e) => !e.isDead && (e.isSijinil || e.isAadesh || e.isBoss));
+    const activeBoss = this.enemySpawner.getEnemies().find((e) => !e.isDead && (e.isSijinil || e.isAadesh || e.isDipu || e.isBoss));
     if (activeBoss) {
       if (this.bossHudEl) this.bossHudEl.classList.remove('hidden');
       const bossNameEl = document.getElementById('boss-name');
@@ -716,16 +747,33 @@ export class ShootProgression {
       this.hud.showNotification(`💻 COMPUTER HACKED! (${this.hackedComputersCount}/4) | Pen Drives: ${drivesLeft}`, 3.5);
 
       if (this.hackedComputersCount === 4) {
-        this.hud.showNotification('💻 ALL 4 COMPUTERS HACKED! LIBRARY BREACH INCOMING!', 5.0);
-        this.onLibraryExplodeAndSpawnWave();
+        this.hud.showNotification('💻 ALL 4 COMPUTERS HACKED! DETONATING LIBRARY ENTRANCE...', 4.0);
+        this.hud.startDetonationCountdown('LIBRARY', () => {
+          this.onLibraryExplodeAndSpawnWave();
+        });
       }
     } else if (action.type === 'search_shelf') {
-      this.hasFoundKey = true;
+      const bs = action.target;
+      bs.isSearched = true;
+      this.searchedBookshelvesCount = (this.searchedBookshelvesCount || 0) + 1;
       if (this.audio && this.audio.playPickup) {
         this.audio.playPickup();
       }
-      this.hud.showNotification('🔑 FOUND PHYSICS LAB KEY! Press 4 to hold key.', 5.0);
-      this.equipHoldableItem(this.keyItem);
+
+      if (this.searchedBookshelvesCount < 2) {
+        this.showWaveBanner('OBJECTIVE: SEARCH LIBRARY', `SEARCH 2 BOOKSHELVES FOR VERNIER CALIPER (${this.searchedBookshelvesCount} / 2)`);
+        this.hud.showNotification(`📚 BOOKSHELF SEARCHED (${this.searchedBookshelvesCount}/2)! Search 1 more bookshelf.`, 4.0);
+      } else {
+        this.hasFoundVernier = true;
+        this.equipHoldableItem(this.vernierItem);
+        this.hud.showNotification('📏 VERNIER CALIPER OBTAINED! RETURN TO PHYSICS LAB!', 5.0);
+        this.showWaveBanner('OBJECTIVE: PHYSICS LAB', 'RETURN VERNIER CALIPER TO PHYSICS LAB');
+
+        // Physics Lab door explodes after a 3-second countdown!
+        this.hud.startDetonationCountdown('PHYSICS LAB', () => {
+          this.onPhysicsLabExplodeAndSpawnWave();
+        });
+      }
     } else if (action.type === 'search_wardrobe') {
       this.hasFoundVernier = true;
       if (this.audio && this.audio.playPickup) {
@@ -791,22 +839,23 @@ export class ShootProgression {
       }
     }
 
-    // C. Check Library Bookshelves (Searching for Key)
-    if (this.isLibraryUnlocked && !this.hasFoundKey) {
+    // C. Check Library Bookshelves (Searching for Vernier Caliper after Aadesh)
+    if (this.isAadeshDead && !this.hasFoundVernier && this.isLibraryUnlocked) {
       for (let i = 0; i < this.bookshelves.length; i++) {
         const bs = this.bookshelves[i];
+        if (bs.isSearched) continue;
         const dist = Math.hypot(player.position.x - bs.x, player.position.z - bs.z);
-        if (dist <= 2.2) {
+        if (dist <= 2.4) {
           promptFound = true;
           this.hud.updateInteractionPrompt({
             title: 'CAMPUS BOOKSHELF',
-            subtitle: 'Hold [E] to Search Bookshelf for Key',
+            subtitle: `Hold [E] to Search Bookshelf (${this.searchedBookshelvesCount || 0} / 2 Searched)`,
             isLocked: false
           });
 
           const isHoldingE = input && (input.keys ? input.keys['KeyE'] : false);
           if (isHoldingE && !this.holdAction) {
-            this.startHoldAction('search_shelf', bs, 'SEARCHING BOOKSHELF...', 2.0);
+            this.startHoldAction('search_shelf', bs, 'SEARCHING BOOKSHELF FOR VERNIER CALIPER...', 2.0);
           }
           return;
         }

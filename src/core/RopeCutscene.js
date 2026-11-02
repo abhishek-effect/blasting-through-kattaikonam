@@ -235,8 +235,14 @@ export class RopeCutscene {
 
     this.camera.position.set(this.ropeX + swayX, currentY, this.ropeZ + swayZ);
 
+    // Track the Computer Lab door (14.0, 1.75, 57.0) so player sees the entrance
+    const lookPitch = Math.atan2(1.75 - currentY, 9.5);
+    this.camera.rotation.set(lookPitch, -Math.PI / 2, 0, 'YXZ');
+
     if (this.player) {
       this.player.position.set(this.ropeX + swayX, currentY, this.ropeZ + swayZ);
+      this.player.yaw = -Math.PI / 2;
+      this.player.pitch = lookPitch;
     }
 
     // Animate climbing hands (alternating hand-over-hand slide down)
