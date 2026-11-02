@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Blasting Through Kattaikonam - Retro FPS</title>
-  <link rel="icon" type="image/png" href="./favicon.png" />
-  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-Dchf1YrX.js"></script>
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <script type="module" crossorigin src="/blasting-through-kattaikonam/assets/index-CHonkfUe.js"></script>
   <link rel="modulepreload" crossorigin href="/blasting-through-kattaikonam/assets/three-RPPPn3ow.js">
   <link rel="stylesheet" crossorigin href="/blasting-through-kattaikonam/assets/index-jWdvhgap.css">
 </head>
@@ -460,6 +460,13 @@
         <div class="survival-input-wrapper">
           <input type="text" id="survival-name-input" maxlength="20" placeholder="Enter Codename / Name..." autocomplete="off" spellcheck="false" />
         </div>
+        <div class="survival-map-selector" style="margin: 15px 0;">
+          <label style="color: #cbd5e1; font-weight: bold; font-size: 13px; display: block; margin-bottom: 8px;">SELECT CAMPUS FLOOR:</label>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="btn-survival-map-ground" class="survival-map-btn active" data-map="ground" style="flex: 1; padding: 10px; background: #2563eb; color: #fff; border: 2px solid #3b82f6; border-radius: 6px; cursor: pointer; font-weight: bold;">🏛️ Ground Floor</button>
+            <button type="button" id="btn-survival-map-first" class="survival-map-btn" data-map="first_floor" style="flex: 1; padding: 10px; background: #1e293b; color: #94a3b8; border: 2px solid #334155; border-radius: 6px; cursor: pointer; font-weight: bold;">🏢 First Floor</button>
+          </div>
+        </div>
         <div id="survival-name-error" class="survival-error-msg hidden"></div>
         <div class="survival-modal-buttons">
           <button id="btn-survival-name-confirm" class="menu-btn primary-btn">▶ ENTER SURVIVAL</button>
@@ -498,6 +505,6 @@
       </div>
     </div>
   </div>
-
+
 </body>
 </html>
