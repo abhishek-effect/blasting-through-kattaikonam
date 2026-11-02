@@ -126,7 +126,7 @@ export class RopeCutscene {
     const ropeHeight = 6.0;
     const ropeGeo = new THREE.CylinderGeometry(0.045, 0.045, ropeHeight, 14);
     const ropeMesh = new THREE.Mesh(ropeGeo, ropeMat);
-    ropeMesh.position.set(this.ropeX, ropeHeight / 2, this.ropeZ);
+    ropeMesh.position.set(this.ropeX - 0.32, ropeHeight / 2, this.ropeZ);
     ropeMesh.castShadow = true;
     this.ropeGroup.add(ropeMesh);
 
@@ -134,7 +134,7 @@ export class RopeCutscene {
     const ringGeo = new THREE.TorusGeometry(0.12, 0.03, 8, 16);
     const metalMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
     const ringMesh = new THREE.Mesh(ringGeo, metalMat);
-    ringMesh.position.set(this.ropeX, ropeHeight, this.ropeZ);
+    ringMesh.position.set(this.ropeX - 0.32, ropeHeight, this.ropeZ);
     ringMesh.rotation.x = Math.PI / 2;
     this.ropeGroup.add(ringMesh);
 
@@ -195,6 +195,11 @@ export class RopeCutscene {
       this.player.position.set(this.ropeX, this.startY, this.ropeZ);
       this.player.yaw = -Math.PI / 2; // Face West towards Computer Lab door
       this.player.pitch = -0.15; // Look slightly downward
+      this.player.targetYaw = -Math.PI / 2;
+      this.player.targetPitch = -0.15;
+      if (this.player.updateCameraTransform) {
+        this.player.updateCameraTransform();
+      }
     }
 
     this.camera.position.set(this.ropeX, this.startY, this.ropeZ);
@@ -283,6 +288,11 @@ export class RopeCutscene {
       this.player.position.set(this.ropeX, this.landY, this.ropeZ);
       this.player.yaw = -Math.PI / 2;
       this.player.pitch = 0;
+      this.player.targetYaw = -Math.PI / 2;
+      this.player.targetPitch = 0;
+      if (this.player.updateCameraTransform) {
+        this.player.updateCameraTransform();
+      }
       if (this.player.setWeaponsVisible) {
         this.player.setWeaponsVisible(true);
       }

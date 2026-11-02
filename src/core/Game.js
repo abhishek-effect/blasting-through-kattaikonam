@@ -1,3 +1,4 @@
+import { zombieModelManager } from '../enemy/ZombieModelManager.js';
 /**
  * Game Core Module
  * Ties together:
@@ -216,6 +217,7 @@ export class Game {
     }
 
     // Step 3: Preload All Textures & Precompute Metrics
+    try { zombieModelManager.loadAll(); } catch (e) { console.warn("[Game] Zombie model preload:", e); }
     await preloadAllAssets((progress, msg) => {
       this.hud.updateIntroLoading(progress * 0.85, msg);
     });
@@ -566,6 +568,8 @@ export class Game {
     }
 
     if (this.gameState.currentMode === GAME_MODES.CONFRONT_CAMPAIGN || mode === 'campaign') {
+      const ropePos = new THREE.Vector3(23.5, 5.3, 57.0);
+      this.player.reset(ropePos, -Math.PI / 2);
       this.rifle.reset();
       this.pistol.reset();
       this.medkit.reset();

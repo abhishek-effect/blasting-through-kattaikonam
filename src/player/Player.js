@@ -26,7 +26,7 @@ export class Player {
     this.currentHeight = 1.65;
     this.height = 1.65;
     this.radius = 0.45;
-    this.position = new THREE.Vector3(0, this.height, 18);
+    this.position = new THREE.Vector3(23.5, this.height, 57);
     this.velocity = new THREE.Vector3();
     this.gravity = 18.0;
     this.jumpForce = 7.8;
@@ -235,7 +235,7 @@ export class Player {
     });
   }
 
-  reset(startPosition = new THREE.Vector3(0, this.standHeight, 18), startYaw = 0) {
+  reset(startPosition = new THREE.Vector3(23.5, this.standHeight, 57), startYaw = -Math.PI / 2) {
     this.currentHeight = this.standHeight;
     this.height = this.standHeight;
     this.position.copy(startPosition);
@@ -611,6 +611,7 @@ export class Player {
   }
 
   updateCameraTransform() {
+    this.camera.position.set(this.position.x, this.position.y, this.position.z);
     this.camera.rotation.set(0, 0, 0);
     this.camera.rotation.order = 'YXZ';
     const visualYaw = this.yaw + (this.isLookingBehind ? Math.PI : 0);

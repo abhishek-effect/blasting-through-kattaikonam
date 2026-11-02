@@ -88,9 +88,26 @@ export class Enemy {
     this.attackStyle = Math.random() < 0.5 ? 'melee' : 'ranged';
 
     // Special Boss & Sijinil identification
+    this.isZombie = !!config.isZombie;
+    this.zombieModelIndex = config.zombieModelIndex !== undefined ? config.zombieModelIndex : null;
+    this.zombieInstance = null;
+    if (this.isZombie) {
+      this.targetFigureHeight = 1.8;
+      this.scaleHeight = 1.8;
+      this.scaleWidth = 1.0;
+      this.attackStyle = 'melee';
+      this.meleeDistance = config.attackDistance || 1.8;
+      this.meleeDamage = config.damage || 15;
+      this.meleeInterval = config.attackInterval || 0.85;
+      this.speed = config.speed || 3.5;
+      this.maxHealth = config.hp || 80;
+      this.health = this.maxHealth;
+    }
+
     this.isSijinil = !!config.isSijinil || (this.typeId && this.typeId.toLowerCase().includes('sijinil'));
     this.isBoss = !!config.isBoss || (this.typeId && this.typeId.toLowerCase().includes('boss'));
     this.isBoss2 = !!config.isBoss2 || (this.typeId && (this.typeId.toLowerCase().includes('boss-2') || this.typeId.toLowerCase().includes('boss_2')));
+    this.isAadesh = !!config.isAadesh || (this.typeId && this.typeId.toLowerCase().includes('aadesh'));
 
     if (this.isSijinil) {
       this.name = 'SIJINIL';
@@ -101,6 +118,20 @@ export class Enemy {
       this.rangedDamage = 14;
       this.rangedInterval = 0.85;
       this.spriteUrl = assetUrl('/images/enemies/sijin.png');
+    }
+
+    if (this.isAadesh) {
+      this.name = 'AADESH';
+      this.targetFigureHeight = 2.15; // Noticeably taller than Sijinil (1.68m)
+      this.scaleHeight = 2.7;
+      this.scaleWidth = this.scaleHeight * 0.75;
+      this.attackStyle = 'ranged';
+      this.speed = 3.3;
+      this.maxHealth = 650; // More health than Sijinil (400)
+      this.health = 650;
+      this.rangedDamage = 16;
+      this.rangedInterval = 0.9;
+      this.spriteUrl = config.sprite || assetUrl('/images/enemies/aadesh.png');
     }
 
     if (this.isBoss) {
@@ -154,6 +185,12 @@ export class Enemy {
       this.hitMesh = new THREE.Mesh(hitGeo, sharedHitMat);
       this.hitMesh.userData.enemy = this;
       this.scene.add(this.hitMesh);
+
+      // Create 3D animated zombie model instance
+      this.zombieInstance = zombieModelManager.createZombieInstance(this.zombieModelIndex);
+      if (this.zombieInstance && this.zombieInstance.group) {
+        this.scene.add(this.zombieInstance.group);
+      }
       return;
     }
     const texture = loadTexture(this.spriteUrl, 1, 1, '#ff4444', '#222222');
@@ -297,11 +334,12 @@ export class Enemy {
     this.hurtTimer = 0.18;
     if (this.isZombie && this.zombieInstance) {
       this.zombieInstance.setHurtFlash(isCritical);
-    }
-    if (isCritical) {
-      this.material.color.setRGB(1.0, 0.85, 0.15); // Flash vibrant gold on critical headshot
-    } else {
-      this.material.color.setRGB(1.0, 0.2, 0.2); // Flash red on normal hit
+    } else if (this.material && this.material.color) {
+      if (isCritical) {
+        this.material.color.setRGB(1.0, 0.85, 0.15); // Flash vibrant gold on critical headshot
+      } else {
+        this.material.color.setRGB(1.0, 0.2, 0.2); // Flash red on normal hit
+      }
     }
     this.audio.playEnemyHit();
 
@@ -603,7 +641,9 @@ export class Enemy {
   }
 
   performMeleeAttack(onDamagePlayer) {
-    this.sprite.scale.set(this.scaleWidth * 1.25, this.scaleHeight * 1.25, 1);
+    if (this.sprite) {
+      this.sprite.scale.set(this.scaleWidth * 1.25, this.scaleHeight * 1.25, 1);
+    }
     if (onDamagePlayer) {
       onDamagePlayer(this.meleeDamage, this.position);
     }

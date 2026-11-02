@@ -36,6 +36,7 @@ export class ShootProgression {
     this.keypad = new SecurityKeypad(this.audio, () => this.onKeypadUnlocked());
     this.roomPickups = new RoomPickups(this.scene, this.audio);
     this.dropItems = new DropItemManager(this.scene, this.audio);
+    this.ropeCutscene = new RopeCutscene(this.scene, this.camera, this.player, this.audio, this.hud);
 
     // Holdable Items
     this.keyItem = new HoldableItem(this.camera, this.scene, this.audio, {
@@ -703,10 +704,9 @@ export class ShootProgression {
       pc.isHacked = true;
       this.hackedComputersCount++;
 
-      // Consume 1 pen drive per computer
+      // Keep pen drive active while hacking computers
       if (this.player) {
-        this.player.penDriveCount = Math.max(0, (this.player.penDriveCount || 1) - 1);
-        this.player.hasPenDrive = this.player.penDriveCount > 0;
+        this.player.hasPenDrive = true;
       }
 
       if (this.audio && this.audio.playComboSound) {
@@ -767,8 +767,8 @@ export class ShootProgression {
         const dist = Math.hypot(player.position.x - pc.x, player.position.z - pc.z);
         if (dist <= 2.2) {
           promptFound = true;
-          const driveCount = (player && player.penDriveCount) || 0;
-          if (driveCount <= 0) {
+          const hasDrive = (player && (player.hasPenDrive || player.penDriveCount > 0));
+          if (!hasDrive) {
             this.hud.updateInteractionPrompt({
               title: 'WORKSTATION TERMINAL',
               subtitle: 'Pen drive required to hack computer (Defeat Sijinil)',
@@ -777,7 +777,7 @@ export class ShootProgression {
           } else {
             this.hud.updateInteractionPrompt({
               title: 'WORKSTATION TERMINAL',
-              subtitle: `Hold [E] to Hack Computer (${driveCount} Pen Drive${driveCount > 1 ? 's' : ''})`,
+              subtitle: `Hold [E] to Hack Computer (Pen Drive Inserted)`,
               isLocked: false
             });
 

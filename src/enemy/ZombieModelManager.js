@@ -10,7 +10,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { assetUrl } from '../config/assets.js';
+const BASE = import.meta.env.BASE_URL || '/';
+const assetUrl = (path) => `${BASE}${path.replace(/^\//, '')}`;
 
 class ZombieModelManager {
   constructor() {
