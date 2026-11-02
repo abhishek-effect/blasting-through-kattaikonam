@@ -7,6 +7,9 @@
  */
 import * as THREE from 'three';
 import { loadTexture } from '../config/assets.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 
 const _defaultSparkNormal = new THREE.Vector3(0, 1, 0);
 const _tempSpread = new THREE.Vector2();
@@ -48,6 +51,9 @@ export class WeaponBase {
       : new THREE.Vector3(-0.245, 0.055, 0.01);
 
     this.armsBuilder = config.armsBuilder || null;
+    this.modelUrl = config.modelUrl || null;
+    this.mtlUrl = config.mtlUrl || null;
+    this.modelGroup = null;
 
     // Dynamic Sway & Bobbing
     this.swayX = 0;
@@ -133,6 +139,108 @@ export class WeaponBase {
     this.flashLight.position.copy(this.restPosition).add(this.muzzleOffset);
     this.flashLight.visible = true;
     this.camera.add(this.flashLight);
+
+    // 6. Asynchronously load 3D Weapon Model if specified
+    if (this.modelUrl) {
+      this.load3DModel();
+    }
+  }
+
+  load3DModel() {
+    if (!this.modelUrl) return;
+    const isGlb = /\.glb|\.gltf/i.test(this.modelUrl);
+
+    if (isGlb) {
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        this.modelUrl,
+        (gltf) => {
+          const model = gltf.scene || gltf.scenes[0];
+          this.setup3DModel(model);
+        },
+        undefined,
+        (err) => {
+          console.warn(`[WeaponBase] Failed to load 3D GLTF model "${this.modelUrl}", keeping 2D sprite:`, err);
+        }
+      );
+    } else if (/\.obj/i.test(this.modelUrl)) {
+      if (this.mtlUrl) {
+        const mtlLoader = new MTLLoader();
+        mtlLoader.load(
+          this.mtlUrl,
+          (materials) => {
+            materials.preload();
+            const objLoader = new OBJLoader();
+            objLoader.setMaterials(materials);
+            objLoader.load(
+              this.modelUrl,
+              (obj) => this.setup3DModel(obj),
+              undefined,
+              (err) => console.warn(`[WeaponBase] OBJ load failed:`, err)
+            );
+          },
+          undefined,
+          () => {
+            const objLoader = new OBJLoader();
+            objLoader.load(this.modelUrl, (obj) => this.setup3DModel(obj));
+          }
+        );
+      } else {
+        const objLoader = new OBJLoader();
+        objLoader.load(this.modelUrl, (obj) => this.setup3DModel(obj));
+      }
+    }
+  }
+
+  setup3DModel(model) {
+    if (!model || !this.viewmodelPivot) return;
+
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.renderOrder = 998;
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => {
+              m.depthTest = true;
+            });
+          } else {
+            child.material.depthTest = true;
+          }
+        }
+      }
+    });
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    const targetDim = this.type === 'pistol' ? 0.22 : (this.type === 'mp5' ? 0.38 : 0.52);
+    const scale = (maxDim > 0.001) ? (targetDim / maxDim) : 0.1;
+    model.scale.setScalar(scale);
+    model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+    this.modelGroup = new THREE.Group();
+    this.modelGroup.add(model);
+
+    // Precise first-person stance orientation
+    if (this.type === 'pistol') {
+      this.modelGroup.rotation.set(0, -Math.PI / 2, 0);
+      this.modelGroup.position.set(0, -0.015, 0.02);
+    } else if (this.type === 'mp5') {
+      this.modelGroup.rotation.set(0, Math.PI, 0);
+      this.modelGroup.position.set(0, -0.015, 0);
+    } else if (this.type === 'rifle') {
+      this.modelGroup.rotation.set(0, -Math.PI / 2, 0);
+      this.modelGroup.position.set(0, -0.015, 0);
+    }
+
+    this.viewmodelPivot.add(this.modelGroup);
+    if (this.gunMesh) {
+      this.gunMesh.visible = false; // Hide 2D sprite since 3D mesh is active
+    }
   }
 
   buildImpactParticleSystem() {

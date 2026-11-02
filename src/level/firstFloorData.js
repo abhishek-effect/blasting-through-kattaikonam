@@ -20,12 +20,6 @@ export const firstFloorWalls = [
   { id: 'f1_b_west', minX: 0, maxX: 0, minZ: 0, maxZ: 100 },
 
   // North Wing (Z: 0 to 14)
-  // nw_stairs (X: 16 to 32, Z: 0 to 10) - Doorway at X: 22..26
-  { id: 'f1_nw_stairs_w', minX: 16, maxX: 16, minZ: 0, maxZ: 10 },
-  { id: 'f1_nw_stairs_e', minX: 32, maxX: 32, minZ: 0, maxZ: 10 },
-  { id: 'f1_nw_stairs_s1', minX: 16, maxX: 22, minZ: 10, maxZ: 10 },
-  { id: 'f1_nw_stairs_s2', minX: 26, maxX: 32, minZ: 10, maxZ: 10 },
-
   // staff_room (X: 38 to 52, Z: 0 to 14) - Doorway at X: 43..47
   { id: 'f1_staff_w', minX: 38, maxX: 38, minZ: 0, maxZ: 14 },
   { id: 'f1_staff_e', minX: 52, maxX: 52, minZ: 0, maxZ: 14 },
@@ -80,13 +74,7 @@ export const firstFloorWalls = [
   { id: 'f1_opt_e1', minX: 14, maxX: 14, minZ: 81, maxZ: 87 },
   { id: 'f1_opt_e2', minX: 14, maxX: 14, minZ: 91, maxZ: 97 },
 
-  // East Wing - Grand Staircase Atrium (X: 62 to 98, Z: 25 to 65)
-  // Wide open entrance at West wall (Z: 39..51)
-  { id: 'f1_stairs_n', minX: 62, maxX: 98, minZ: 25, maxZ: 25 },
-  { id: 'f1_stairs_s', minX: 62, maxX: 98, minZ: 65, maxZ: 65 },
-  { id: 'f1_stairs_e', minX: 98, maxX: 98, minZ: 25, maxZ: 65 },
-  { id: 'f1_stairs_w1', minX: 62, maxX: 62, minZ: 25, maxZ: 39 },
-  { id: 'f1_stairs_w2', minX: 62, maxX: 62, minZ: 51, maxZ: 65 },
+  // East Wing - Grand Staircase Atrium (Open, stairs only have collision barrier on steps)
 
   // South Wing (Z: 85 to 100)
   // 10A (X: 52 to 66, Z: 85 to 100) - Doorway at X: 57..61
@@ -153,7 +141,6 @@ export const firstFloorData = {
 
   doorways: [
     // North Doors
-    { id: 'd_f1_nw_stairs', x: 24, z: 10, w: 4.0, dir: 'x', label: 'NORTH STAIRS' },
     { id: 'd_f1_staff', x: 45, z: 14, w: 4.0, dir: 'x', label: 'STAFF ROOM' },
     { id: 'd_f1_12a', x: 62, z: 14, w: 4.0, dir: 'x', label: 'CLASS 12A' },
     { id: 'd_f1_12b', x: 77, z: 14, w: 4.0, dir: 'x', label: 'CLASS 12B' },
@@ -180,7 +167,7 @@ export const firstFloorData = {
     w: 4.0,
     l: 3.0,
     dir: 'z',
-    interactionRadius: 3.5,
+    interactionRadius: 2.2,
     currentFloor: 2,
     targetFloor: 1,
   },

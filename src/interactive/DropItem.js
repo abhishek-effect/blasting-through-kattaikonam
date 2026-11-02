@@ -29,6 +29,18 @@ export class DropItemManager {
       spriteUrl = ASSET_PATHS.items.photocopy;
       lightColor = 0xf1c40f;
       label = 'PHOTOCOPY';
+    } else if (type === 'medkit') {
+      spriteUrl = ASSET_PATHS.weapons.medkit;
+      lightColor = 0x2ecc71;
+      label = 'MEDKIT';
+    } else if (type === 'mp5') {
+      spriteUrl = ASSET_PATHS.weapons.ak47;
+      lightColor = 0x9b59b6;
+      label = 'HK MP5';
+    } else if (type === 'ak47') {
+      spriteUrl = ASSET_PATHS.weapons.ak47;
+      lightColor = 0xe67e22;
+      label = 'AK-47';
     }
 
     const tex = loadTexture(spriteUrl, 1, 1, '#ffffff', '#aaaaaa');

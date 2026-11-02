@@ -36,24 +36,10 @@ export class Door {
     doorTex.wrapS = THREE.ClampToEdgeWrapping;
     doorTex.wrapT = THREE.ClampToEdgeWrapping;
 
+    // Mirrored texture for the right door leaf so the knob is on the left (meeting in the middle)
     this.doorMaterial = new THREE.MeshStandardMaterial({
       map: doorTex,
       color: 0x8d5b32, // Warm rich brown
-      roughness: 0.55,
-      metalness: 0.1,
-      side: THREE.DoubleSide
-    });
-
-    // Mirrored texture for the right door leaf so the knob is on the left (meeting in the middle)
-    const rightDoorTex = loadTexture(ASSET_PATHS.textures.door, 1, 1, '#8b5a2b', '#5c3a21').clone();
-    rightDoorTex.wrapS = THREE.RepeatWrapping;
-    rightDoorTex.repeat.x = -1;
-    rightDoorTex.offset.x = 1;
-    rightDoorTex.needsUpdate = true;
-
-    this.rightDoorMaterial = new THREE.MeshStandardMaterial({
-      map: rightDoorTex,
-      color: 0x8d5b32,
       roughness: 0.55,
       metalness: 0.1,
       side: THREE.DoubleSide
@@ -90,6 +76,16 @@ export class Door {
       this.dir === 'x' ? this.thickness : leafW
     );
 
+    // Clone and horizontally mirror UVs for the left leaf so knob moves from left to right (meeting center seam)
+    // The right leaf uses unmirrored texture where the knob is already on the left (meeting center seam)
+    const leftLeafGeo = leafGeo.clone();
+    const uvs = leftLeafGeo.attributes.uv;
+    for (let i = 0; i < uvs.count; i++) {
+      uvs.setX(i, 1.0 - uvs.getX(i));
+    }
+    uvs.needsUpdate = true;
+    const rightLeafGeo = leafGeo;
+
     // Left Pivot (Hinge 1)
     this.leftPivot = new THREE.Group();
     // Right Pivot (Hinge 2)
@@ -100,15 +96,15 @@ export class Door {
       this.leftPivot.position.set(this.x - halfW, 0, this.z);
       this.rightPivot.position.set(this.x + halfW, 0, this.z);
 
-      // Left Leaf Mesh: offset from hinge by +leafW/2
-      const leftMesh = new THREE.Mesh(leafGeo, this.doorMaterial);
+      // Left Leaf Mesh: offset from hinge by +leafW/2 (mirrored texture UVs so knob is at center seam)
+      const leftMesh = new THREE.Mesh(leftLeafGeo, this.doorMaterial);
       leftMesh.position.set(leafW / 2, this.height / 2, 0);
       leftMesh.castShadow = true;
       leftMesh.receiveShadow = true;
       this.leftPivot.add(leftMesh);
 
-      // Right Leaf Mesh: offset from hinge by -leafW/2
-      const rightMesh = new THREE.Mesh(leafGeo, this.rightDoorMaterial);
+      // Right Leaf Mesh: offset from hinge by -leafW/2 (unmirrored texture where knob is on left = center seam)
+      const rightMesh = new THREE.Mesh(rightLeafGeo, this.doorMaterial);
       rightMesh.position.set(-leafW / 2, this.height / 2, 0);
       rightMesh.castShadow = true;
       rightMesh.receiveShadow = true;
@@ -118,15 +114,15 @@ export class Door {
       this.leftPivot.position.set(this.x, 0, this.z - halfW);
       this.rightPivot.position.set(this.x, 0, this.z + halfW);
 
-      // Left Leaf Mesh: offset along +Z
-      const leftMesh = new THREE.Mesh(leafGeo, this.doorMaterial);
+      // Left Leaf Mesh: offset along +Z (mirrored texture UVs)
+      const leftMesh = new THREE.Mesh(leftLeafGeo, this.doorMaterial);
       leftMesh.position.set(0, this.height / 2, leafW / 2);
       leftMesh.castShadow = true;
       leftMesh.receiveShadow = true;
       this.leftPivot.add(leftMesh);
 
-      // Right Leaf Mesh: offset along -Z
-      const rightMesh = new THREE.Mesh(leafGeo, this.rightDoorMaterial);
+      // Right Leaf Mesh: offset along -Z (unmirrored texture)
+      const rightMesh = new THREE.Mesh(rightLeafGeo, this.doorMaterial);
       rightMesh.position.set(0, this.height / 2, -leafW / 2);
       rightMesh.castShadow = true;
       rightMesh.receiveShadow = true;
@@ -138,7 +134,7 @@ export class Door {
   }
 
   updateCollider() {
-    const halfThick = 0.35;
+    const halfThick = 0.12;
     const halfW = this.width / 2;
 
     if (this.dir === 'x') {

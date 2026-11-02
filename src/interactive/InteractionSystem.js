@@ -6,14 +6,22 @@ export class InteractionSystem {
   constructor(levelOrElevator, hud, enemySpawner = null) {
     if (levelOrElevator && levelOrElevator.elevator !== undefined) {
       this.level = levelOrElevator;
-      this.elevator = levelOrElevator.elevator;
+      this._elevator = levelOrElevator.elevator;
     } else {
       this.level = null;
-      this.elevator = levelOrElevator;
+      this._elevator = levelOrElevator;
     }
     this.hud = hud;
     this.enemySpawner = enemySpawner;
     this.activePrompt = null;
+  }
+
+  get elevator() {
+    return (this.level && this.level.elevator) ? this.level.elevator : this._elevator;
+  }
+
+  set elevator(elev) {
+    this._elevator = elev;
   }
 
   update(player, input) {

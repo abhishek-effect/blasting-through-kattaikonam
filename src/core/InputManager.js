@@ -27,6 +27,8 @@ export class InputManager {
       Digit1: false,
       Digit2: false,
       Digit3: false,
+      Digit4: false,
+      Digit5: false,
       Space: false,
       KeyC: false,
       KeyV: false,
@@ -153,6 +155,8 @@ export class InputManager {
         this.requestedSlot = 2;
       } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
         this.requestedSlot = 3;
+      } else if (e.code === 'Digit5' || e.code === 'Numpad5') {
+        this.requestedSlot = 4;
       } else if (e.code === 'KeyC') {
         this.crouchKeyDownTime = performance.now();
         this.crouchActive = !this.crouchActive;

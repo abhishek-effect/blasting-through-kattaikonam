@@ -20,6 +20,7 @@ import { InteractionSystem } from '../interactive/InteractionSystem.js';
 import { Player } from '../player/Player.js';
 import { Rifle } from '../weapon/Rifle.js';
 import { Pistol } from '../weapon/Pistol.js';
+import { MP5 } from '../weapon/MP5.js';
 import { Medkit } from '../weapon/Medkit.js';
 import { GrenadeManager } from '../weapon/GrenadeManager.js';
 import { EnemySpawner } from '../enemy/EnemySpawner.js';
@@ -72,11 +73,12 @@ export class Game {
     // Player Controller
     this.player = new Player(this.camera, this.level, this.input, this.audio, this.gameState);
 
-    // Weapons & Equipment
+    // Weapons & Equipment (Start with pistol only in progression)
     this.rifle = new Rifle(this.camera, this.scene, this.audio);
     this.pistol = new Pistol(this.camera, this.scene, this.audio);
+    this.mp5 = new MP5(this.camera, this.scene, this.audio);
     this.medkit = new Medkit(this.camera, this.scene, this.audio);
-    this.player.setInventory([this.rifle, this.pistol, this.medkit]);
+    this.player.setInventory([this.pistol]);
 
     // Instance-based Enemy Spawner
     this.enemySpawner = new EnemySpawner(
@@ -245,9 +247,11 @@ export class Game {
       // Make all viewmodel groups and arms temporarily visible to compile shaders upfront
       if (this.rifle.viewmodelGroup) this.rifle.viewmodelGroup.visible = true;
       if (this.pistol.viewmodelGroup) this.pistol.viewmodelGroup.visible = true;
+      if (this.mp5 && this.mp5.viewmodelGroup) this.mp5.viewmodelGroup.visible = true;
       if (this.medkit.viewmodelGroup) this.medkit.viewmodelGroup.visible = true;
       if (this.rifle.mesh) this.rifle.mesh.visible = true;
       if (this.pistol.mesh) this.pistol.mesh.visible = true;
+      if (this.mp5 && this.mp5.mesh) this.mp5.mesh.visible = true;
       if (this.medkit.mesh) this.medkit.mesh.visible = true;
 
       if (this.shootProgression) {
@@ -477,6 +481,7 @@ export class Game {
     }
     if (this.interactionSystem) {
       this.interactionSystem.level = this.level;
+      this.interactionSystem.elevator = this.level ? this.level.elevator : null;
     }
     if (this.evadeGame) {
       this.evadeGame.level = this.level;
@@ -569,9 +574,20 @@ export class Game {
       this.medkit.reset();
       this.medkit.count = Math.max(2, checkpointData.player.medkitCount || 2);
 
+      this.mp5.reset();
+
       this.grenadeManager.reset();
       this.grenadeManager.grenades = Math.max(2, checkpointData.player.grenades || 2);
 
+      const cpSlots = [this.pistol];
+      if (checkpointData.checkpointId === 'computer_lab_wave') {
+        cpSlots.push(this.medkit);
+      } else if (checkpointData.checkpointId === 'physics_lab_wave') {
+        cpSlots.push(this.medkit, this.mp5);
+      } else if (checkpointData.checkpointId === 'seminar_hall_unlocked' || checkpointData.checkpointId === 'first_floor') {
+        cpSlots.push(this.medkit, this.mp5, this.rifle);
+      }
+      this.player.setInventory(cpSlots);
       this.player.switchSlot(0);
 
       if (this.level && this.level.resetSeminarGate) {
@@ -608,7 +624,9 @@ export class Game {
       this.player.reset(ropePos, -Math.PI / 2);
       this.rifle.reset();
       this.pistol.reset();
+      this.mp5.reset();
       this.medkit.reset();
+      this.player.setInventory([this.pistol]);
       this.player.switchSlot(0);
       this.grenadeManager.reset();
 
@@ -705,8 +723,8 @@ export class Game {
 
         // 2. Check Firing / Use Input
         if (activeItem) {
-          if (activeItem.type === 'rifle') {
-            // Automatic rifle: continuous fire while held
+          if (activeItem.isAutomatic || activeItem.type === 'rifle' || activeItem.type === 'mp5') {
+            // Automatic rifle & SMG: continuous fire while held
             if (this.input.isFiring() && activeItem.canShoot()) {
               const shootResult = activeItem.shoot(
                 this.enemySpawner.getEnemies(),
@@ -776,6 +794,7 @@ export class Game {
         // 5. Update Active Weapon & Passive Item Cooldowns
         this.rifle.update(deltaTime, this.player);
         this.pistol.update(deltaTime, this.player);
+        if (this.mp5) this.mp5.update(deltaTime, this.player);
         this.medkit.update(deltaTime, this.player);
 
         // 6. Update Grenades (projectiles, pickups, explosion VFX)

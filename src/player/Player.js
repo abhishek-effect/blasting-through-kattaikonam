@@ -200,6 +200,16 @@ export class Player {
     this.switchSlot(0);
   }
 
+  addWeapon(weapon) {
+    if (!weapon) return;
+    if (!this.slots.includes(weapon)) {
+      this.slots.push(weapon);
+      if (weapon.setVisible) {
+        weapon.setVisible(false);
+      }
+    }
+  }
+
   setWeaponsVisible(visible) {
     this.weaponsHidden = !visible;
     if (!visible) {

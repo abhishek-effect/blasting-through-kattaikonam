@@ -124,7 +124,8 @@ export class Elevator {
     if (!player) return;
 
     const dist = player.position.distanceTo(this.frontPosition);
-    this.isPlayerNear = dist <= this.interactionRadius;
+    const inElevatorBounds = Math.abs(player.position.z - this.data.z) <= 2.2;
+    this.isPlayerNear = dist <= this.interactionRadius && inElevatorBounds;
 
     if (this.isPlayerNear) {
       if (!player.hasPhotocopy) {

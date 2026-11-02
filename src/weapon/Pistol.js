@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { WeaponBase } from './WeaponBase.js';
-import { ASSET_PATHS } from '../config/assets.js';
+import { ASSET_PATHS, assetUrl } from '../config/assets.js';
 import { createPistolArms } from './ArmsViewmodel.js';
 
 export class Pistol extends WeaponBase {
@@ -14,6 +14,7 @@ export class Pistol extends WeaponBase {
       name: 'SERVICE PISTOL',
       type: 'pistol',
       spriteUrl: ASSET_PATHS.weapons.pistol,
+      modelUrl: assetUrl('/images/3d models/pistol/scene.gltf'),
       magSize: 12,
       ammoInMag: 12,
       reserveAmmo: 48,

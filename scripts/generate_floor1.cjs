@@ -1,13 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
-// Wall builder helper for OBJ format
+// Wall builder helper for OBJ format (floor to ceiling)
 function buildWallQuad(x1, z1, x2, z2, h = 5.0) {
   return [
     `v ${x1} 0.0 ${z1}`,
     `v ${x2} 0.0 ${z2}`,
     `v ${x2} ${h.toFixed(1)} ${z2}`,
     `v ${x1} ${h.toFixed(1)} ${z1}`,
+    `f -4 -3 -2 -1\n`
+  ].join('\n');
+}
+
+// Wall header / lintel builder helper (from top of door 3.5m to ceiling 5.0m)
+// This guarantees room signs like "CLASS 11A" never float in mid-air
+function buildLintelQuad(x1, z1, x2, z2, y1 = 3.5, y2 = 5.0) {
+  return [
+    `v ${x1} ${y1.toFixed(2)} ${z1}`,
+    `v ${x2} ${y1.toFixed(2)} ${z2}`,
+    `v ${x2} ${y2.toFixed(2)} ${z2}`,
+    `v ${x1} ${y2.toFixed(2)} ${z1}`,
     `f -4 -3 -2 -1\n`
   ].join('\n');
 }
@@ -51,14 +63,9 @@ let objLines = [
 ];
 
 // Walls definition array for both OBJ and collision Box3s
+// User Requirement: "there should not be walls or doors surrounding steps, they should only be there for rooms"
 const firstFloorWalls = [
   // North Wing (Z: 0 to 14)
-  // nw_stairs (X: 16 to 32, Z: 0 to 10) - Door at X: 22..26
-  { id: 'f1_nw_stairs_w', x1: 16, z1: 0, x2: 16, z2: 10 },
-  { id: 'f1_nw_stairs_e', x1: 32, z1: 0, x2: 32, z2: 10 },
-  { id: 'f1_nw_stairs_s1', x1: 16, z1: 10, x2: 22, z2: 10 },
-  { id: 'f1_nw_stairs_s2', x1: 26, z1: 10, x2: 32, z2: 10 },
-
   // staff_room (X: 38 to 52, Z: 0 to 14) - Door at X: 43..47
   { id: 'f1_staff_w', x1: 38, z1: 0, x2: 38, z2: 14 },
   { id: 'f1_staff_e', x1: 52, z1: 0, x2: 52, z2: 14 },
@@ -113,14 +120,6 @@ const firstFloorWalls = [
   { id: 'f1_opt_e1', x1: 14, z1: 81, x2: 14, z2: 87 },
   { id: 'f1_opt_e2', x1: 14, z1: 91, x2: 14, z2: 97 },
 
-  // East Wing - STAIRS ATRIUM (X: 62 to 98, Z: 25 to 65)
-  // Open wide entrance at West wall (Z: 39..51)
-  { id: 'f1_stairs_n', x1: 62, z1: 25, x2: 98, z2: 25 },
-  { id: 'f1_stairs_s', x1: 62, z1: 65, x2: 98, z2: 65 },
-  { id: 'f1_stairs_e', x1: 98, z1: 25, x2: 98, z2: 65 },
-  { id: 'f1_stairs_w1', x1: 62, z1: 25, x2: 62, z2: 39 },
-  { id: 'f1_stairs_w2', x1: 62, z1: 51, x2: 62, z2: 65 },
-
   // South Wing (Z: 85 to 100)
   // 10A (X: 52 to 66, Z: 85 to 100) - Door at X: 57..61
   { id: 'f1_10a_w', x1: 52, z1: 85, x2: 52, z2: 100 },
@@ -146,6 +145,33 @@ for (const w of firstFloorWalls) {
   objLines.push(buildWallQuad(w.x1, w.z1, w.x2, w.z2));
 }
 
+// Doorway Lintels (from Y=3.5 to Y=5.0) - gives solid backing wall for room signboards
+const doorwayLintels = [
+  // North Doors
+  { id: 'lintel_staff', x1: 43, z1: 14, x2: 47, z2: 14 },
+  { id: 'lintel_12a', x1: 60, z1: 14, x2: 64, z2: 14 },
+  { id: 'lintel_12b', x1: 75, z1: 14, x2: 79, z2: 14 },
+  { id: 'lintel_12c', x1: 91, z1: 14, x2: 95, z2: 14 },
+
+  // West Doors
+  { id: 'lintel_elev', x1: 14, z1: 25, x2: 14, z2: 29 },
+  { id: 'lintel_11a', x1: 14, z1: 40, x2: 14, z2: 44 },
+  { id: 'lintel_11b', x1: 14, z1: 55, x2: 14, z2: 59 },
+  { id: 'lintel_11c', x1: 14, z1: 70, x2: 14, z2: 74 },
+  { id: 'lintel_opt', x1: 14, z1: 87, x2: 14, z2: 91 },
+
+  // South Doors
+  { id: 'lintel_10a', x1: 57, z1: 85, x2: 61, z2: 85 },
+  { id: 'lintel_10b', x1: 74, z1: 85, x2: 78, z2: 85 },
+  { id: 'lintel_10c', x1: 90, z1: 85, x2: 94, z2: 85 },
+];
+
+objLines.push('# --- DOORWAY LINTELS (WALLS ABOVE 3.5m) ---');
+for (const l of doorwayLintels) {
+  objLines.push(`# ${l.id}`);
+  objLines.push(buildLintelQuad(l.x1, l.z1, l.x2, l.z2));
+}
+
 const finalObj = objLines.join('\n');
 const finalMtl = `# floor-1.mtl - Material Definitions for First Floor Campus
 
@@ -168,4 +194,4 @@ Kd 1.0 1.0 1.0
   fs.writeFileSync(path.join(dir, 'floor-1.mtl'), finalMtl);
 });
 
-console.log('Successfully generated floor-1.obj and floor-1.mtl in images/ and public/images/!');
+console.log('Successfully generated floor-1.obj and floor-1.mtl with doorway lintels in images/ and public/images/!');

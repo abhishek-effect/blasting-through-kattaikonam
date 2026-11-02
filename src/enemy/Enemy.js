@@ -411,12 +411,13 @@ export class Enemy {
     }
     if (this.isSijinil && this.onDropItem) {
       this.onDropItem('pendrive', this.position.clone());
+      this.onDropItem('medkit', new THREE.Vector3(this.position.x + 0.8, this.position.y, this.position.z));
     }
     if (this.isAadesh && this.onDropItem) {
-      this.onDropItem('photocopy', this.position.clone());
+      this.onDropItem('mp5', this.position.clone());
     }
     if (this.isDipu && this.onDropItem) {
-      this.onDropItem('photocopy', this.position.clone());
+      this.onDropItem('ak47', this.position.clone());
     }
     if (this.isBoss && !this.isBoss2 && this.onDropItem) {
       this.onDropItem('medkit', this.position.clone());

@@ -53,10 +53,7 @@ export const MAPPU_WALLS = [
   { id: 'bio_east_north', minX: 14, maxX: 14, minZ: 68, maxZ: 73 },
   { id: 'bio_east_south', minX: 14, maxX: 14, minZ: 77, maxZ: 82 },
 
-  // 1e. Unusable Stairs SW (X: 0 to 20, Z: 86 to 100) - Doorway at Z: 89 to 93
-  { id: 'stairs_sw_north', minX: 0, maxX: 20, minZ: 86, maxZ: 86 },
-  { id: 'stairs_sw_east_north', minX: 20, maxX: 20, minZ: 86, maxZ: 89 },
-  { id: 'stairs_sw_east_south', minX: 20, maxX: 20, minZ: 93, maxZ: 100 },
+  // (Unusable Stairs SW has no enclosing walls or doors; stairs only have collision barrier on steps)
 
   // 2. North Wall Rooms (Z: 0 to 14)
   // 2a. Door Locked NW (X: 0 to 14, Z: 0 to 10) - Doorway at X: 4 to 8
@@ -64,11 +61,7 @@ export const MAPPU_WALLS = [
   { id: 'nw_lock_south_w', minX: 0, maxX: 4, minZ: 10, maxZ: 10 },
   { id: 'nw_lock_south_e', minX: 8, maxX: 14, minZ: 10, maxZ: 10 },
 
-  // 2b. NW Stairs (X: 16 to 32, Z: 0 to 10) - Doorway at X: 22 to 26
-  { id: 'nw_stairs_west', minX: 16, maxX: 16, minZ: 0, maxZ: 10 },
-  { id: 'nw_stairs_east', minX: 32, maxX: 32, minZ: 0, maxZ: 10 },
-  { id: 'nw_stairs_south_w', minX: 16, maxX: 22, minZ: 10, maxZ: 10 },
-  { id: 'nw_stairs_south_e', minX: 26, maxX: 32, minZ: 10, maxZ: 10 },
+  // (NW Stairs has no enclosing walls or doors; stairs only have collision barrier on steps)
 
   // 2c. Physics Lab (X: 35 to 62, Z: 0 to 14) - Doorway at X: 46 to 50
   { id: 'phy_west', minX: 35, maxX: 35, minZ: 0, maxZ: 14 },
@@ -257,31 +250,32 @@ export class LevelGenerator {
   buildDoors() {
     this.doors = [];
     let doorConfigs = [];
-    if (this.data.id === 2 || this.data.doorways) {
-      doorConfigs = (this.data.doorways || []).map((d) => ({
-        id: d.id,
-        name: d.label || d.name,
-        x: d.x,
-        z: d.z,
-        width: d.w || d.width || 4.0,
-        height: d.height || 3.5,
-        dir: d.dir || 'x',
-        swingDir: d.swingDir || 1,
-        isLocked: !!d.isLocked,
-        requiresKills: d.requiresKills || 0
-      }));
+    if (this.data.id === 2) {
+      // First Floor: Room doors only (no stairs doors)
+      doorConfigs = (this.data.doorways || [])
+        .filter((d) => !d.id.includes('stairs') && !d.label?.toLowerCase().includes('stairs'))
+        .map((d) => ({
+          id: d.id,
+          name: d.label || d.name,
+          x: d.x,
+          z: d.z,
+          width: d.w || d.width || 4.0,
+          height: d.height || 3.5,
+          dir: d.dir || 'x',
+          swingDir: d.swingDir || 1,
+          isLocked: !!d.isLocked,
+          requiresKills: d.requiresKills || 0
+        }));
     } else {
+      // Ground Floor: Exact door IDs required by progression and game state (no stairs doors)
       doorConfigs = [
         // West Wing Doors
         { id: 'door_infirmary', name: 'INFIRMARY', x: 14, z: 22, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-        // Elevator directly replaces the door at x: 14, z: 39 (no redundant door)
         { id: 'door_computer_lab', name: 'COMPUTER LAB', x: 14, z: 57, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
         { id: 'door_bio_lab', name: 'BIOLOGY LAB', x: 14, z: 75, width: 4.0, height: 3.5, dir: 'z', swingDir: 1 },
-        { id: 'door_stairs_sw', name: 'SOUTH STAIRS', x: 20, z: 91, width: 4.0, height: 3.5, dir: 'z', swingDir: -1 },
 
         // North Wall Doors
         { id: 'door_nw_lock', name: 'DOOR LOCKED', x: 6, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
-        { id: 'door_nw_stairs', name: 'NORTH STAIRS', x: 24, z: 10, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
         { id: 'door_phy_lab', name: 'PHYSICS LAB', x: 48, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
         { id: 'door_locked_room', name: 'FACULTY ARCHIVES', x: 72, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1, isLocked: true },
         { id: 'door_unlockable_room', name: 'UNLOCKABLE ROOM', x: 90, z: 14, width: 4.0, height: 3.5, dir: 'x', swingDir: -1 },
@@ -1981,7 +1975,136 @@ export class LevelGenerator {
       const minZ = r.z - halfL;
       const maxZ = r.z + halfL;
 
-      // 1. Student Desks and Chairs (Facing the door direction!)
+      if (r.id === 'f1_staff_room') {
+        // --- STAFF ROOM SPECIAL LAYOUT ---
+        // User Requirement: "The staff room should have just two rows of desks and seats on both sides,
+        // facing each other along with wardrobes at the far end (two of them on both sides)."
+        
+        // 1. Two rows of desks and seats on both sides facing each other
+        const zPositions = [4.2, 7.2, 10.2];
+        const deskTopW = 0.8;
+        const deskTopD = 1.6;
+
+        zPositions.forEach((dz) => {
+          // West row (desks at X = 42.2, chairs at X = 41.2 facing East +X)
+          const wDeskX = 42.2;
+          const wDeskTop = new THREE.Mesh(new THREE.BoxGeometry(deskTopW, 0.05, deskTopD), deskMat);
+          wDeskTop.position.set(wDeskX, 0.75, dz);
+          classGroup.add(wDeskTop);
+
+          [
+            [-deskTopW / 2 + 0.06, -deskTopD / 2 + 0.06],
+            [deskTopW / 2 - 0.06, -deskTopD / 2 + 0.06],
+            [-deskTopW / 2 + 0.06, deskTopD / 2 - 0.06],
+            [deskTopW / 2 - 0.06, deskTopD / 2 - 0.06],
+          ].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.73, 0.04), deskFrameMat);
+            leg.position.set(wDeskX + ox, 0.365, dz + oz);
+            classGroup.add(leg);
+          });
+
+          // Chair facing East (+X)
+          const wChairX = 41.1;
+          const wChairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.42), chairMat);
+          wChairSeat.position.set(wChairX, 0.45, dz);
+          classGroup.add(wChairSeat);
+
+          const wBack = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.30, 0.40), chairMat);
+          wBack.position.set(wChairX - 0.18, 0.68, dz);
+          classGroup.add(wBack);
+
+          const wDeskBox = new THREE.Box3();
+          wDeskBox.min.set(wDeskX - deskTopW / 2, 0, dz - deskTopD / 2);
+          wDeskBox.max.set(wDeskX + deskTopW / 2, 0.85, dz + deskTopD / 2);
+          this.colliders.push(wDeskBox);
+
+          // East row (desks at X = 47.8, chairs at X = 48.9 facing West -X)
+          const eDeskX = 47.8;
+          const eDeskTop = new THREE.Mesh(new THREE.BoxGeometry(deskTopW, 0.05, deskTopD), deskMat);
+          eDeskTop.position.set(eDeskX, 0.75, dz);
+          classGroup.add(eDeskTop);
+
+          [
+            [-deskTopW / 2 + 0.06, -deskTopD / 2 + 0.06],
+            [deskTopW / 2 - 0.06, -deskTopD / 2 + 0.06],
+            [-deskTopW / 2 + 0.06, deskTopD / 2 - 0.06],
+            [deskTopW / 2 - 0.06, deskTopD / 2 - 0.06],
+          ].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.73, 0.04), deskFrameMat);
+            leg.position.set(eDeskX + ox, 0.365, dz + oz);
+            classGroup.add(leg);
+          });
+
+          // Chair facing West (-X)
+          const eChairX = 48.9;
+          const eChairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.42), chairMat);
+          eChairSeat.position.set(eChairX, 0.45, dz);
+          classGroup.add(eChairSeat);
+
+          const eBack = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.30, 0.40), chairMat);
+          eBack.position.set(eChairX + 0.18, 0.68, dz);
+          classGroup.add(eBack);
+
+          const eDeskBox = new THREE.Box3();
+          eDeskBox.min.set(eDeskX - deskTopW / 2, 0, dz - deskTopD / 2);
+          eDeskBox.max.set(eDeskX + deskTopW / 2, 0.85, dz + deskTopD / 2);
+          this.colliders.push(eDeskBox);
+        });
+
+        // 2. Wardrobes at the far end (two of them on both sides of North wall Z = 1.0)
+        const wardW = 1.8;
+        const wardH = 2.6;
+        const wardD = 0.75;
+        const wardConfigs = [
+          { x: 40.2, z: 1.0 }, // Far end West wardrobe
+          { x: 49.8, z: 1.0 }, // Far end East wardrobe
+        ];
+
+        wardConfigs.forEach((wc) => {
+          const wardMesh = new THREE.Mesh(new THREE.BoxGeometry(wardW, wardH, wardD), wardrobeMat);
+          wardMesh.position.set(wc.x, wardH / 2, wc.z);
+          classGroup.add(wardMesh);
+
+          const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.06), handleMat);
+          h1.position.set(wc.x - 0.12, 1.3, wc.z + wardD / 2 + 0.02);
+          classGroup.add(h1);
+
+          const h2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.06), handleMat);
+          h2.position.set(wc.x + 0.12, 1.3, wc.z + wardD / 2 + 0.02);
+          classGroup.add(h2);
+
+          const wardBox = new THREE.Box3();
+          wardBox.min.set(wc.x - wardW / 2, 0, wc.z - wardD / 2);
+          wardBox.max.set(wc.x + wardW / 2, wardH, wc.z + wardD / 2);
+          this.colliders.push(wardBox);
+        });
+
+        // 3. Whiteboard on South wall near doorway
+        const wbW = 3.2;
+        const wbH = 1.6;
+        const wbGroup = new THREE.Group();
+        wbGroup.position.set(48.5, 0, 13.85);
+        wbGroup.rotation.y = Math.PI;
+
+        const wbFrame = new THREE.Mesh(new THREE.BoxGeometry(wbW, wbH, 0.06), wbFrameMat);
+        wbFrame.position.set(0, 2.0, 0);
+        wbGroup.add(wbFrame);
+
+        const wbFace = new THREE.Mesh(new THREE.BoxGeometry(wbW - 0.12, wbH - 0.12, 0.04), wbMat);
+        wbFace.position.set(0, 2.0, 0.02);
+        wbGroup.add(wbFace);
+
+        const tray = new THREE.Mesh(new THREE.BoxGeometry(wbW - 0.3, 0.04, 0.12), wbFrameMat);
+        tray.position.set(0, 2.0 - wbH / 2 + 0.02, 0.07);
+        wbGroup.add(tray);
+        classGroup.add(wbGroup);
+
+        this.scene.add(classGroup);
+        this.furniture.push(classGroup);
+        return;
+      }
+
+      // 1. Regular Student Desks and Chairs (Facing the door direction!)
       const cols = 2;
       const rows = 3;
       const colSpacing = (r.doorDir.includes('x')) ? 2.6 : 3.0;
@@ -2188,6 +2311,10 @@ export class LevelGenerator {
     if (this.propsList) {
       this.propsList.forEach((p) => this.scene.remove(p));
       this.propsList = [];
+    }
+    if (this.posters) {
+      this.posters.forEach((p) => this.scene.remove(p));
+      this.posters = [];
     }
     if (this.staircases) {
       this.staircases.forEach((s) => this.scene.remove(s));

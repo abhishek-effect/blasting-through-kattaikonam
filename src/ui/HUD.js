@@ -72,7 +72,7 @@ export class HUD {
     this._lastGrenades = -1;
     this._lastMaxGrenades = -1;
     this._lastActiveSlot = -1;
-    this._lastSlotAmmo = ['', '', '', ''];
+    this._lastSlotAmmo = ['', '', '', '', ''];
     this._lastReloadMsg = '';
     this._lastReloadDisplay = 'none';
     this._isKillFlashActive = false;
@@ -85,18 +85,34 @@ export class HUD {
     this.damageNumbers = [];
     this.camera = null;
 
-    // Slot Elements
+    // Slot Elements (Up to 5 dynamic inventory slots)
     this.slotEls = [
       document.getElementById('hud-slot-1'),
       document.getElementById('hud-slot-2'),
       document.getElementById('hud-slot-3'),
       document.getElementById('hud-slot-4'),
+      document.getElementById('hud-slot-5'),
     ];
     this.slotAmmoEls = [
       document.getElementById('slot-1-ammo'),
       document.getElementById('slot-2-ammo'),
       document.getElementById('slot-3-ammo'),
       document.getElementById('slot-4-ammo'),
+      document.getElementById('slot-5-ammo'),
+    ];
+    this.slotNameEls = [
+      document.querySelector('#hud-slot-1 .slot-name'),
+      document.querySelector('#hud-slot-2 .slot-name'),
+      document.querySelector('#hud-slot-3 .slot-name'),
+      document.querySelector('#hud-slot-4 .slot-name'),
+      document.querySelector('#hud-slot-5 .slot-name'),
+    ];
+    this.slotIconEls = [
+      document.querySelector('#hud-slot-1 .slot-icon'),
+      document.querySelector('#hud-slot-2 .slot-icon'),
+      document.querySelector('#hud-slot-3 .slot-icon'),
+      document.querySelector('#hud-slot-4 .slot-icon'),
+      document.querySelector('#hud-slot-5 .slot-icon'),
     ];
 
     // Interaction Prompt
@@ -1081,13 +1097,23 @@ export class HUD {
 Thanks for Playing! <3
 Lead Developer: Pinky
 Creative Head: Dip-u
+Associate Developer: Gamerboy
 Gameplay Music: Alex Morgan
 Assets: Magnify, Pixaby
 Created by Abhishek U and Devkrishna Dipu
-Coded by Gemini 3.8 Flash`;
+With Sijinil AS
+Coded by Gemini 3.8 Flash
+
+3D Models
+"Desktop Computer" (https://skfb.ly/6RCNx) by Tytan is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+"Microscope" (https://skfb.ly/oDZwx) by VeeRuby Technologies Pvt Ltd is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+"Low-Poly HK MP5" (https://skfb.ly/69GDA) by TastyTony is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+"low poly medkit" (https://skfb.ly/oBzAU) by wmalhaa is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+"Low Poly AK-47" () by Astrien is licensed under Creative Commons Attribution-NonCommercial (http://creativecommons.org/licenses/by-nc/4.0/).`;
 
     try {
-      const res = await fetch('./credits.txt');
+      const url = (ASSET_PATHS && ASSET_PATHS.ui && ASSET_PATHS.ui.credits) || './credits.txt';
+      const res = await fetch(url);
       if (res.ok) {
         const text = await res.text();
         if (this.creditsTextEl && text.trim().length > 0) {
@@ -1717,44 +1743,56 @@ Coded by Gemini 3.8 Flash`;
         });
       }
 
-      // Update slot 1 ammo (Rifle)
-      if (player.slots[0] && this.slotAmmoEls[0]) {
-        const a1 = `${player.slots[0].ammoInMag}/${player.slots[0].reserveAmmo}`;
-        if (a1 !== this._lastSlotAmmo[0]) {
-          this._lastSlotAmmo[0] = a1;
-          this.slotAmmoEls[0].textContent = a1;
+      // Dynamically update slots (Pistol, Medkit, MP5, AK-47, Quest Items)
+      this.slotEls.forEach((slotEl, idx) => {
+        if (!slotEl) return;
+        const item = player.slots[idx];
+        if (!item) {
+          slotEl.classList.add('hidden');
+          return;
         }
-      }
+        slotEl.classList.remove('hidden');
 
-      // Update slot 2 ammo (Pistol)
-      if (player.slots[1] && this.slotAmmoEls[1]) {
-        const a2 = `${player.slots[1].ammoInMag}/${player.slots[1].reserveAmmo}`;
-        if (a2 !== this._lastSlotAmmo[1]) {
-          this._lastSlotAmmo[1] = a2;
-          this.slotAmmoEls[1].textContent = a2;
+        // Update Slot Name
+        const nameEl = this.slotNameEls[idx];
+        if (nameEl) {
+          const displayName = item.type === 'rifle' ? 'AK-47' : (item.name || item.type?.toUpperCase() || 'ITEM');
+          if (nameEl.textContent !== displayName) {
+            nameEl.textContent = displayName;
+          }
         }
-      }
 
-      // Update slot 3 count & cooldown (Medkit)
-      if (player.slots[2] && this.slotAmmoEls[2]) {
-        const medkit = player.slots[2];
-        const status = medkit.isUsing ? 'USING...' : medkit.getCooldownText();
-        const a3 = `x${medkit.count} (${status})`;
-        if (a3 !== this._lastSlotAmmo[2]) {
-          this._lastSlotAmmo[2] = a3;
-          this.slotAmmoEls[2].textContent = a3;
+        // Update Slot Icon
+        const iconEl = this.slotIconEls[idx];
+        if (iconEl) {
+          let iconSrc = item.iconUrl || item.spriteUrl;
+          if (item.type === 'pistol' && !iconSrc) iconSrc = './images/weapons/pistol.png';
+          if (item.type === 'rifle' && !iconSrc) iconSrc = './images/weapons/ak47.png';
+          if (item.type === 'mp5') iconSrc = './images/weapons/ak47.png';
+          if (item.type === 'medkit' && !iconSrc) iconSrc = './images/weapons/medkit.png';
+          if (iconSrc && iconEl.getAttribute('src') !== iconSrc) {
+            iconEl.src = iconSrc;
+          }
         }
-      }
 
-      // Update slot 4 item status (Quest item: Physics Key / Vernier Caliper)
-      if (player.slots[3] && this.slotAmmoEls[3]) {
-        const item = player.slots[3];
-        const a4 = item.name ? 'READY' : 'EQUIPPED';
-        if (a4 !== this._lastSlotAmmo[3]) {
-          this._lastSlotAmmo[3] = a4;
-          this.slotAmmoEls[3].textContent = a4;
+        // Update Slot Ammo / Status
+        const ammoEl = this.slotAmmoEls[idx];
+        if (ammoEl) {
+          let ammoText = '';
+          if (item.type === 'medkit') {
+            const status = item.isUsing ? 'USING...' : item.getCooldownText();
+            ammoText = `x${item.count} (${status})`;
+          } else if (item.ammoInMag !== undefined && item.reserveAmmo !== undefined) {
+            ammoText = `${item.ammoInMag}/${item.reserveAmmo}`;
+          } else {
+            ammoText = item.ammoText || (item.name ? 'READY' : 'EQUIPPED');
+          }
+          if (ammoText !== this._lastSlotAmmo[idx]) {
+            this._lastSlotAmmo[idx] = ammoText;
+            ammoEl.textContent = ammoText;
+          }
         }
-      }
+      });
 
       // Center alerts for active item
       if (this.reloadStatusEl) {

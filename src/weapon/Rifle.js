@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { WeaponBase } from './WeaponBase.js';
-import { ASSET_PATHS } from '../config/assets.js';
+import { ASSET_PATHS, assetUrl } from '../config/assets.js';
 import { createRifleArms } from './ArmsViewmodel.js';
 
 export class Rifle extends WeaponBase {
@@ -14,6 +14,8 @@ export class Rifle extends WeaponBase {
       name: 'AK-47 CLASSROOM ENFORCER',
       type: 'rifle',
       spriteUrl: ASSET_PATHS.weapons.ak47,
+      modelUrl: assetUrl('/images/3d models/low-poly-ak-47/ak7finished.obj'),
+      mtlUrl: assetUrl('/images/3d models/low-poly-ak-47/ak7finished.mtl'),
       magSize: 30,
       ammoInMag: 30,
       reserveAmmo: 90,

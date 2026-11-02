@@ -133,6 +133,26 @@ export class ShootProgression {
           this.player.penDriveCount = (this.player.penDriveCount || 0) + 1;
           this.player.hasPenDrive = true;
           this.hud.showNotification(`💾 PEN DRIVE ACQUIRED (x${this.player.penDriveCount})! Hold [E] at Computer Lab PC to hack.`, 4.0);
+        } else if (collectedType === 'medkit') {
+          if (this.game && this.game.medkit) {
+            this.player.addWeapon(this.game.medkit);
+            this.game.medkit.count = Math.max(1, (this.game.medkit.count || 0) + 1);
+          }
+          this.hud.showNotification('💊 MEDKIT ACQUIRED FROM SIJINIL! Press [2] or Tap Medkit to Heal!', 5.0);
+        } else if (collectedType === 'mp5') {
+          if (this.game && this.game.mp5) {
+            this.player.addWeapon(this.game.mp5);
+            const idx = this.player.slots.indexOf(this.game.mp5);
+            if (idx !== -1) this.player.switchSlot(idx);
+          }
+          this.hud.showNotification('🔫 HK MP5 ACQUIRED FROM AADESH! Rapid-Fire SMG Unlocked!', 5.0);
+        } else if (collectedType === 'ak47') {
+          if (this.game && this.game.rifle) {
+            this.player.addWeapon(this.game.rifle);
+            const idx = this.player.slots.indexOf(this.game.rifle);
+            if (idx !== -1) this.player.switchSlot(idx);
+          }
+          this.hud.showNotification('🔥 AK-47 ACQUIRED FROM DIPU! High-Power Assault Rifle Unlocked!', 5.0);
         } else if (collectedType === 'photocopy') {
           this.player.hasPhotocopy = true;
           this.hud.showNotification('📄 PHOTOCOPY OBTAINED! Escape via the Elevator!');
@@ -579,32 +599,32 @@ export class ShootProgression {
   }
 
   equipHoldableItem(item) {
-    // Add to player's 4th slot
-    this.player.slots[3] = item;
-    // Show 4th slot in HUD
-    const slot4 = document.getElementById('hud-slot-4');
-    const slot4Icon = document.getElementById('slot-4-icon');
-    const slot4Name = document.getElementById('slot-4-name');
-    const slot4Ammo = document.getElementById('slot-4-ammo');
-
-    if (slot4) slot4.classList.remove('hidden');
-    if (slot4Icon) slot4Icon.src = item.iconUrl;
-    if (slot4Name) slot4Name.textContent = item.name;
-    if (slot4Ammo) slot4Ammo.textContent = 'READY';
-
-    // Switch player to hold this item
-    this.player.switchSlot(3);
+    if (!item) return;
+    if (!this.player.slots.includes(item)) {
+      this.player.slots.push(item);
+    }
+    const idx = this.player.slots.indexOf(item);
+    this.player.switchSlot(idx);
   }
 
   removeHoldableItem() {
-    if (this.player.slots.length > 3) {
-      const item = this.player.slots[3];
-      if (item && item.setVisible) item.setVisible(false);
-      this.player.slots.splice(3, 1);
+    if (this.vernierItem) {
+      const vernierIdx = this.player.slots.indexOf(this.vernierItem);
+      if (vernierIdx !== -1) {
+        const item = this.player.slots[vernierIdx];
+        if (item && item.setVisible) item.setVisible(false);
+        this.player.slots.splice(vernierIdx, 1);
+      }
     }
-    const slot4 = document.getElementById('hud-slot-4');
-    if (slot4) slot4.classList.add('hidden');
-    this.player.switchSlot(0); // Return to primary weapon (rifle)
+    if (this.keyItem) {
+      const keyIdx = this.player.slots.indexOf(this.keyItem);
+      if (keyIdx !== -1) {
+        const item = this.player.slots[keyIdx];
+        if (item && item.setVisible) item.setVisible(false);
+        this.player.slots.splice(keyIdx, 1);
+      }
+    }
+    this.player.switchSlot(0); // Return to primary weapon
   }
 
   startHoldAction(type, target, label, duration = 2.0) {
@@ -954,7 +974,8 @@ export class ShootProgression {
     if (this.level.elevator) {
       const elev = this.level.elevator;
       const dist = player.position.distanceTo(elev.frontPosition);
-      if (dist <= elev.interactionRadius) {
+      const inElevatorBounds = Math.abs(player.position.z - elev.data.z) <= 2.2;
+      if (dist <= elev.interactionRadius && inElevatorBounds) {
         promptFound = true;
         if (!player.hasPhotocopy) {
           this.hud.updateInteractionPrompt({
