@@ -78,6 +78,7 @@ export class Game {
     this.pistol = new Pistol(this.camera, this.scene, this.audio);
     this.mp5 = new MP5(this.camera, this.scene, this.audio);
     this.medkit = new Medkit(this.camera, this.scene, this.audio);
+    this.player.setAllWeapons([this.rifle, this.pistol, this.mp5, this.medkit]);
     this.player.setInventory([this.pistol]);
 
     // Instance-based Enemy Spawner
@@ -275,7 +276,11 @@ export class Game {
       // Compile all materials against current scene lighting and fog
       this.renderer.compile(this.scene, this.camera);
 
-      // Restore initial slot visibility
+      // Restore initial slot visibility - strictly hide all viewmodels
+      if (this.rifle && this.rifle.viewmodelGroup) this.rifle.viewmodelGroup.visible = false;
+      if (this.pistol && this.pistol.viewmodelGroup) this.pistol.viewmodelGroup.visible = false;
+      if (this.mp5 && this.mp5.viewmodelGroup) this.mp5.viewmodelGroup.visible = false;
+      if (this.medkit && this.medkit.viewmodelGroup) this.medkit.viewmodelGroup.visible = false;
       if (this.shootProgression) {
         if (this.shootProgression.keyItem && this.shootProgression.keyItem.viewmodelGroup) {
           this.shootProgression.keyItem.viewmodelGroup.visible = false;

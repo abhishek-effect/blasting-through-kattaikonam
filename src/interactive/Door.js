@@ -61,10 +61,10 @@ export class Door {
     // Build Blue Plaque Sign with White Border & White Text Above Door Frame
     this.buildRoomSign();
 
-    // Closed Collider
+    // Closed Collider - Per user requirement: Doors are NOT blocked by invisible walls (only stairs have invisible barrier)
     this.collider = new THREE.Box3();
-    this.updateCollider();
-    this.collidersList.push(this.collider);
+    // Do NOT add to collidersList so doorways remain unblocked by invisible walls
+    // this.collidersList.push(this.collider);
   }
 
   buildDoubleDoor() {
@@ -157,17 +157,13 @@ export class Door {
 
     if (this.isOpen) {
       this.targetAngle = (Math.PI * 0.48) * this.swingDir; // ~86 degrees swing
-      // Remove collider so player & enemies can pass freely
       const idx = this.collidersList.indexOf(this.collider);
       if (idx !== -1) {
         this.collidersList.splice(idx, 1);
       }
     } else {
       this.targetAngle = 0;
-      // Re-add collider to block doorway
-      if (!this.collidersList.includes(this.collider)) {
-        this.collidersList.push(this.collider);
-      }
+      // Do not block doorway with invisible wall
     }
 
     if (this.onCollidersChanged) {
@@ -458,9 +454,6 @@ export class Door {
     this.isOpen = false;
     if (this.leftPivot) this.leftPivot.visible = true;
     if (this.rightPivot) this.rightPivot.visible = true;
-    if (!this.collidersList.includes(this.collider)) {
-      this.collidersList.push(this.collider);
-    }
   }
 }
 

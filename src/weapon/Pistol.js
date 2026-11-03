@@ -25,8 +25,8 @@ export class Pistol extends WeaponBase {
       isAutomatic: false, // Semi-automatic!
       viewWidth: 0.40,
       viewHeight: 0.32,
-      restPosition: new THREE.Vector3(0.16, -0.17, -0.42),
-      baseRotation: new THREE.Euler(0.12, -0.32, 0.06, 'YXZ'),
+      restPosition: new THREE.Vector3(0.13, -0.12, -0.38),
+      baseRotation: new THREE.Euler(0.06, -0.18, 0.03, 'YXZ'),
       muzzleOffset: new THREE.Vector3(-0.095, 0.055, 0.01),
       armsBuilder: createPistolArms,
       recoilKickZ: 0.045,

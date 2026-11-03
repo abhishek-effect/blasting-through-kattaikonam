@@ -4,7 +4,9 @@
  * use animation, consumable charges, and 2-minute cooldown.
  */
 import * as THREE from 'three';
-import { loadTexture, ASSET_PATHS } from '../config/assets.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { loadTexture, ASSET_PATHS, assetUrl } from '../config/assets.js';
 import { createMedkitArms } from './ArmsViewmodel.js';
 
 export class Medkit {
@@ -24,15 +26,17 @@ export class Medkit {
     this.isUsing = false;
 
     // Viewmodel
-    this.restPosition = new THREE.Vector3(0.02, -0.18, -0.44);
+    this.restPosition = new THREE.Vector3(0.02, -0.16, -0.42);
     this.baseRotation = new THREE.Euler(0.16, -0.06, 0.02, 'YXZ');
     this.swayX = 0;
     this.swayY = 0;
+    this.modelGroup = null;
 
     this.viewmodelGroup = new THREE.Group();
     this.viewmodelGroup.visible = false;
     this.camera.add(this.viewmodelGroup);
     this.buildViewmodel();
+    this.load3DMedkit();
   }
 
   buildViewmodel() {
@@ -47,8 +51,8 @@ export class Medkit {
       map: tex,
       transparent: true,
       alphaTest: 0.1,
-      depthTest: false,
-      depthWrite: false,
+      depthTest: true,
+      depthWrite: true,
     });
 
     this.mesh = new THREE.Mesh(geo, mat);
@@ -60,8 +64,77 @@ export class Medkit {
     this.viewmodelPivot.add(this.armsGroup);
   }
 
+  load3DMedkit() {
+    const mtlLoader = new MTLLoader();
+    const mtlUrl = assetUrl('/images/3d models/low-poly-medkit/medkit.mtl');
+    const objUrl = assetUrl('/images/3d models/low-poly-medkit/medkit.obj');
+
+    mtlLoader.load(
+      mtlUrl,
+      (materials) => {
+        materials.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.load(
+          objUrl,
+          (obj) => this.setup3DModel(obj),
+          undefined,
+          (err) => console.warn('[Medkit] OBJ load failed:', err)
+        );
+      },
+      undefined,
+      () => {
+        const objLoader = new OBJLoader();
+        objLoader.load(objUrl, (obj) => this.setup3DModel(obj));
+      }
+    );
+  }
+
+  setup3DModel(model) {
+    if (!model || !this.viewmodelPivot) return;
+
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.renderOrder = 998;
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => { m.depthTest = true; });
+          } else {
+            child.material.depthTest = true;
+          }
+        }
+      }
+    });
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const targetDim = 0.28;
+    const scale = (maxDim > 0.001) ? (targetDim / maxDim) : 0.25;
+    model.scale.setScalar(scale);
+    model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+    this.modelGroup = new THREE.Group();
+    this.modelGroup.add(model);
+    // Position comfortably held in front of the player between the hands
+    this.modelGroup.position.set(0.015, -0.01, 0.0);
+    this.modelGroup.rotation.set(0.18, 0.08, -0.04);
+    this.modelGroup.visible = this.viewmodelGroup.visible;
+
+    this.viewmodelPivot.add(this.modelGroup);
+    if (this.mesh) {
+      this.mesh.visible = false; // Hide 2D fallback plane once 3D medkit is loaded
+    }
+  }
+
   setVisible(visible) {
     this.viewmodelGroup.visible = visible;
+    if (this.modelGroup) {
+      this.modelGroup.visible = visible;
+    }
   }
 
   use(player) {

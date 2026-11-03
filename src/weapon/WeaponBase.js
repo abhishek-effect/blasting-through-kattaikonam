@@ -217,7 +217,7 @@ export class WeaponBase {
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
 
-    const targetDim = this.type === 'pistol' ? 0.22 : (this.type === 'mp5' ? 0.38 : 0.52);
+    const targetDim = this.type === 'pistol' ? 0.23 : (this.type === 'mp5' ? 0.38 : 0.52);
     const scale = (maxDim > 0.001) ? (targetDim / maxDim) : 0.1;
     model.scale.setScalar(scale);
     model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
@@ -225,17 +225,25 @@ export class WeaponBase {
     this.modelGroup = new THREE.Group();
     this.modelGroup.add(model);
 
-    // Precise first-person stance orientation
+    // Precise first-person stance orientation - All guns face outwards facing enemies (-Z)
     if (this.type === 'pistol') {
-      this.modelGroup.rotation.set(0, -Math.PI / 2, 0);
-      this.modelGroup.position.set(0, -0.015, 0.02);
+      // Model barrel points along +Z, converted to +Y by root matrix.
+      // [-PI/2, PI/2, 0] rotates barrel to -Z (facing enemies) and handle to -Y (grip facing down)
+      this.modelGroup.rotation.set(-Math.PI / 2, Math.PI / 2, 0);
+      // Lifted up so the base handle/grip is completely visible on screen
+      this.modelGroup.position.set(0.035, 0.045, 0.02);
     } else if (this.type === 'mp5') {
-      this.modelGroup.rotation.set(0, Math.PI, 0);
-      this.modelGroup.position.set(0, -0.015, 0);
+      // Model barrel is along +X. Rotating around Y by +PI/2 faces barrel outward along -Z
+      this.modelGroup.rotation.set(0, Math.PI / 2, 0);
+      this.modelGroup.position.set(0.02, -0.015, -0.06);
     } else if (this.type === 'rifle') {
-      this.modelGroup.rotation.set(0, -Math.PI / 2, 0);
-      this.modelGroup.position.set(0, -0.015, 0);
+      // AK-47 barrel is along +X. Rotating around Y by +PI/2 faces barrel outward along -Z
+      this.modelGroup.rotation.set(0, Math.PI / 2, 0);
+      this.modelGroup.position.set(0.02, -0.015, -0.08);
     }
+
+    // Match visibility with current viewmodel visibility so inactive weapons never pop in
+    this.modelGroup.visible = this.viewmodelGroup.visible;
 
     this.viewmodelPivot.add(this.modelGroup);
     if (this.gunMesh) {
@@ -281,6 +289,9 @@ export class WeaponBase {
 
   setVisible(visible) {
     this.viewmodelGroup.visible = visible;
+    if (this.modelGroup) {
+      this.modelGroup.visible = visible;
+    }
   }
 
   canShoot() {
@@ -435,13 +446,62 @@ export class WeaponBase {
     }
 
     // 3. Calculate Viewmodel Animation, Recoil, Sway, and Movement Bob
-    let reloadDip = 0;
-    let reloadPitch = 0;
+    let reloadOffX = 0;
+    let reloadOffY = 0;
+    let reloadOffZ = 0;
+    let reloadRotX = 0;
+    let reloadRotY = 0;
+    let reloadRotZ = 0;
+
     if (this.isReloading) {
       this.reloadTimer -= deltaTime;
-      const reloadProgress = 1 - (this.reloadTimer / this.reloadDuration);
-      reloadDip = Math.sin(reloadProgress * Math.PI) * 0.16;
-      reloadPitch = Math.sin(reloadProgress * Math.PI) * 0.18;
+      const p = Math.max(0, Math.min(1.0, 1 - (this.reloadTimer / this.reloadDuration)));
+
+      if (p < 0.22) {
+        // Phase 1: Lower & cant to side to access magwell
+        const t = p / 0.22;
+        const s = t * t * (3 - 2 * t);
+        reloadOffX = -0.025 * s;
+        reloadOffY = -0.065 * s;
+        reloadOffZ = -0.015 * s;
+        reloadRotX = 0.12 * s;
+        reloadRotY = 0.18 * s;
+        reloadRotZ = -0.24 * s;
+      } else if (p < 0.42) {
+        // Phase 2: Mag drop / eject impulse (sharp downward jerk)
+        const t = (p - 0.22) / 0.20;
+        const ejectJerk = Math.sin(t * Math.PI) * 0.03;
+        reloadOffX = -0.025;
+        reloadOffY = -0.065 - ejectJerk;
+        reloadOffZ = -0.015;
+        reloadRotX = 0.12 - ejectJerk * 0.8;
+        reloadRotY = 0.18;
+        reloadRotZ = -0.24 + ejectJerk * 0.5;
+      } else if (p < 0.72) {
+        // Phase 3: Fresh magazine inserted & slammed home into battery
+        const t = (p - 0.42) / 0.30;
+        let slam = 0;
+        if (t >= 0.55) {
+          slam = Math.sin(((t - 0.55) / 0.45) * Math.PI) * 0.035;
+        }
+        reloadOffX = THREE.MathUtils.lerp(-0.025, -0.01, t);
+        reloadOffY = -0.065 + (t * 0.02) + slam;
+        reloadOffZ = -0.015;
+        reloadRotX = THREE.MathUtils.lerp(0.12, 0.06, t) - slam * 0.5;
+        reloadRotY = THREE.MathUtils.lerp(0.18, 0.08, t);
+        reloadRotZ = THREE.MathUtils.lerp(-0.24, -0.10, t) + slam * 0.6;
+      } else {
+        // Phase 4: Bolt rack / slide pull & return to ready firing position
+        const t = (p - 0.72) / 0.28;
+        const rack = Math.sin(Math.min(1.0, t * 1.8) * Math.PI) * 0.035;
+        const returnT = t * t * (3 - 2 * t);
+        reloadOffX = THREE.MathUtils.lerp(-0.01, 0, returnT);
+        reloadOffY = THREE.MathUtils.lerp(-0.045, 0, returnT);
+        reloadOffZ = rack + THREE.MathUtils.lerp(-0.015, 0, returnT);
+        reloadRotX = -rack * 0.3 + THREE.MathUtils.lerp(0.06, 0, returnT);
+        reloadRotY = THREE.MathUtils.lerp(0.08, 0, returnT);
+        reloadRotZ = THREE.MathUtils.lerp(-0.10, 0, returnT);
+      }
 
       if (this.reloadTimer <= 0) {
         const needed = this.magSize - this.ammoInMag;
@@ -486,15 +546,15 @@ export class WeaponBase {
 
     // Apply combined transforms to the viewmodel pivot
     this.viewmodelPivot.position.set(
-      this.restPosition.x + this.swayX + bobX,
-      this.restPosition.y + this.swayY + bobY - reloadDip + crouchSlideY,
-      this.restPosition.z + this.currentRecoilZ
+      this.restPosition.x + this.swayX + bobX + reloadOffX,
+      this.restPosition.y + this.swayY + bobY + reloadOffY + crouchSlideY,
+      this.restPosition.z + this.currentRecoilZ + reloadOffZ
     );
 
     this.viewmodelPivot.rotation.set(
-      this.baseRotation.x + this.currentRecoilRot - reloadPitch,
-      this.baseRotation.y,
-      this.baseRotation.z + this.swayRotZ + slideRotZ,
+      this.baseRotation.x + this.currentRecoilRot + reloadRotX,
+      this.baseRotation.y + reloadRotY,
+      this.baseRotation.z + this.swayRotZ + slideRotZ + reloadRotZ,
       'YXZ'
     );
 

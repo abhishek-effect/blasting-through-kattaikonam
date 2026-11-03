@@ -181,6 +181,7 @@ export class Player {
 
     // Inventory slots: [Rifle, Pistol, Medkit]
     this.slots = [];
+    this.allWeapons = [];
     this.activeSlotIndex = 0;
 
     // Notification callback for HUD
@@ -189,10 +190,20 @@ export class Player {
     this.reset(new THREE.Vector3(0, this.height, 18));
   }
 
+  setAllWeapons(weapons = []) {
+    this.allWeapons = weapons;
+  }
+
   setInventory(slots = []) {
     this.slots = slots;
     this.weaponsHidden = false;
-    // Hide all viewmodels initially
+    // Hide all viewmodels initially across all known weapons
+    if (this.allWeapons && this.allWeapons.length > 0) {
+      this.allWeapons.forEach((w) => {
+        if (w && w.setVisible) w.setVisible(false);
+        else if (w && w.viewmodelGroup) w.viewmodelGroup.visible = false;
+      });
+    }
     this.slots.forEach((s) => {
       if (s && s.setVisible) s.setVisible(false);
     });
@@ -213,12 +224,25 @@ export class Player {
   setWeaponsVisible(visible) {
     this.weaponsHidden = !visible;
     if (!visible) {
+      if (this.allWeapons && this.allWeapons.length > 0) {
+        this.allWeapons.forEach((w) => {
+          if (w && w.setVisible) w.setVisible(false);
+          else if (w && w.viewmodelGroup) w.viewmodelGroup.visible = false;
+        });
+      }
       this.slots.forEach((s) => {
         if (s && s.setVisible) s.setVisible(false);
       });
     } else {
       const slotToUse = (this.activeSlotIndex >= 0 && this.activeSlotIndex < this.slots.length) ? this.activeSlotIndex : 0;
       this.activeSlotIndex = slotToUse;
+      const activeItem = this.slots[slotToUse];
+      if (this.allWeapons && this.allWeapons.length > 0) {
+        this.allWeapons.forEach((w) => {
+          if (w && w.setVisible) w.setVisible(w === activeItem);
+          else if (w && w.viewmodelGroup) w.viewmodelGroup.visible = (w === activeItem);
+        });
+      }
       this.slots.forEach((slot, idx) => {
         if (slot && slot.setVisible) {
           slot.setVisible(idx === slotToUse);
@@ -236,8 +260,15 @@ export class Player {
     if (this.weaponsHidden) return;
     if (slotIndex < 0 || slotIndex >= this.slots.length) return;
     this.activeSlotIndex = slotIndex;
+    const activeItem = this.slots[this.activeSlotIndex];
 
     // Strict exclusive visibility so weapons NEVER overlap
+    if (this.allWeapons && this.allWeapons.length > 0) {
+      this.allWeapons.forEach((w) => {
+        if (w && w.setVisible) w.setVisible(w === activeItem);
+        else if (w && w.viewmodelGroup) w.viewmodelGroup.visible = (w === activeItem);
+      });
+    }
     this.slots.forEach((slot, idx) => {
       if (slot && slot.setVisible) {
         slot.setVisible(idx === this.activeSlotIndex);

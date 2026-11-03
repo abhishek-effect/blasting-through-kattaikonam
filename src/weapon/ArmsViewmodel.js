@@ -9,38 +9,38 @@ import * as THREE from 'three';
 // Shared materials for uniform sleeve and skin
 const sleeveMaterial = new THREE.MeshBasicMaterial({
   color: 0x1e293b, // Navy blue uniform fabric
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 const cuffMaterial = new THREE.MeshBasicMaterial({
   color: 0x0f172a, // Darker sleeve cuff trim
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 const watchStrapMaterial = new THREE.MeshBasicMaterial({
   color: 0x18181b, // Black watch strap
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 const watchBezelMaterial = new THREE.MeshBasicMaterial({
   color: 0xa1a1aa, // Metallic digital watch face
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 const skinMaterial = new THREE.MeshBasicMaterial({
   color: 0xb57c55, // Warm skin tone
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 const skinDarkMaterial = new THREE.MeshBasicMaterial({
   color: 0x935d3d, // Shaded underside of hand/fingers
-  depthTest: false,
-  depthWrite: false,
+  depthTest: true,
+  depthWrite: true,
 });
 
 /**
